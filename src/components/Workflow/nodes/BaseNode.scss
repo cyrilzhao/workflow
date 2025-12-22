@@ -1,0 +1,58 @@
+.workflow-node {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  min-width: 200px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+
+  &:hover {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  &.selected {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  }
+
+  &-header {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f9fafb;
+    border-radius: 8px 8px 0 0;
+
+    .workflow-node-icon {
+      margin-right: 8px;
+      color: #6b7280;
+      display: flex;
+      align-items: center;
+    }
+
+    .workflow-node-title {
+      font-weight: 600;
+      color: #374151;
+      font-size: 14px;
+    }
+  }
+
+  &-body {
+    padding: 12px;
+    font-size: 12px;
+    color: #6b7280;
+  }
+}
+
+.workflow-handle {
+  width: 8px;
+  height: 8px;
+  background: #9ca3af;
+  border: 2px solid white;
+
+  &:hover {
+    background: #3b82f6;
+    width: 10px;
+    height: 10px;
+  }
+}

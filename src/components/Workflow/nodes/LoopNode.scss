@@ -1,0 +1,10 @@
+.loop-node {
+  .workflow-handle {
+    &.loop-start {
+      left: 25%;
+    }
+    &.loop-end {
+      left: 75%;
+    }
+  }
+}

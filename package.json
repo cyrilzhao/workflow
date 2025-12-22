@@ -16,9 +16,11 @@
   "dependencies": {
     "@tanstack/react-query": "^5.90.12",
     "axios": "^1.13.2",
+    "lucide-react": "^0.562.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.11.0",
+    "reactflow": "^11.11.4",
     "zustand": "^5.0.9"
   },
   "devDependencies": {
