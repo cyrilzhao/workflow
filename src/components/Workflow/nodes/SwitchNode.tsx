@@ -1,6 +1,6 @@
 import React from 'react';
 import { GitBranch } from 'lucide-react';
-import { Position } from 'reactflow';
+import { Position, Handle } from 'reactflow';
 import BaseNode from './BaseNode';
 import type { CustomNodeProps } from '../types';
 import './SwitchNode.scss';
@@ -17,15 +17,7 @@ const SwitchNode: React.FC<CustomNodeProps> = ({ data, selected }) => {
     { id: 'false', label: 'False' },
   ];
 
-  const handles = [
-    { type: 'target', position: Position.Left, id: 'entry' },
-    ...cases.map((c: SwitchCase, index: number) => ({
-      type: 'source',
-      position: Position.Right,
-      id: c.id,
-      style: { top: `${((index + 1) * 100) / (cases.length + 1)}%` },
-    })),
-  ];
+  const handles = [{ type: 'target', position: Position.Left, id: 'entry' }];
 
   return (
     <BaseNode
@@ -33,14 +25,15 @@ const SwitchNode: React.FC<CustomNodeProps> = ({ data, selected }) => {
       icon={<GitBranch size={16} />}
       selected={selected}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      handles={handles as any} // Typing issue workaround, can be improved
+      handles={handles as any}
       className="switch-node"
     >
       {data.description && <p>{data.description}</p>}
       <div className="switch-cases">
         {cases.map((c: SwitchCase) => (
-          <div key={c.id} className="switch-case-label">
-            {c.label}
+          <div key={c.id} className="switch-case-wrapper">
+            <div className="switch-case-label">{c.label}</div>
+            <Handle type="source" position={Position.Right} id={c.id} className="switch-handle" />
           </div>
         ))}
       </div>

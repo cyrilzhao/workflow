@@ -31,63 +31,103 @@ const initialNodes: WorkflowNode[] = [
   {
     id: 'start',
     type: 'start',
-    position: { x: 50, y: 300 },
+    position: { x: 0, y: 300 },
     data: { label: 'Start' },
+  },
+  // Switch
+  {
+    id: 'switch-mode',
+    type: 'switch',
+    position: { x: 250, y: 300 },
+    data: {
+      label: 'Select Mode',
+      cases: [
+        { id: 'complex', label: 'Complex Loop' },
+        { id: 'simple', label: 'Simple Path' },
+        { id: 'other', label: 'Other' },
+      ],
+    },
+  },
+  // Simple Path Node
+  {
+    id: 'node-simple',
+    type: 'message',
+    position: { x: 500, y: 100 },
+    data: { label: 'Simple Task', content: 'Doing simple work...' },
   },
   // Outer Loop
   {
     id: 'loop-outer',
     type: 'loop',
-    position: { x: 300, y: 300 },
+    position: { x: 500, y: 300 },
     data: { label: 'Outer Loop', description: 'Process Items' },
   },
   // Node A (Inside Outer, Before Inner)
   {
     id: 'node-a',
     type: 'message',
-    position: { x: 300, y: 500 },
+    position: { x: 500, y: 500 },
     data: { label: 'Node A', content: 'Pre-process item' },
   },
   // Inner Loop
   {
     id: 'loop-inner',
     type: 'loop',
-    position: { x: 600, y: 500 },
+    position: { x: 800, y: 500 },
     data: { label: 'Inner Loop', description: 'Process Sub-items' },
   },
   // Node C (Inside Inner)
   {
     id: 'node-c',
     type: 'message',
-    position: { x: 600, y: 700 },
+    position: { x: 800, y: 700 },
     data: { label: 'Node C', content: 'Step 1' },
   },
   // Node D (Inside Inner)
   {
     id: 'node-d',
     type: 'message',
-    position: { x: 900, y: 700 },
+    position: { x: 1100, y: 700 },
     data: { label: 'Node D', content: 'Step 2' },
   },
   // Node B (Inside Outer, After Inner)
   {
     id: 'node-b',
     type: 'message',
-    position: { x: 900, y: 500 },
+    position: { x: 1100, y: 500 },
     data: { label: 'Node B', content: 'Post-process item' },
   },
   // End
   {
     id: 'end',
     type: 'end',
-    position: { x: 600, y: 300 },
+    position: { x: 1100, y: 300 },
     data: { label: 'End' },
   },
 ];
 
 const initialEdges: WorkflowEdge[] = [
-  // Start -> Outer Loop
-  { id: 'e1', source: 'start', target: 'loop-outer', targetHandle: 'entry' },
+  // Start -> Switch
+  { id: 'e1', source: 'start', target: 'switch-mode', targetHandle: 'entry' },
+
+  // Switch -> Simple
+  {
+    id: 'e-sw-simple',
+    source: 'switch-mode',
+    sourceHandle: 'simple',
+    target: 'node-simple',
+    targetHandle: 'entry',
+  },
+  { id: 'e-simple-end', source: 'node-simple', target: 'end', targetHandle: 'entry' },
+
+  // Switch -> Complex (Outer Loop)
+  {
+    id: 'e-sw-complex',
+    source: 'switch-mode',
+    sourceHandle: 'complex',
+    target: 'loop-outer',
+    targetHandle: 'entry',
+  },
 
   // Outer Loop Body: Outer -> A -> Inner -> B -> Outer
   { id: 'e-outer-start', source: 'loop-outer', sourceHandle: 'loop-start', target: 'node-a' },
