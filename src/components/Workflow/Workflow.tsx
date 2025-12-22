@@ -9,6 +9,7 @@ import ReactFlow, {
   type Connection,
   type Edge,
   ReactFlowProvider,
+  MarkerType,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
@@ -68,6 +69,14 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
         nodesDraggable={!readonly}
         nodesConnectable={!readonly}
         elementsSelectable={!readonly}
+        defaultEdgeOptions={{
+          type: 'default',
+          // markerEnd: { type: MarkerType.ArrowClosed },
+          // @ts-ignore - curvature is a valid prop for BezierEdge but might not be in the strict default types
+          curvature: 0.9,
+          animated: true,
+          zIndex: 999,
+        }}
       >
         <Controls />
         <MiniMap />
