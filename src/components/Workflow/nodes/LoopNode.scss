@@ -1,10 +1,38 @@
 .loop-node {
+  position: relative; // Ensure handles are positioned relative to this
+
   .workflow-handle {
     &.loop-start {
-      left: 25%;
+      left: 25% !important;
     }
     &.loop-end {
-      left: 75%;
+      left: 75% !important;
+    }
+  }
+
+  .loop-handles-footer {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+    padding-top: 8px;
+
+    .loop-handle-label {
+      font-size: 10px;
+      color: #9ca3af;
+      text-transform: uppercase;
+      font-weight: 500;
+      position: absolute;
+      bottom: 4px; // Position inside the node, above handles
+
+      &.start {
+        left: 25%;
+        transform: translateX(-50%);
+      }
+
+      &.end {
+        left: 75%;
+        transform: translateX(-50%);
+      }
     }
   }
 }

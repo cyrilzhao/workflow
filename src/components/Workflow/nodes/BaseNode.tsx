@@ -25,8 +25,11 @@ const BaseNode: React.FC<BaseNodeProps> = ({
   handles = [],
   className = '',
 }) => {
+  const hasBody = !!children;
   return (
-    <div className={`workflow-node ${selected ? 'selected' : ''} ${className}`}>
+    <div
+      className={`workflow-node ${selected ? 'selected' : ''} ${!hasBody ? 'no-body' : ''} ${className}`}
+    >
       <div className="workflow-node-header">
         {icon && <div className="workflow-node-icon">{icon}</div>}
         <div className="workflow-node-title">{title}</div>

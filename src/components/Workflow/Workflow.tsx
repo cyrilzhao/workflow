@@ -9,13 +9,14 @@ import ReactFlow, {
   type Connection,
   type Edge,
   ReactFlowProvider,
-  MarkerType,
+  useReactFlow,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
 import { nodeTypes as defaultNodeTypes } from './nodes';
-import type { WorkflowProps } from './types';
+import type { WorkflowProps, WorkflowNode } from './types';
 import './Workflow.scss';
+import { WorkflowPanel } from './WorkflowPanel';
 
 const WorkflowContent: React.FC<WorkflowProps> = ({
   initialNodes = [],
@@ -25,8 +26,9 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
   onEdgesChange: _onEdgesChangeProp,
   readonly = false,
 }) => {
-  const [nodes, , onNodesChange] = useNodesState(initialNodes);
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const { screenToFlowPosition } = useReactFlow();
 
   const onConnect = useCallback(
     (params: Connection | Edge) => setEdges(eds => addEdge(params, eds)),
@@ -56,8 +58,46 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
     [onNodesChange, onNodesChangeProp]
   );
 
+  const onDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+
+      const type = event.dataTransfer.getData('application/reactflow');
+
+      // check if the dropped element is valid
+      if (typeof type === 'undefined' || !type) {
+        return;
+      }
+
+      const position = screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+
+      const newNode: WorkflowNode = {
+        id: `${type}-${Date.now()}`,
+        type,
+        position,
+        data: { label: `${type}` },
+      };
+
+      setNodes(nds => nds.concat(newNode));
+    },
+    [screenToFlowPosition, setNodes]
+  );
+
   return (
-    <div className="workflow-container">
+    <div
+      className="workflow-container"
+      onDrop={readonly ? undefined : onDrop}
+      onDragOver={readonly ? undefined : onDragOver}
+    >
+      {!readonly && <WorkflowPanel />}
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -71,10 +111,9 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
         elementsSelectable={!readonly}
         defaultEdgeOptions={{
           type: 'default',
-          // markerEnd: { type: MarkerType.ArrowClosed },
-          // @ts-ignore - curvature is a valid prop for BezierEdge but might not be in the strict default types
-          curvature: 0.9,
           animated: true,
+          // @ts-ignore - curvature is a valid prop for BezierEdge but might not be in the strict default types
+          curvature: 0.5,
           zIndex: 999,
         }}
       >

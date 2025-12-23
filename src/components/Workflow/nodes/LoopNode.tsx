@@ -20,6 +20,10 @@ const LoopNode: React.FC<CustomNodeProps> = ({ data, selected }) => {
       className="loop-node"
     >
       {data.description && <p>{data.description}</p>}
+      <div className="loop-handles-footer">
+        <span className="loop-handle-label start">Start</span>
+        <span className="loop-handle-label end">End</span>
+      </div>
     </BaseNode>
   );
 };
