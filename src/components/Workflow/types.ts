@@ -1,5 +1,19 @@
 import type { Node, Edge, NodeProps } from 'reactflow';
 
+export interface JsonSchemaProperty {
+  type: 'string' | 'number' | 'boolean' | 'select';
+  title: string;
+  description?: string;
+  default?: any;
+  options?: { label: string; value: string | number }[]; // For select type
+}
+
+export interface JsonSchema {
+  type: 'object';
+  properties: Record<string, JsonSchemaProperty>;
+  required?: string[];
+}
+
 export interface WorkflowNodeData {
   label: string;
   description?: string;
@@ -20,6 +34,7 @@ export interface WorkflowProps {
   initialNodes?: WorkflowNode[];
   initialEdges?: WorkflowEdge[];
   nodeTypes?: Record<string, React.ComponentType<CustomNodeProps>>;
+  nodeConfigSchemas?: Record<string, JsonSchema>; // Keyed by node type
   onNodesChange?: (nodes: WorkflowNode[]) => void;
   onEdgesChange?: (edges: WorkflowEdge[]) => void;
   readonly?: boolean;

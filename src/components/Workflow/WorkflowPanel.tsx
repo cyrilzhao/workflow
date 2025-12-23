@@ -61,28 +61,26 @@ export const WorkflowPanel: React.FC<WorkflowPanelProps> = ({ groups = defaultGr
           {isCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
         </div>
       </div>
-      {!isCollapsed && (
-        <div className="workflow-panel-content">
-          {groups.map(group => (
-            <div key={group.id} className="workflow-panel-group">
-              <div className="workflow-panel-group-title">{group.title}</div>
-              <div className="workflow-panel-items">
-                {group.items.map(item => (
-                  <div
-                    key={item.type}
-                    className="workflow-panel-item"
-                    draggable
-                    onDragStart={event => onDragStart(event, item.type)}
-                  >
-                    <div className="workflow-panel-item-icon">{item.icon || <Box size={16} />}</div>
-                    <span className="workflow-panel-item-label">{item.label}</span>
-                  </div>
-                ))}
-              </div>
+      <div className="workflow-panel-content">
+        {groups.map(group => (
+          <div key={group.id} className="workflow-panel-group">
+            <div className="workflow-panel-group-title">{group.title}</div>
+            <div className="workflow-panel-items">
+              {group.items.map(item => (
+                <div
+                  key={item.type}
+                  className="workflow-panel-item"
+                  draggable
+                  onDragStart={event => onDragStart(event, item.type)}
+                >
+                  <div className="workflow-panel-item-icon">{item.icon || <Box size={16} />}</div>
+                  <span className="workflow-panel-item-label">{item.label}</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 };

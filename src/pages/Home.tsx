@@ -5,6 +5,7 @@ import {
   type WorkflowEdge,
   BaseNode,
   type CustomNodeProps,
+  type JsonSchema,
 } from '@/components/Workflow';
 import { Position } from 'reactflow';
 import { Mail } from 'lucide-react';
@@ -152,6 +153,70 @@ const customNodeTypes = {
   message: MessageNode,
 };
 
+const nodeConfigSchemas: Record<string, JsonSchema> = {
+  start: {
+    type: 'object',
+    properties: {
+      label: { type: 'string', title: 'Label' },
+      description: { type: 'string', title: 'Description' },
+      triggerType: {
+        type: 'select',
+        title: 'Trigger Type',
+        options: [
+          { label: 'Manual', value: 'manual' },
+          { label: 'Webhook', value: 'webhook' },
+          { label: 'Schedule', value: 'schedule' },
+        ],
+      },
+    },
+  },
+  end: {
+    type: 'object',
+    properties: {
+      label: { type: 'string', title: 'Label' },
+      outputType: {
+        type: 'select',
+        title: 'Output Type',
+        options: [
+          { label: 'JSON', value: 'json' },
+          { label: 'HTML', value: 'html' },
+        ],
+      },
+    },
+  },
+  loop: {
+    type: 'object',
+    properties: {
+      label: { type: 'string', title: 'Label' },
+      maxIterations: { type: 'number', title: 'Max Iterations', default: 10 },
+      condition: { type: 'string', title: 'Loop Condition' },
+    },
+  },
+  message: {
+    type: 'object',
+    properties: {
+      label: { type: 'string', title: 'Label' },
+      content: { type: 'string', title: 'Message Content' },
+      priority: {
+        type: 'select',
+        title: 'Priority',
+        options: [
+          { label: 'High', value: 'high' },
+          { label: 'Medium', value: 'medium' },
+          { label: 'Low', value: 'low' },
+        ],
+      },
+    },
+  },
+  switch: {
+    type: 'object',
+    properties: {
+      label: { type: 'string', title: 'Label' },
+      description: { type: 'string', title: 'Description' },
+    },
+  },
+};
+
 const Home = () => {
   return (
     <div
@@ -160,13 +225,14 @@ const Home = () => {
     >
       <div style={{ padding: '20px', borderBottom: '1px solid #eee' }}>
         <h1>Workflow Demo</h1>
-        <p>Demonstrating built-in nodes (Start, Switch, Loop, End) and a custom node (Message).</p>
+        <p>Double click on nodes to configure them. Supports dynamic JSON Schema forms.</p>
       </div>
       <div style={{ flex: 1, padding: '20px' }}>
         <Workflow
           initialNodes={initialNodes}
           initialEdges={initialEdges}
           nodeTypes={customNodeTypes}
+          nodeConfigSchemas={nodeConfigSchemas}
         />
       </div>
     </div>

@@ -7,5 +7,6 @@ export type {
   NodeType,
   WorkflowNodeData,
   CustomNodeProps,
+  JsonSchema,
 } from './types';
 export type { BaseNodeProps } from './nodes/BaseNode';

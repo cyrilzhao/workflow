@@ -10,94 +10,123 @@
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   z-index: 10;
   max-height: 80%;
-  overflow-y: auto;
+  overflow-y: hidden; // Hide scrollbar when animating
+  transition:
+    width 0.3s ease,
+    padding 0.3s ease;
 
   &.collapsed {
-    width: auto;
+    width: 44px; // Fixed width for collapsed state (padding + icon)
     padding: 8px;
 
     .workflow-panel-title {
       display: none;
     }
+
+    .workflow-panel-content {
+      max-height: 0;
+      opacity: 0;
+      margin-top: 0;
+    }
+  }
+}
+
+.workflow-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  margin-bottom: 12px;
+  height: 20px; // Fixed height for header
+
+  .workflow-panel-title {
+    font-weight: 600;
+    font-size: 14px;
+    color: #374151;
+    margin-bottom: 0;
+    white-space: nowrap; // Prevent text wrapping during animation
+    overflow: hidden;
   }
 
-  &-header {
+  .workflow-panel-toggle {
+    color: #6b7280;
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    cursor: pointer;
-    margin-bottom: 12px;
+    justify-content: center;
+    width: 100%; // Fill width when collapsed (title hidden)
 
-    .workflow-panel-title {
-      font-weight: 600;
-      font-size: 14px;
+    &:hover {
       color: #374151;
-      margin-bottom: 0;
-    }
-
-    .workflow-panel-toggle {
-      color: #6b7280;
-      display: flex;
-      align-items: center;
-
-      &:hover {
-        color: #374151;
-      }
     }
   }
+}
 
-  &.collapsed .workflow-panel-header {
+// Adjust header layout when NOT collapsed
+.workflow-panel:not(.collapsed) .workflow-panel-header .workflow-panel-toggle {
+  width: auto;
+}
+
+.workflow-panel.collapsed .workflow-panel-header {
+  margin-bottom: 0;
+  justify-content: center;
+}
+
+.workflow-panel-content {
+  transition:
+    max-height 0.3s ease,
+    opacity 0.3s ease;
+  max-height: 500px; // Arbitrary large height
+  opacity: 1;
+  overflow-y: auto; // Allow scrolling within content
+}
+
+.workflow-panel-group {
+  margin-bottom: 16px;
+
+  &:last-child {
     margin-bottom: 0;
   }
 
-  &-group {
-    margin-bottom: 16px;
+  .workflow-panel-group-title {
+    font-size: 12px;
+    font-weight: 500;
+    color: #9ca3af;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    padding-left: 4px;
+  }
+}
 
-    &:last-child {
-      margin-bottom: 0;
-    }
+.workflow-panel-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 
-    &-title {
-      font-size: 12px;
-      font-weight: 500;
-      color: #9ca3af;
-      text-transform: uppercase;
-      margin-bottom: 8px;
-      padding-left: 4px;
-    }
+.workflow-panel-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  cursor: grab;
+  transition: all 0.2s;
+
+  &:hover {
+    background: #f3f4f6;
+    border-color: #d1d5db;
   }
 
-  &-items {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  &-item {
+  .workflow-panel-item-icon {
+    margin-right: 8px;
+    color: #6b7280;
     display: flex;
     align-items: center;
-    padding: 8px 12px;
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
-    cursor: grab;
-    transition: all 0.2s;
+  }
 
-    &:hover {
-      background: #f3f4f6;
-      border-color: #d1d5db;
-    }
-
-    &-icon {
-      margin-right: 8px;
-      color: #6b7280;
-      display: flex;
-      align-items: center;
-    }
-
-    &-label {
-      font-size: 13px;
-      color: #4b5563;
-    }
+  .workflow-panel-item-label {
+    font-size: 13px;
+    color: #4b5563;
   }
 }

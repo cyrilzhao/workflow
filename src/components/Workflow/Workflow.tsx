@@ -17,16 +17,20 @@ import { nodeTypes as defaultNodeTypes } from './nodes';
 import type { WorkflowProps, WorkflowNode } from './types';
 import './Workflow.scss';
 import { WorkflowPanel } from './WorkflowPanel';
+import { NodeConfigModal } from './NodeConfigModal';
 
 const WorkflowContent: React.FC<WorkflowProps> = ({
   initialNodes = [],
   initialEdges = [],
   nodeTypes = {},
+  nodeConfigSchemas = {},
   onNodesChange: onNodesChangeProp,
   onEdgesChange: _onEdgesChangeProp,
   readonly = false,
 }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [selectedNode, setSelectedNode] = React.useState<WorkflowNode | null>(null);
+  const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const { screenToFlowPosition } = useReactFlow();
 
@@ -57,6 +61,26 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
     },
     [onNodesChange, onNodesChangeProp]
   );
+
+  const onNodeDoubleClick = useCallback(
+    (_: React.MouseEvent, node: WorkflowNode) => {
+      if (readonly) return;
+      setSelectedNode(node);
+      setIsModalOpen(true);
+    },
+    [readonly]
+  );
+
+  const handleSaveNodeConfig = (nodeId: string, data: any) => {
+    setNodes(nds =>
+      nds.map(node => {
+        if (node.id === nodeId) {
+          return { ...node, data: { ...node.data, ...data } };
+        }
+        return node;
+      })
+    );
+  };
 
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
@@ -98,6 +122,13 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
       onDragOver={readonly ? undefined : onDragOver}
     >
       {!readonly && <WorkflowPanel />}
+      <NodeConfigModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        node={selectedNode}
+        schema={selectedNode ? nodeConfigSchemas[selectedNode.type || ''] : undefined}
+        onSave={handleSaveNodeConfig}
+      />
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -106,6 +137,7 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
         onConnect={readonly ? undefined : onConnect}
         nodeTypes={mergedNodeTypes}
         fitView
+        onNodeDoubleClick={onNodeDoubleClick}
         nodesDraggable={!readonly}
         nodesConnectable={!readonly}
         elementsSelectable={!readonly}
