@@ -379,6 +379,102 @@ export class FieldRegistry {
 }
 ```
 
+### 7.5 条件渲染实现
+
+#### 7.5.1 扩展 UIConfig 类型
+
+```typescript
+// src/types/schema.ts
+
+export interface UIConfig {
+  // ... 其他属性
+
+  // 条件渲染配置
+  visibleWhen?: VisibilityCondition;
+}
+
+export interface VisibilityCondition {
+  field: string;                    // 依赖的字段名
+  equals?: any;                     // 等于某个值
+  notEquals?: any;                  // 不等于某个值
+  in?: any[];                       // 在某个数组中
+  notIn?: any[];                    // 不在某个数组中
+  custom?: (value: any, formValues: Record<string, any>) => boolean; // 自定义判断函数
+}
+```
+
+#### 7.5.2 条件渲染 Hook
+
+```typescript
+// src/components/DynamicForm/hooks/useConditionalRender.ts
+
+import { useFormContext } from 'react-hook-form';
+import { VisibilityCondition } from '@/types/schema';
+
+export const useConditionalRender = (condition?: VisibilityCondition): boolean => {
+  const { watch } = useFormContext();
+
+  if (!condition) return true;
+
+  const dependentValue = watch(condition.field);
+
+  // 等于判断
+  if (condition.equals !== undefined) {
+    return dependentValue === condition.equals;
+  }
+
+  // 不等于判断
+  if (condition.notEquals !== undefined) {
+    return dependentValue !== condition.notEquals;
+  }
+
+  // 在数组中判断
+  if (condition.in) {
+    return condition.in.includes(dependentValue);
+  }
+
+  // 不在数组中判断
+  if (condition.notIn) {
+    return !condition.notIn.includes(dependentValue);
+  }
+
+  // 自定义判断
+  if (condition.custom) {
+    const formValues = watch();
+    return condition.custom(dependentValue, formValues);
+  }
+
+  return true;
+};
+```
+
+#### 7.5.3 在 FormField 中集成条件渲染
+
+```typescript
+// src/components/DynamicForm/layout/FormField.tsx (更新版本)
+
+import { useConditionalRender } from '../hooks/useConditionalRender';
+
+export const FormField: React.FC<FormFieldProps> = ({
+  field,
+  disabled,
+  readonly,
+  widgets = {},
+}) => {
+  const { register, formState: { errors } } = useFormContext();
+
+  // 条件渲染判断
+  const isVisible = useConditionalRender(field.visibleWhen);
+
+  // 如果不可见，直接返回 null
+  if (!isVisible) {
+    return null;
+  }
+
+  // ... 其余代码保持不变
+};
+```
+
 ---
 
 **下一部分**: 使用指南和最佳实践
