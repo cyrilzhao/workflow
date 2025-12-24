@@ -15,7 +15,9 @@ const schema = {
     username: {
       type: 'string',
       title: '用户名',
-      'ui:asyncValidate': 'checkUsername'
+      ui: {
+        asyncValidate: 'checkUsername'
+      }
     }
   }
 };

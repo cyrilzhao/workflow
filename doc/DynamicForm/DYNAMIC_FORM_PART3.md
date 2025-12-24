@@ -39,7 +39,21 @@ export interface UIConfig {
   className?: string;
   style?: React.CSSProperties;
   order?: string[];
+  errorMessages?: ErrorMessages;
   [key: string]: any; // 支持其他自定义属性
+}
+
+/**
+ * 错误信息配置
+ */
+export interface ErrorMessages {
+  required?: string;
+  minLength?: string;
+  maxLength?: string;
+  min?: string;
+  max?: string;
+  pattern?: string;
+  [key: string]: string | undefined;
 }
 
 /**
@@ -352,43 +366,50 @@ export class SchemaParser {
     required: boolean
   ): ValidationRules {
     const rules: ValidationRules = {};
+    const errorMessages = schema.ui?.errorMessages || {};
 
     if (required) {
-      rules.required = schema.title ? `${schema.title}必填` : '此字段必填';
+      rules.required = errorMessages.required ||
+        (schema.title ? `${schema.title} is required` : 'This field is required');
     }
 
     if (schema.minLength) {
       rules.minLength = {
         value: schema.minLength,
-        message: `最少${schema.minLength}个字符`,
+        message: errorMessages.minLength ||
+          `Minimum length is ${schema.minLength} characters`,
       };
     }
 
     if (schema.maxLength) {
       rules.maxLength = {
         value: schema.maxLength,
-        message: `最多${schema.maxLength}个字符`,
+        message: errorMessages.maxLength ||
+          `Maximum length is ${schema.maxLength} characters`,
       };
     }
 
     if (schema.minimum !== undefined) {
       rules.min = {
         value: schema.minimum,
-        message: `最小值为${schema.minimum}`,
+        message: errorMessages.min ||
+          `Minimum value is ${schema.minimum}`,
       };
     }
 
     if (schema.maximum !== undefined) {
       rules.max = {
         value: schema.maximum,
-        message: `最大值为${schema.maximum}`,
+        message: errorMessages.max ||
+          `Maximum value is ${schema.maximum}`,
       };
     }
 
     if (schema.pattern) {
       rules.pattern = {
         value: new RegExp(schema.pattern),
-        message: '格式不正确',
+        message: errorMessages.pattern ||
+          'Invalid format',
       };
     }
 

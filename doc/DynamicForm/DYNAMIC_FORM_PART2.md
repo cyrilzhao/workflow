@@ -236,7 +236,21 @@ interface UIConfig {
   className?: string;             // CSS 类名
   style?: React.CSSProperties;    // 内联样式
   order?: string[];               // 字段顺序
+  errorMessages?: ErrorMessages;  // 自定义错误信息
   [key: string]: any;             // 其他自定义属性
+}
+
+/**
+ * 错误信息配置
+ */
+interface ErrorMessages {
+  required?: string;              // 必填错误信息
+  minLength?: string;             // 最小长度错误信息
+  maxLength?: string;             // 最大长度错误信息
+  min?: string;                   // 最小值错误信息
+  max?: string;                   // 最大值错误信息
+  pattern?: string;               // 格式错误信息
+  [key: string]: string;          // 其他自定义错误信息
 }
 ```
 
@@ -247,15 +261,54 @@ interface UIConfig {
   "properties": {
     "email": {
       "type": "string",
-      "title": "邮箱",
+      "title": "Email",
       "ui": {
         "widget": "email",
-        "placeholder": "请输入邮箱",
-        "help": "我们不会泄露您的邮箱",
+        "placeholder": "Enter your email",
+        "help": "We will never share your email",
         "className": "custom-email-field"
       }
     }
   }
+}
+```
+
+#### 5.3.3 自定义错误信息
+
+```json
+{
+  "properties": {
+    "username": {
+      "type": "string",
+      "title": "Username",
+      "minLength": 3,
+      "maxLength": 20,
+      "pattern": "^[a-zA-Z0-9_]+$",
+      "ui": {
+        "placeholder": "Enter username",
+        "errorMessages": {
+          "required": "Username is required",
+          "minLength": "Username must be at least 3 characters",
+          "maxLength": "Username cannot exceed 20 characters",
+          "pattern": "Username can only contain letters, numbers and underscores"
+        }
+      }
+    },
+    "age": {
+      "type": "integer",
+      "title": "Age",
+      "minimum": 18,
+      "maximum": 100,
+      "ui": {
+        "errorMessages": {
+          "required": "Please enter your age",
+          "min": "You must be at least 18 years old",
+          "max": "Age cannot exceed 100"
+        }
+      }
+    }
+  },
+  "required": ["username", "age"]
 }
 ```
 

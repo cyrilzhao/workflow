@@ -268,7 +268,9 @@ properties: {
   type: 'string',
   title: '邮箱地址',
   description: '用于接收通知和找回密码',
-  'ui:placeholder': 'example@email.com'
+  ui: {
+    placeholder: 'example@email.com'
+  }
 }
 ```
 
@@ -315,8 +317,10 @@ const step3Schema = { /* ... */ };
 {
   type: 'string',
   minLength: 6,
-  'ui:errorMessages': {
-    minLength: '密码至少需要6个字符'
+  ui: {
+    errorMessages: {
+      minLength: '密码至少需要6个字符'
+    }
   }
 }
 ```
