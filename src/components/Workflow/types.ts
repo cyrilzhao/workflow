@@ -1,17 +1,12 @@
+import type { JSONSchema4 } from 'json-schema';
 import type { Node, Edge, NodeProps } from 'reactflow';
 
-export interface JsonSchemaProperty {
-  type: 'string' | 'number' | 'boolean' | 'select';
-  title: string;
-  description?: string;
-  default?: any;
-  options?: { label: string; value: string | number }[]; // For select type
-}
-
-export interface JsonSchema {
-  type: 'object';
-  properties: Record<string, JsonSchemaProperty>;
-  required?: string[];
+export interface NodeConfigSchema extends JSONSchema4 {
+  widget?: string;
+  enumNames?: string[];
+  props?: Record<string, any>;
+  rules?: any;
+  properties?: Record<string, NodeConfigSchema>;
 }
 
 export interface WorkflowNodeData {
@@ -34,7 +29,9 @@ export interface WorkflowProps {
   initialNodes?: WorkflowNode[];
   initialEdges?: WorkflowEdge[];
   nodeTypes?: Record<string, React.ComponentType<CustomNodeProps>>;
-  nodeConfigSchemas?: Record<string, JsonSchema>; // Keyed by node type
+  nodeConfigSchemas?: Record<string, NodeConfigSchema>; // Keyed by node type
+  // Map of custom widget components for the form
+  formComponents?: Record<string, React.ComponentType<any>>;
   onNodesChange?: (nodes: WorkflowNode[]) => void;
   onEdgesChange?: (edges: WorkflowEdge[]) => void;
   readonly?: boolean;

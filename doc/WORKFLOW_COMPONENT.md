@@ -8,6 +8,8 @@ Workflow 组件是一个基于 [React Flow](https://reactflow.dev/) 封装的通
 
 - `reactflow`: 核心流程图库
 - `lucide-react`: 图标库
+- `react-hook-form`: 表单管理
+- `json-schema`: Schema 类型定义
 
 ## 目录结构
 
@@ -22,6 +24,9 @@ src/components/Workflow/
 │   └── index.ts           # 节点导出
 ├── Workflow.tsx           # 核心 Workflow 组件
 ├── Workflow.scss          # 样式文件
+├── WorkflowPanel.tsx      # 组件面板（拖拽）
+├── SchemaForm.tsx         # 动态表单组件
+├── NodeConfigModal.tsx    # 节点配置弹窗
 ├── types.ts               # 类型定义
 └── index.tsx              # 组件导出入口
 ```
@@ -63,14 +68,75 @@ export default function MyWorkflow() {
 
 ### Workflow Props
 
-| 属性            | 类型                        | 默认值  | 说明               |
-| --------------- | --------------------------- | ------- | ------------------ |
-| `initialNodes`  | `WorkflowNode[]`            | `[]`    | 初始节点列表       |
-| `initialEdges`  | `WorkflowEdge[]`            | `[]`    | 初始连线列表       |
-| `nodeTypes`     | `Record<string, Component>` | `{}`    | 自定义节点类型映射 |
-| `onNodesChange` | `(nodes) => void`           | -       | 节点变化回调       |
-| `onEdgesChange` | `(edges) => void`           | -       | 连线变化回调       |
-| `readonly`      | `boolean`                   | `false` | 是否只读模式       |
+| 属性                | 类型                               | 默认值  | 说明                |
+| ------------------- | ---------------------------------- | ------- | ------------------- |
+| `initialNodes`      | `WorkflowNode[]`                   | `[]`    | 初始节点列表        |
+| `initialEdges`      | `WorkflowEdge[]`                   | `[]`    | 初始连线列表        |
+| `nodeTypes`         | `Record<string, Component>`        | `{}`    | 自定义节点类型映射  |
+| `nodeConfigSchemas` | `Record<string, NodeConfigSchema>` | `{}`    | 节点配置表单 Schema |
+| `formComponents`    | `Record<string, Component>`        | `{}`    | 自定义表单组件映射  |
+| `onNodesChange`     | `(nodes) => void`                  | -       | 节点变化回调        |
+| `onEdgesChange`     | `(edges) => void`                  | -       | 连线变化回调        |
+| `readonly`          | `boolean`                          | `false` | 是否只读模式        |
+
+## 节点配置 (Node Configuration)
+
+组件支持基于 JSON Schema 的动态表单配置。双击节点即可打开配置弹窗。
+
+### Schema 定义
+
+使用 `NodeConfigSchema` (扩展自 JSONSchema4) 定义节点属性：
+
+```tsx
+import type { NodeConfigSchema } from '@/components/Workflow';
+
+const schemas: Record<string, NodeConfigSchema> = {
+  message: {
+    type: 'object',
+    properties: {
+      label: { type: 'string', title: 'Label' },
+      content: { type: 'string', widget: 'textarea', title: 'Content' },
+      priority: {
+        type: 'string',
+        widget: 'select',
+        enum: ['high', 'medium', 'low'],
+        enumNames: ['High', 'Medium', 'Low'],
+        title: 'Priority',
+      },
+    },
+  },
+};
+```
+
+### 支持的 Widget 类型
+
+- `input` (默认): 单行文本框
+- `textarea`: 多行文本框
+- `select`: 下拉选择 (需配合 `enum` 和 `enumNames`)
+- `radio`: 单选框 (需配合 `enum` 和 `enumNames`)
+- `checkbox`: 复选框 (对应 `boolean` 类型)
+- 自定义 Widget: 通过 `formComponents` 传入
+
+### 自定义表单组件
+
+```tsx
+const ColorPicker = ({ value, onChange }) => (
+  <input type="color" value={value} onChange={e => onChange(e.target.value)} />
+);
+
+<Workflow
+  formComponents={{ 'color-picker': ColorPicker }}
+  nodeConfigSchemas={{
+    myNode: {
+      type: 'object',
+      properties: {
+        color: { type: 'string', widget: 'color-picker', title: 'Color' },
+      },
+    },
+  }}
+  // ...
+/>;
+```
 
 ## 内置节点
 
@@ -164,5 +230,8 @@ Workflow 组件使用 SCSS 进行样式管理。
 
 - `Workflow.scss`: 容器及 React Flow 控件样式
 - `nodes/BaseNode.scss`: 节点通用样式
+- `WorkflowPanel.scss`: 组件面板样式
+- `SchemaForm.scss`: 表单样式
+- `NodeConfigModal.scss`: 弹窗样式
 
 如需修改节点样式，可覆盖 `.workflow-node` 类及其子元素。

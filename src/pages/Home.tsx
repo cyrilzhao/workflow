@@ -5,7 +5,7 @@ import {
   type WorkflowEdge,
   BaseNode,
   type CustomNodeProps,
-  type JsonSchema,
+  type NodeConfigSchema,
 } from '@/components/Workflow';
 import { Position } from 'reactflow';
 import { Mail } from 'lucide-react';
@@ -153,20 +153,44 @@ const customNodeTypes = {
   message: MessageNode,
 };
 
-const nodeConfigSchemas: Record<string, JsonSchema> = {
+// Custom Form Component
+const ColorPicker = ({ value, onChange }: { value: string; onChange: (val: string) => void }) => {
+  return (
+    <div style={{ display: 'flex', gap: '8px' }}>
+      {['#ef4444', '#3b82f6', '#10b981', '#f59e0b'].map(color => (
+        <div
+          key={color}
+          onClick={() => onChange(color)}
+          style={{
+            width: '24px',
+            height: '24px',
+            backgroundColor: color,
+            borderRadius: '50%',
+            cursor: 'pointer',
+            border: value === color ? '2px solid #000' : '2px solid transparent',
+          }}
+        />
+      ))}
+    </div>
+  );
+};
+
+const formComponents = {
+  'color-picker': ColorPicker,
+};
+
+const nodeConfigSchemas: Record<string, NodeConfigSchema> = {
   start: {
     type: 'object',
     properties: {
       label: { type: 'string', title: 'Label' },
       description: { type: 'string', title: 'Description' },
       triggerType: {
-        type: 'select',
+        type: 'string',
+        widget: 'select',
         title: 'Trigger Type',
-        options: [
-          { label: 'Manual', value: 'manual' },
-          { label: 'Webhook', value: 'webhook' },
-          { label: 'Schedule', value: 'schedule' },
-        ],
+        enum: ['manual', 'webhook', 'schedule'],
+        enumNames: ['Manual', 'Webhook', 'Schedule'],
       },
     },
   },
@@ -175,12 +199,11 @@ const nodeConfigSchemas: Record<string, JsonSchema> = {
     properties: {
       label: { type: 'string', title: 'Label' },
       outputType: {
-        type: 'select',
+        type: 'string',
+        widget: 'radio',
         title: 'Output Type',
-        options: [
-          { label: 'JSON', value: 'json' },
-          { label: 'HTML', value: 'html' },
-        ],
+        enum: ['json', 'html'],
+        enumNames: ['JSON', 'HTML'],
       },
     },
   },
@@ -196,15 +219,18 @@ const nodeConfigSchemas: Record<string, JsonSchema> = {
     type: 'object',
     properties: {
       label: { type: 'string', title: 'Label' },
-      content: { type: 'string', title: 'Message Content' },
+      content: { type: 'string', widget: 'textarea', title: 'Message Content' },
       priority: {
-        type: 'select',
+        type: 'string',
+        widget: 'select',
         title: 'Priority',
-        options: [
-          { label: 'High', value: 'high' },
-          { label: 'Medium', value: 'medium' },
-          { label: 'Low', value: 'low' },
-        ],
+        enum: ['high', 'medium', 'low'],
+        enumNames: ['High', 'Medium', 'Low'],
+      },
+      themeColor: {
+        type: 'string',
+        widget: 'color-picker', // Custom widget
+        title: 'Theme Color',
       },
     },
   },
@@ -225,7 +251,10 @@ const Home = () => {
     >
       <div style={{ padding: '20px', borderBottom: '1px solid #eee' }}>
         <h1>Workflow Demo</h1>
-        <p>Double click on nodes to configure them. Supports dynamic JSON Schema forms.</p>
+        <p>
+          Double click on nodes to configure them. Supports dynamic JSON Schema forms with Custom
+          Components (e.g. Color Picker).
+        </p>
       </div>
       <div style={{ flex: 1, padding: '20px' }}>
         <Workflow
@@ -233,6 +262,7 @@ const Home = () => {
           initialEdges={initialEdges}
           nodeTypes={customNodeTypes}
           nodeConfigSchemas={nodeConfigSchemas}
+          formComponents={formComponents}
         />
       </div>
     </div>
