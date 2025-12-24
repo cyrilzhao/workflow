@@ -40,6 +40,7 @@ export interface UIConfig {
   style?: React.CSSProperties;
   order?: string[];
   errorMessages?: ErrorMessages;
+  linkage?: LinkageConfig;  // UI 联动配置（详见 UI_LINKAGE_DESIGN.md）
   [key: string]: any; // 支持其他自定义属性
 }
 
@@ -273,6 +274,21 @@ export class SchemaParser {
     const required = schema.required || [];
     const order = schema.ui?.order || Object.keys(properties);
 
+    // 解析字段依赖关系
+    const dependencies = this.parseDependencies(schema);
+
+    // 解析条件逻辑 (if/then/else)
+    const conditionalRules = this.parseConditionalRules(schema);
+
+    // 解析 allOf 条件
+    const allOfRules = this.parseAllOf(schema);
+
+    // 解析 anyOf 条件
+    const anyOfRules = this.parseAnyOf(schema);
+
+    // 解析 oneOf 条件
+    const oneOfRules = this.parseOneOf(schema);
+
     for (const key of order) {
       const property = properties[key];
       if (!property || typeof property === 'boolean') continue;
@@ -282,6 +298,23 @@ export class SchemaParser {
         property as ExtendedJSONSchema,
         required.includes(key)
       );
+
+      // 添加依赖关系信息
+      if (dependencies[key]) {
+        fieldConfig.dependencies = dependencies[key];
+      }
+
+      // 合并所有条件规则
+      const allRules = [
+        ...conditionalRules,
+        ...allOfRules,
+        ...anyOfRules,
+        ...oneOfRules
+      ];
+
+      if (allRules.length > 0) {
+        fieldConfig.conditionalRules = allRules;
+      }
 
       if (!fieldConfig.hidden) {
         fields.push(fieldConfig);
@@ -429,9 +462,402 @@ export class SchemaParser {
       value,
     }));
   }
+
+  /**
+   * 解析字段依赖关系 (dependencies)
+   */
+  private static parseDependencies(schema: ExtendedJSONSchema): Record<string, DependencyConfig> {
+    const dependenciesMap: Record<string, DependencyConfig> = {};
+
+    if (!schema.dependencies) {
+      return dependenciesMap;
+    }
+
+    for (const [fieldName, dependency] of Object.entries(schema.dependencies)) {
+      if (Array.isArray(dependency)) {
+        // 简单依赖: 当 fieldName 有值时，dependency 中的字段变为必填
+        dependenciesMap[fieldName] = {
+          type: 'simple',
+          requiredFields: dependency,
+        };
+      } else if (typeof dependency === 'object') {
+        // 复杂依赖: oneOf 条件
+        if (dependency.oneOf) {
+          dependenciesMap[fieldName] = {
+            type: 'oneOf',
+            conditions: dependency.oneOf.map((condition: any) => ({
+              when: condition.properties?.[fieldName],
+              then: {
+                required: condition.required || [],
+                properties: condition.properties || {},
+              },
+            })),
+          };
+        }
+      }
+    }
+
+    return dependenciesMap;
+  }
+
+  /**
+   * 解析条件逻辑 (if/then/else)
+   */
+  private static parseConditionalRules(schema: ExtendedJSONSchema): ConditionalRule[] {
+    const rules: ConditionalRule[] = [];
+
+    if (!schema.if) {
+      return rules;
+    }
+
+    const rule: ConditionalRule = {
+      type: 'if',
+      if: this.parseCondition(schema.if),
+      then: schema.then ? this.parseConsequence(schema.then) : undefined,
+      else: schema.else ? this.parseConsequence(schema.else) : undefined,
+    };
+
+    rules.push(rule);
+
+    return rules;
+  }
+
+  /**
+   * 解析 allOf (所有条件都满足)
+   */
+  private static parseAllOf(schema: ExtendedJSONSchema): ConditionalRule[] {
+    const rules: ConditionalRule[] = [];
+
+    if (!schema.allOf || !Array.isArray(schema.allOf)) {
+      return rules;
+    }
+
+    for (const subSchema of schema.allOf) {
+      if (typeof subSchema === 'boolean') continue;
+
+      const typedSubSchema = subSchema as ExtendedJSONSchema;
+
+      // 如果 allOf 中包含 if/then/else
+      if (typedSubSchema.if) {
+        rules.push({
+          type: 'allOf',
+          if: this.parseCondition(typedSubSchema.if),
+          then: typedSubSchema.then ? this.parseConsequence(typedSubSchema.then) : undefined,
+          else: typedSubSchema.else ? this.parseConsequence(typedSubSchema.else) : undefined,
+        });
+      }
+    }
+
+    return rules;
+  }
+
+  /**
+   * 解析 anyOf (任一条件满足)
+   */
+  private static parseAnyOf(schema: ExtendedJSONSchema): ConditionalRule[] {
+    const rules: ConditionalRule[] = [];
+
+    if (!schema.anyOf || !Array.isArray(schema.anyOf)) {
+      return rules;
+    }
+
+    const anyOfRule: ConditionalRule = {
+      type: 'anyOf',
+      conditions: schema.anyOf.map((subSchema) => {
+        if (typeof subSchema === 'boolean') return null;
+        return this.parseConsequence(subSchema as ExtendedJSONSchema);
+      }).filter(Boolean) as ConsequenceAction[],
+    };
+
+    rules.push(anyOfRule);
+
+    return rules;
+  }
+
+  /**
+   * 解析 oneOf (仅一个条件满足)
+   */
+  private static parseOneOf(schema: ExtendedJSONSchema): ConditionalRule[] {
+    const rules: ConditionalRule[] = [];
+
+    if (!schema.oneOf || !Array.isArray(schema.oneOf)) {
+      return rules;
+    }
+
+    const oneOfRule: ConditionalRule = {
+      type: 'oneOf',
+      conditions: schema.oneOf.map((subSchema) => {
+        if (typeof subSchema === 'boolean') return null;
+        return this.parseConsequence(subSchema as ExtendedJSONSchema);
+      }).filter(Boolean) as ConsequenceAction[],
+    };
+
+    rules.push(oneOfRule);
+
+    return rules;
+  }
+
+  /**
+   * 解析条件表达式
+   */
+  private static parseCondition(condition: ExtendedJSONSchema): ConditionExpression {
+    const expression: ConditionExpression = {
+      type: 'condition',
+      rules: [],
+    };
+
+    if (condition.properties) {
+      for (const [fieldName, fieldSchema] of Object.entries(condition.properties)) {
+        if (typeof fieldSchema === 'boolean') continue;
+
+        const fieldCondition = fieldSchema as ExtendedJSONSchema;
+
+        // 解析 const 条件
+        if (fieldCondition.const !== undefined) {
+          expression.rules.push({
+            field: fieldName,
+            operator: 'equals',
+            value: fieldCondition.const,
+          });
+        }
+
+        // 解析 enum 条件
+        if (fieldCondition.enum) {
+          expression.rules.push({
+            field: fieldName,
+            operator: 'in',
+            value: fieldCondition.enum,
+          });
+        }
+      }
+    }
+
+    return expression;
+  }
+
+  /**
+   * 解析条件结果 (then/else)
+   */
+  private static parseConsequence(consequence: ExtendedJSONSchema): ConsequenceAction {
+    return {
+      required: consequence.required || [],
+      properties: consequence.properties || {},
+    };
+  }
 }
 ```
+
+### 6.6 条件渲染相关类型定义
+
+```typescript
+// src/types/schema.ts - 补充类型定义
+
+/**
+ * 依赖配置
+ */
+export interface DependencyConfig {
+  type: 'simple' | 'oneOf';
+  requiredFields?: string[];
+  conditions?: Array<{
+    when: any;
+    then: {
+      required: string[];
+      properties: Record<string, any>;
+    };
+  }>;
+}
+
+/**
+ * 条件规则
+ */
+export interface ConditionalRule {
+  type: 'if' | 'allOf' | 'anyOf' | 'oneOf';
+  if?: ConditionExpression;
+  then?: ConsequenceAction;
+  else?: ConsequenceAction;
+  conditions?: ConsequenceAction[];  // 用于 anyOf 和 oneOf
+}
+
+/**
+ * 条件表达式
+ */
+export interface ConditionExpression {
+  type: 'condition';
+  rules: Array<{
+    field: string;
+    operator: 'equals' | 'in' | 'notEquals' | 'notIn';
+    value: any;
+  }>;
+}
+
+/**
+ * 条件结果动作
+ */
+export interface ConsequenceAction {
+  required: string[];
+  properties: Record<string, any>;
+}
+
+/**
+ * 字段配置 - 补充依赖和条件属性
+ */
+export interface FieldConfig {
+  name: string;
+  type: string;
+  widget: WidgetType;
+  label?: string;
+  placeholder?: string;
+  description?: string;
+  defaultValue?: any;
+  required?: boolean;
+  disabled?: boolean;
+  readonly?: boolean;
+  hidden?: boolean;
+  validation?: ValidationRules;
+  options?: FieldOption[];
+  dependencies?: DependencyConfig;      // 字段依赖配置（用于验证）
+  conditionalRules?: ConditionalRule[]; // JSON Schema 条件验证规则
+}
+```
+
+> **注意**：UI 联动相关的配置（如 linkage）在 schema 的 `ui` 字段中定义，不在 FieldConfig 中。
+> 详见 [UI 联动设计文档](./UI_LINKAGE_DESIGN.md)。
+
 
 ---
 
 **下一部分**: 代码实现示例
+
+---
+
+## 7. UI 联动配置解析
+
+> **重要说明**：UI 联动逻辑与数据验证逻辑是分离的。本节介绍如何解析 `ui.linkage` 配置。
+>
+> 完整的 UI 联动设计和实现请参考：[UI 联动设计文档](./UI_LINKAGE_DESIGN.md)
+
+### 7.1 解析 ui.linkage 配置
+
+```typescript
+// src/components/DynamicForm/core/SchemaParser.ts
+
+import { LinkageConfig } from '@/types/linkage';
+
+/**
+ * 解析 Schema 中的 UI 联动配置
+ */
+static parseLinkages(schema: ExtendedJSONSchema): {
+  linkages: Record<string, LinkageConfig>;
+  computedFields: Record<string, LinkageConfig>;
+} {
+  const linkages: Record<string, LinkageConfig> = {};
+  const computedFields: Record<string, LinkageConfig> = {};
+
+  if (!schema.properties) {
+    return { linkages, computedFields };
+  }
+
+  // 遍历所有字段
+  Object.entries(schema.properties).forEach(([fieldName, fieldSchema]) => {
+    if (typeof fieldSchema === 'boolean') return;
+
+    const typedSchema = fieldSchema as ExtendedJSONSchema;
+    const linkageConfig = typedSchema.ui?.linkage;
+
+    if (linkageConfig) {
+      // 区分计算字段和其他联动类型
+      if (linkageConfig.type === 'computed') {
+        computedFields[fieldName] = linkageConfig;
+      } else {
+        linkages[fieldName] = linkageConfig;
+      }
+    }
+  });
+
+  return { linkages, computedFields };
+}
+```
+
+
+### 7.2 在 DynamicForm 中使用
+
+```typescript
+// src/components/DynamicForm/DynamicForm.tsx
+
+import { useLinkageManager } from '@/hooks/useLinkageManager';
+import { useComputedFields } from '@/hooks/useComputedFields';
+
+export function DynamicForm({ schema, linkageFunctions, ...props }: DynamicFormProps) {
+  const form = useForm({ defaultValues: props.defaultValues });
+
+  // 解析字段配置（用于渲染）
+  const fields = SchemaParser.parse(schema);
+
+  // 解析 UI 联动配置
+  const { linkages, computedFields } = SchemaParser.parseLinkages(schema);
+
+  // 使用联动管理器
+  const linkageStates = useLinkageManager({
+    form,
+    linkages,
+    linkageFunctions
+  });
+
+  // 使用计算字段自动更新
+  useComputedFields({
+    form,
+    computedFields,
+    linkageFunctions
+  });
+
+  // 渲染表单...
+}
+```
+
+
+### 7.3 完整示例
+
+```typescript
+// 示例 Schema
+const schema = {
+  type: "object",
+  properties: {
+    price: {
+      type: "number",
+      title: "单价",
+      minimum: 0
+    },
+    quantity: {
+      type: "number",
+      title: "数量",
+      minimum: 1
+    },
+    total: {
+      type: "number",
+      title: "总价",
+      ui: {
+        readonly: true,
+        linkage: {
+          type: "computed",
+          dependencies: ["price", "quantity"],
+          function: "calculateTotal"
+        }
+      }
+    }
+  }
+};
+
+// 联动函数
+const linkageFunctions = {
+  calculateTotal: (formData: any) => {
+    return (formData.price || 0) * (formData.quantity || 0);
+  }
+};
+
+// 使用
+<DynamicForm 
+  schema={schema} 
+  linkageFunctions={linkageFunctions}
+/>
+```
+

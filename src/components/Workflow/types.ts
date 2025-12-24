@@ -1,7 +1,11 @@
-import type { JSONSchema4 } from 'json-schema';
+import type { JSONSchema7 } from 'json-schema';
 import type { Node, Edge, NodeProps } from 'reactflow';
 
-export interface NodeConfigSchema extends JSONSchema4 {
+const a: JSONSchema7 = {
+  dependencies: {},
+};
+
+export interface NodeConfigSchema extends JSONSchema7 {
   widget?: string;
   enumNames?: string[];
   props?: Record<string, any>;

@@ -334,10 +334,50 @@ interface ErrorMessages {
 | `color` | string | 颜色选择 |
 | `file` | string | 文件上传 |
 
-### 5.4 条件渲染
+### 5.4 条件验证（Conditional Validation）
 
-#### 5.4.1 使用 dependencies
+> **重要说明**：本节内容属于 **JSON Schema 标准的数据验证机制**，用于定义"在什么条件下，数据需要满足什么验证规则"。
+>
+> **这不是 UI 联动逻辑**！如果你需要实现字段的显示/隐藏、禁用/启用等 UI 行为，请参考 [UI 联动设计文档](./UI_LINKAGE_DESIGN.md)。
 
+JSON Schema 提供了多种条件验证机制，主要分为两大类：
+
+1. **dependencies（字段依赖）**：定义在 schema 根级别的 `dependencies` 属性中，用于表达字段之间的依赖验证关系
+2. **逻辑组合（allOf/anyOf/oneOf/if-then-else）**：也定义在 schema 根级别，用于表达复杂的逻辑验证条件
+
+**关键区别**：
+- `dependencies` 是 JSON Schema 的专用属性，专门用于字段依赖验证场景
+- `allOf/anyOf/oneOf` 是 JSON Schema 的逻辑组合关键字，可以组合多个验证 schema
+- `if/then/else` 是 JSON Schema Draft-07+ 引入的条件验证逻辑关键字
+
+**用途**：这些机制用于**数据验证**，确保提交的数据符合业务规则。
+
+#### 5.4.1 使用 dependencies（字段依赖）
+
+`dependencies` 用于表达"当某个字段存在或有特定值时，其他字段的约束条件"。
+
+**简单依赖（数组形式）**：
+```json
+{
+  "type": "object",
+  "properties": {
+    "creditCard": {
+      "type": "string",
+      "title": "信用卡号"
+    },
+    "billingAddress": {
+      "type": "string",
+      "title": "账单地址"
+    }
+  },
+  "dependencies": {
+    "creditCard": ["billingAddress"]
+  }
+}
+```
+**含义**：如果填写了 `creditCard`，则 `billingAddress` 变为必填。
+
+**复杂依赖（Schema 依赖）**：
 ```json
 {
   "type": "object",
@@ -366,6 +406,9 @@ interface ErrorMessages {
   }
 }
 ```
+**含义**：当 `hasAddress` 为 `true` 时，`address` 变为必填且至少1个字符。
+
+**注意**：`dependencies` 中的 `oneOf` 是在依赖关系内部使用的，不是顶层的逻辑组合。
 
 #### 5.4.2 使用 if/then/else (Draft-07+)
 
@@ -392,9 +435,344 @@ interface ErrorMessages {
 }
 ```
 
+#### 5.4.3 使用 allOf (所有条件都满足)
+
+`allOf` 是顶层的逻辑组合关键字，用于组合多个 schema，要求数据同时满足所有子 schema。
+
+**与 dependencies 的区别**：
+- `dependencies` 关注的是"字段 A 存在时，字段 B 的约束"（字段间的依赖关系）
+- `allOf` 关注的是"数据必须同时满足多个条件"（逻辑组合）
+
+**使用场景**：当需要同时应用多个独立的条件规则时使用 `allOf`。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "isStudent": {
+      "type": "boolean",
+      "title": "是否学生"
+    },
+    "age": {
+      "type": "integer",
+      "title": "年龄"
+    },
+    "studentId": {
+      "type": "string",
+      "title": "学号"
+    },
+    "school": {
+      "type": "string",
+      "title": "学校"
+    },
+    "guardianPhone": {
+      "type": "string",
+      "title": "监护人电话"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "isStudent": { "const": true } }
+      },
+      "then": {
+        "required": ["studentId", "school"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "age": { "maximum": 17 } }
+      },
+      "then": {
+        "required": ["guardianPhone"]
+      }
+    }
+  ]
+}
+```
+
+**含义**：
+1. 第一个条件：如果是学生，则学号和学校必填
+2. 第二个条件：如果年龄小于18岁，则监护人电话必填
+3. 这两个条件是**独立的**，可以同时生效（例如：17岁的学生需要填写学号、学校和监护人电话）
+
+**对比 dependencies 的实现方式**：
+```json
+{
+  "dependencies": {
+    "isStudent": {
+      "properties": { "isStudent": { "const": true } },
+      "required": ["studentId", "school"]
+    },
+    "age": {
+      "if": { "properties": { "age": { "maximum": 17 } } },
+      "then": { "required": ["guardianPhone"] }
+    }
+  }
+}
+```
+这种方式虽然也能实现，但语义上不如 `allOf` 清晰，因为这不是典型的"字段依赖"场景。
+
+#### 5.4.4 使用 anyOf (任一条件满足)
+
+`anyOf` 是顶层的逻辑组合关键字，要求数据至少满足其中一个子 schema。
+
+**使用场景**：当需要"至少满足一个条件"时使用 `anyOf`，常用于"多选一"的验证场景。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "email": {
+      "type": "string",
+      "title": "邮箱",
+      "format": "email"
+    },
+    "phone": {
+      "type": "string",
+      "title": "手机号"
+    },
+    "wechat": {
+      "type": "string",
+      "title": "微信号"
+    }
+  },
+  "anyOf": [
+    { "required": ["email"] },
+    { "required": ["phone"] },
+    { "required": ["wechat"] }
+  ]
+}
+```
+
+**含义**：用户必须至少填写邮箱、手机号、微信号中的一个。可以填写多个，但不能一个都不填。
+
+**实际应用示例**：
+```json
+{
+  "type": "object",
+  "properties": {
+    "contactMethod": {
+      "type": "string",
+      "title": "首选联系方式",
+      "enum": ["email", "phone", "wechat"]
+    },
+    "email": { "type": "string", "title": "邮箱" },
+    "phone": { "type": "string", "title": "手机号" },
+    "wechat": { "type": "string", "title": "微信号" }
+  },
+  "anyOf": [
+    { "required": ["email"] },
+    { "required": ["phone"] },
+    { "required": ["wechat"] }
+  ],
+  "if": {
+    "properties": { "contactMethod": { "const": "email" } }
+  },
+  "then": {
+    "required": ["email"]
+  }
+}
+```
+**含义**：至少填写一种联系方式，如果选择了邮箱作为首选，则邮箱必填。
+
+#### 5.4.5 使用 oneOf (仅一个条件满足)
+
+`oneOf` 是顶层的逻辑组合关键字，要求数据**有且仅有**一个子 schema 被满足。
+
+**使用场景**：当需要"互斥选择"时使用 `oneOf`，确保只能选择一种情况。
+
+**与 anyOf 的区别**：
+- `anyOf`：至少满足一个（可以满足多个）
+- `oneOf`：有且仅有一个（不能同时满足多个）
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "accountType": {
+      "type": "string",
+      "title": "账户类型",
+      "enum": ["personal", "business"]
+    },
+    "idCard": {
+      "type": "string",
+      "title": "身份证号"
+    },
+    "businessLicense": {
+      "type": "string",
+      "title": "营业执照号"
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "accountType": { "const": "personal" }
+      },
+      "required": ["idCard"]
+    },
+    {
+      "properties": {
+        "accountType": { "const": "business" }
+      },
+      "required": ["businessLicense"]
+    }
+  ]
+}
+```
+
+**含义**：
+- 如果是个人账户，必须填写身份证号（不能填写营业执照）
+- 如果是企业账户，必须填写营业执照号（不能填写身份证）
+- 不能同时满足两个条件
+
+#### 5.4.6 嵌套条件判断
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "userType": {
+      "type": "string",
+      "title": "用户类型",
+      "enum": ["individual", "company"]
+    },
+    "country": {
+      "type": "string",
+      "title": "国家",
+      "enum": ["china", "usa", "other"]
+    },
+    "chinaIdCard": { "type": "string", "title": "中国身份证" },
+    "usaSsn": { "type": "string", "title": "美国SSN" },
+    "passport": { "type": "string", "title": "护照号" },
+    "companyName": { "type": "string", "title": "公司名称" },
+    "businessLicense": { "type": "string", "title": "营业执照" }
+  },
+  "if": {
+    "properties": { "userType": { "const": "individual" } }
+  },
+  "then": {
+    "allOf": [
+      {
+        "if": {
+          "properties": { "country": { "const": "china" } }
+        },
+        "then": {
+          "required": ["chinaIdCard"]
+        }
+      },
+      {
+        "if": {
+          "properties": { "country": { "const": "usa" } }
+        },
+        "then": {
+          "required": ["usaSsn"]
+        }
+      },
+      {
+        "if": {
+          "properties": { "country": { "const": "other" } }
+        },
+        "then": {
+          "required": ["passport"]
+        }
+      }
+    ]
+  },
+  "else": {
+    "required": ["companyName", "businessLicense"]
+  }
+}
+```
+
+#### 5.4.8 条件渲染机制对比总结
+
+| 机制 | 位置 | 语义 | 使用场景 | 示例 |
+|------|------|------|----------|------|
+| **dependencies** | 根级别 | 字段间依赖关系 | 当字段A存在/有值时，字段B的约束 | 填写信用卡时必须填写账单地址 |
+| **if/then/else** | 根级别 | 条件分支 | 根据条件选择不同的验证规则 | 中国用户填身份证，美国用户填SSN |
+| **allOf** | 根级别 | 逻辑与（全部满足） | 同时应用多个独立条件 | 学生要填学号，未成年要填监护人电话 |
+| **anyOf** | 根级别 | 逻辑或（至少一个） | 至少满足一个条件 | 至少填写邮箱、手机、微信之一 |
+| **oneOf** | 根级别 | 逻辑异或（仅一个） | 互斥选择，只能满足一个 | 个人账户或企业账户（二选一） |
+
+**选择建议**：
+1. 简单的字段依赖 → 使用 `dependencies`
+2. 条件分支逻辑 → 使用 `if/then/else`
+3. 多个独立条件同时生效 → 使用 `allOf`
+4. 至少满足一个条件 → 使用 `anyOf`
+5. 互斥选择 → 使用 `oneOf`
+
+#### 5.4.7 多字段联合判断
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "hasDiscount": {
+      "type": "boolean",
+      "title": "是否有优惠"
+    },
+    "discountType": {
+      "type": "string",
+      "title": "优惠类型",
+      "enum": ["coupon", "points", "vip"]
+    },
+    "couponCode": { "type": "string", "title": "优惠券码" },
+    "pointsAmount": { "type": "integer", "title": "积分数量" },
+    "vipLevel": { "type": "string", "title": "VIP等级" }
+  },
+  "if": {
+    "properties": {
+      "hasDiscount": { "const": true }
+    },
+    "required": ["hasDiscount"]
+  },
+  "then": {
+    "required": ["discountType"],
+    "allOf": [
+      {
+        "if": {
+          "properties": { "discountType": { "const": "coupon" } }
+        },
+        "then": {
+          "required": ["couponCode"],
+          "properties": {
+            "couponCode": {
+              "minLength": 6,
+              "maxLength": 20
+            }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": { "discountType": { "const": "points" } }
+        },
+        "then": {
+          "required": ["pointsAmount"],
+          "properties": {
+            "pointsAmount": {
+              "minimum": 100
+            }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": { "discountType": { "const": "vip" } }
+        },
+        "then": {
+          "required": ["vipLevel"]
+        }
+      }
+    ]
+  }
+}
+```
+
 ### 5.5 自定义验证
 
-#### 5.5.1 自定义格式
+#### 5.5.1 自定义格式验证
 
 ```json
 {
@@ -416,9 +794,17 @@ addFormats(ajv);
 ajv.addFormat('phone', {
   validate: (data: string) => /^1[3-9]\d{9}$/.test(data)
 });
+
+// 在 DynamicForm 中使用
+<DynamicForm
+  schema={schema}
+  customFormats={{
+    phone: (value: string) => /^1[3-9]\d{9}$/.test(value)
+  }}
+/>
 ```
 
-#### 5.5.2 自定义关键字
+#### 5.5.2 自定义关键字验证
 
 ```typescript
 ajv.addKeyword({
@@ -437,6 +823,61 @@ ajv.addKeyword({
   "isAdult": true
 }
 ```
+
+#### 5.5.3 跨字段验证
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "password": {
+      "type": "string",
+      "title": "密码",
+      "minLength": 6
+    },
+    "confirmPassword": {
+      "type": "string",
+      "title": "确认密码",
+      "ui": {
+        "widget": "password",
+        "validation": {
+          "function": "matchPassword",
+          "dependencies": ["password"]
+        }
+      }
+    }
+  }
+}
+```
+
+对应的验证函数：
+```typescript
+const customValidators = {
+  matchPassword: (value: string, formData: any) => {
+    if (value !== formData.password) {
+      return '两次密码输入不一致';
+    }
+    return true;
+  }
+};
+
+<DynamicForm
+  schema={schema}
+  customValidators={customValidators}
+/>
+```
+
+---
+
+## 6. UI 联动逻辑
+
+> **重要提示**：本文档主要介绍 JSON Schema 的数据验证机制。
+>
+> 如果你需要实现 **UI 层面的字段联动**（如字段显示/隐藏、禁用/启用、值的自动计算等），请参考：
+>
+> **[UI 联动设计文档 (UI_LINKAGE_DESIGN.md)](./UI_LINKAGE_DESIGN.md)**
+>
+> 该文档详细介绍了如何通过 `ui.linkage` 扩展字段实现 UI 联动逻辑，并与 react-hook-form 深度集成。
 
 ---
 

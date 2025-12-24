@@ -379,102 +379,65 @@ export class FieldRegistry {
 }
 ```
 
-### 7.5 条件渲染实现
+### 7.5 JSON Schema 标准条件渲染实现
 
-#### 7.5.1 扩展 UIConfig 类型
+#### 7.5.1 条件渲染说明
+
+动态表单支持 JSON Schema 标准的条件渲染方式：
+
+- `if/then/else` - 条件分支
+- `dependencies` - 字段依赖
+
+这些是 JSON Schema 规范的一部分，无需额外的 UI 扩展。
+
+#### 7.5.2 SchemaParser 处理条件逻辑
 
 ```typescript
-// src/types/schema.ts
+// src/components/DynamicForm/core/SchemaParser.ts (扩展)
 
-export interface UIConfig {
-  // ... 其他属性
+export class SchemaParser {
+  /**
+   * 解析 Schema 时处理条件逻辑
+   */
+  static parse(schema: ExtendedJSONSchema): FieldConfig[] {
+    const fields: FieldConfig[] = [];
 
-  // 条件渲染配置
-  visibleWhen?: VisibilityCondition;
+    if (schema.type !== 'object' || !schema.properties) {
+      return fields;
+    }
+
+    // 解析基础字段
+    const baseFields = this.parseProperties(schema);
+
+    // 处理 if/then/else 条件
+    if (schema.if) {
+      const conditionalFields = this.parseConditionalSchema(schema);
+      return [...baseFields, ...conditionalFields];
+    }
+
+    return baseFields;
+  }
+
+  /**
+   * 解析条件 Schema
+   */
+  private static parseConditionalSchema(schema: ExtendedJSONSchema): FieldConfig[] {
+    // 条件渲染由表单运行时动态处理
+    // SchemaParser 只负责解析所有可能的字段
+    const thenFields = schema.then ? this.parseProperties(schema.then) : [];
+    const elseFields = schema.else ? this.parseProperties(schema.else) : [];
+
+    return [...thenFields, ...elseFields];
+  }
 }
-
-export interface VisibilityCondition {
-  field: string;                    // 依赖的字段名
-  equals?: any;                     // 等于某个值
-  notEquals?: any;                  // 不等于某个值
-  in?: any[];                       // 在某个数组中
-  notIn?: any[];                    // 不在某个数组中
-  custom?: (value: any, formValues: Record<string, any>) => boolean; // 自定义判断函数
-}
-```
-
-#### 7.5.2 条件渲染 Hook
-
-```typescript
-// src/components/DynamicForm/hooks/useConditionalRender.ts
-
-import { useFormContext } from 'react-hook-form';
-import { VisibilityCondition } from '@/types/schema';
-
-export const useConditionalRender = (condition?: VisibilityCondition): boolean => {
-  const { watch } = useFormContext();
-
-  if (!condition) return true;
-
-  const dependentValue = watch(condition.field);
-
-  // 等于判断
-  if (condition.equals !== undefined) {
-    return dependentValue === condition.equals;
-  }
-
-  // 不等于判断
-  if (condition.notEquals !== undefined) {
-    return dependentValue !== condition.notEquals;
-  }
-
-  // 在数组中判断
-  if (condition.in) {
-    return condition.in.includes(dependentValue);
-  }
-
-  // 不在数组中判断
-  if (condition.notIn) {
-    return !condition.notIn.includes(dependentValue);
-  }
-
-  // 自定义判断
-  if (condition.custom) {
-    const formValues = watch();
-    return condition.custom(dependentValue, formValues);
-  }
-
-  return true;
-};
-```
-
-#### 7.5.3 在 FormField 中集成条件渲染
-
-```typescript
-// src/components/DynamicForm/layout/FormField.tsx (更新版本)
-
-import { useConditionalRender } from '../hooks/useConditionalRender';
-
-export const FormField: React.FC<FormFieldProps> = ({
-  field,
-  disabled,
-  readonly,
-  widgets = {},
-}) => {
-  const { register, formState: { errors } } = useFormContext();
-
-  // 条件渲染判断
-  const isVisible = useConditionalRender(field.visibleWhen);
-
-  // 如果不可见，直接返回 null
-  if (!isVisible) {
-    return null;
-  }
-
-  // ... 其余代码保持不变
-};
 ```
 
 ---
+
+**说明**:
+
+- JSON Schema 的条件逻辑在运行时由表单动态处理
+- SchemaParser 负责解析所有可能出现的字段
+- 字段的显示/隐藏由 JSON Schema 验证引擎控制
 
 **下一部分**: 使用指南和最佳实践
