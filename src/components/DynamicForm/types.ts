@@ -12,6 +12,7 @@ export interface DynamicFormProps {
   onChange?: (data: Record<string, any>) => void;
   widgets?: Record<string, React.ComponentType<any>>;
   linkageFunctions?: Record<string, LinkageFunction>;
+  customFormats?: Record<string, (value: string) => boolean>;
   layout?: 'vertical' | 'horizontal' | 'inline';
   labelWidth?: number | string;
   showErrorList?: boolean;

@@ -1,4 +1,5 @@
 export { TextWidget } from './TextWidget';
+export { PasswordWidget } from './PasswordWidget';
 export { TextareaWidget } from './TextareaWidget';
 export { NumberWidget } from './NumberWidget';
 export { SelectWidget } from './SelectWidget';

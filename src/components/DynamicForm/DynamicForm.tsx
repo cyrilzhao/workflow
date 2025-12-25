@@ -15,6 +15,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   onChange,
   widgets = {},
   linkageFunctions = {},
+  customFormats = {},
   layout = 'vertical',
   showSubmitButton = true,
   renderAsForm = true,
@@ -25,7 +26,13 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   className,
   style,
 }) => {
-  const fields = useMemo(() => SchemaParser.parse(schema), [schema]);
+  // 设置自定义格式验证器并解析字段
+  const fields = useMemo(() => {
+    if (customFormats && Object.keys(customFormats).length > 0) {
+      SchemaParser.setCustomFormats(customFormats);
+    }
+    return SchemaParser.parse(schema);
+  }, [schema, customFormats]);
 
   const methods = useForm({
     defaultValues,

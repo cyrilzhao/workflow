@@ -7,6 +7,15 @@ import type {
 } from '@/types/schema';
 
 export class SchemaParser {
+  private static customFormats: Record<string, (value: string) => boolean> = {};
+
+  /**
+   * 设置自定义格式验证器
+   */
+  static setCustomFormats(formats: Record<string, (value: string) => boolean>) {
+    this.customFormats = formats;
+  }
+
   /**
    * 解析 Schema 生成字段配置
    */
@@ -157,6 +166,27 @@ export class SchemaParser {
         value: new RegExp(schema.pattern),
         message: errorMessages.pattern || '格式不正确',
       };
+    }
+
+    // 处理 format 验证
+    if (schema.format) {
+      // 优先使用自定义格式验证器
+      if (this.customFormats[schema.format]) {
+        const formatName = schema.format;
+        rules.validate = {
+          [formatName]: (value: string) => {
+            if (!value) return true; // 空值由 required 规则处理
+            const isValid = this.customFormats[formatName](value);
+            return isValid || errorMessages.format || `${formatName} 格式不正确`;
+          }
+        };
+      } else if (schema.format === 'email') {
+        // 内置邮箱格式验证
+        rules.pattern = {
+          value: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+          message: errorMessages.format || '请输入有效的邮箱地址',
+        };
+      }
     }
 
     return rules;

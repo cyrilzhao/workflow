@@ -34,6 +34,17 @@ export const DynamicFormExamples: React.FC = () => {
           placeholder: 'example@email.com',
         },
       },
+      phone: {
+        type: 'string',
+        title: '手机号',
+        format: 'phone',
+        ui: {
+          placeholder: '请输入手机号',
+          errorMessages: {
+            format: '请输入有效的手机号码',
+          },
+        },
+      },
       password: {
         type: 'string',
         title: '密码',
@@ -68,7 +79,7 @@ export const DynamicFormExamples: React.FC = () => {
           widget: 'radio',
         },
       },
-      bio: {
+      introduction: {
         type: 'string',
         title: '个人简介',
         maxLength: 500,
@@ -111,11 +122,18 @@ const BasicFormPanel: React.FC<{ schema: ExtendedJSONSchema }> = ({ schema }) =>
     alert('提交成功！请查看控制台输出');
   };
 
+  // 自定义格式验证器
+  const customFormats = {
+    phone: (value: string) => /^1[3-9]\d{9}$/.test(value),
+  };
+
   return (
     <Card style={{ marginTop: '20px', maxWidth: '600px' }}>
       <h3>基础表单示例</h3>
-      <p>包含常见的表单字段类型：文本、邮箱、密码、数字、单选、多行文本、复选框等。</p>
-      <DynamicForm schema={schema} onSubmit={handleSubmit} />
+      <p>
+        包含常见的表单字段类型：文本、邮箱、手机号、密码、数字、下拉选择、单选、多行文本、开关、复选框等。
+      </p>
+      <DynamicForm schema={schema} onSubmit={handleSubmit} customFormats={customFormats} />
     </Card>
   );
 };

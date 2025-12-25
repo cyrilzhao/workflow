@@ -1,6 +1,7 @@
 import type { WidgetType } from '@/types/schema';
 import {
   TextWidget,
+  PasswordWidget,
   TextareaWidget,
   NumberWidget,
   SelectWidget,
@@ -14,7 +15,7 @@ export class FieldRegistry {
   private static widgets: Map<WidgetType, React.ComponentType<any>> = new Map<WidgetType, React.ComponentType<any>>([
     ['text', TextWidget],
     ['textarea', TextareaWidget],
-    ['password', TextWidget],
+    ['password', PasswordWidget],
     ['email', TextWidget],
     ['number', NumberWidget],
     ['select', SelectWidget],
