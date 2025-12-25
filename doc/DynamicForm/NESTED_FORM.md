@@ -8,9 +8,10 @@
 4. [类型定义和接口设计](#4-类型定义和接口设计)
 5. [组件实现](#5-组件实现)
 6. [使用示例](#6-使用示例)
-7. [高级特性](#7-高级特性)
-8. [最佳实践](#8-最佳实践)
-9. [注意事项](#9-注意事项)
+7. [SchemaKey 路径格式与数据清除机制](#7-schemakey-路径格式与数据清除机制)
+8. [高级特性](#8-高级特性)
+9. [最佳实践](#9-最佳实践)
+10. [注意事项](#10-注意事项)
 
 ---
 
@@ -47,7 +48,7 @@
 }
 ```
 
-### 2.2 场景 2: 可配置的子表单
+### 2.2 场景 2: 可配置的子表单（同级字段依赖）
 
 ```typescript
 // 根据类型动态加载不同的子表单
@@ -64,7 +65,7 @@
       title: 'Details',
       ui: {
         widget: 'nested-form',
-        schemaKey: 'type', // 根据 type 字段值选择不同的 properties
+        schemaKey: 'type', // 简单字段名：依赖同级的 type 字段
         schemas: {
           personal: {
             properties: {
@@ -85,7 +86,58 @@
 }
 ```
 
-### 2.3 场景 3: 数组中的嵌套表单
+**数据清除机制**：当 `type` 从 `personal` 切换到 `company` 时，`details` 字段会被自动清空为 `{}`，避免数据污染。
+
+### 2.3 场景 3: 跨层级字段依赖（JSON Pointer）
+
+```typescript
+// 使用 JSON Pointer 依赖嵌套字段
+{
+  type: 'object',
+  properties: {
+    company: {
+      type: 'object',
+      properties: {
+        type: {
+          type: 'string',
+          enum: ['startup', 'enterprise'],
+          title: 'Company Type'
+        },
+        details: {
+          type: 'object',
+          title: 'Company Details',
+          ui: {
+            widget: 'nested-form',
+            // 使用 JSON Pointer 依赖 company.type
+            schemaKey: '#/properties/company/type',
+            schemas: {
+              startup: {
+                properties: {
+                  foundedYear: { type: 'number', title: 'Founded Year' },
+                  funding: { type: 'string', title: 'Funding Stage' }
+                }
+              },
+              enterprise: {
+                properties: {
+                  employeeCount: { type: 'number', title: 'Employee Count' },
+                  revenue: { type: 'number', title: 'Annual Revenue' }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**说明**：
+- `schemaKey: '#/properties/company/type'` 使用 JSON Pointer 格式
+- 可以依赖任意层级的字段，不限于同级
+- 同样支持自动数据清除机制
+
+### 2.4 场景 4: 数组中的嵌套表单
 
 ```typescript
 {
@@ -118,6 +170,8 @@
 2. **值回传**: 内层表单变化时，将新对象值回传给外层表单
 3. **验证独立**: 内层表单有自己的验证规则
 4. **样式隔离**: 内层表单可以有独立的样式配置
+5. **跨层级依赖**: 支持 JSON Pointer 格式依赖任意层级的字段
+6. **自动数据清除**: 类型切换时自动清空旧数据，避免数据污染
 
 ---
 
@@ -141,7 +195,8 @@ export interface UIConfig {
   errorMessages?: ErrorMessages;
 
   // 嵌套表单配置（用于动态场景）
-  schemaKey?: string; // 动态 schema 的依赖字段
+  schemaKey?: string; // 动态 schema 的依赖字段（支持简单字段名或 JSON Pointer 格式）
+                      // 示例: 'type' 或 '#/properties/company/type'
   schemas?: Record<
     string,
     {
@@ -376,9 +431,167 @@ const schema = {
 
 ---
 
-## 7. 高级特性
+## 7. SchemaKey 路径格式与数据清除机制
 
-### 7.1 异步加载 Schema
+### 7.1 SchemaKey 路径格式
+
+`schemaKey` 支持两种路径格式：
+
+#### 7.1.1 简单字段名（同级依赖）
+
+```typescript
+{
+  type: 'object',
+  properties: {
+    userType: { type: 'string', enum: ['personal', 'company'] },
+    details: {
+      type: 'object',
+      ui: {
+        widget: 'nested-form',
+        schemaKey: 'userType',  // ✅ 简单字段名，依赖同级字段
+        schemas: { /* ... */ }
+      }
+    }
+  }
+}
+```
+
+**适用场景**：依赖字段与嵌套表单字段在同一层级。
+
+#### 7.1.2 JSON Pointer 格式（跨层级依赖）
+
+```typescript
+{
+  type: 'object',
+  properties: {
+    company: {
+      type: 'object',
+      properties: {
+        type: { type: 'string', enum: ['startup', 'enterprise'] },
+        info: {
+          type: 'object',
+          properties: {
+            details: {
+              type: 'object',
+              ui: {
+                widget: 'nested-form',
+                // ✅ JSON Pointer 格式，依赖 company.type
+                schemaKey: '#/properties/company/type',
+                schemas: { /* ... */ }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**JSON Pointer 格式说明**：
+- 以 `#/` 开头
+- 使用 `/properties/` 分隔层级
+- 示例：`#/properties/company/type` 对应表单数据中的 `company.type`
+
+**路径转换规则**：
+
+| JSON Pointer | 表单数据路径 | 说明 |
+|--------------|-------------|------|
+| `type` | `type` | 简单字段名 |
+| `#/properties/type` | `type` | 顶层字段 |
+| `#/properties/company/type` | `company.type` | 嵌套字段 |
+| `#/properties/user/profile/age` | `user.profile.age` | 多层嵌套 |
+
+### 7.2 自动数据清除机制
+
+当 `schemaKey` 指向的字段值发生变化时，嵌套表单会自动清除旧数据。
+
+#### 7.2.1 数据清除行为
+
+```typescript
+// 初始状态
+{
+  userType: 'personal',
+  details: {
+    firstName: 'John',
+    lastName: 'Doe'
+  }
+}
+
+// 用户将 userType 从 'personal' 切换到 'company'
+// ↓ 自动清除 details 字段
+
+{
+  userType: 'company',
+  details: {}  // ✅ 自动清空，避免数据污染
+}
+```
+
+#### 7.2.2 为什么需要数据清除
+
+**问题场景**：如果不清除数据，会导致数据污染
+
+```typescript
+// 不清除的情况（错误示例）
+{
+  userType: 'company',
+  details: {
+    // ❌ 遗留的 personal 类型数据
+    firstName: 'John',
+    lastName: 'Doe',
+    // 新的 company 类型数据
+    companyName: '',
+    taxId: ''
+  }
+}
+```
+
+**后果**：
+1. 提交时包含无效字段
+2. 后端验证可能失败
+3. 数据库存储冗余数据
+4. 类型安全问题
+
+#### 7.2.3 实现原理
+
+```typescript
+// NestedFormWidget 内部实现
+const previousKeyRef = useRef<string | undefined>();
+
+useEffect(() => {
+  const subscription = watch((formValue, { name: changedField }) => {
+    if (changedField === watchFieldPath) {
+      const key = getSchemaKeyValue();
+
+      // 检测到类型切换
+      if (previousKeyRef.current && previousKeyRef.current !== key) {
+        // 自动清空字段值
+        setValue(name, {}, { shouldValidate: false, shouldDirty: true });
+      }
+
+      previousKeyRef.current = key;
+    }
+  });
+}, [/* ... */]);
+```
+
+#### 7.2.4 禁用数据清除（如果需要）
+
+如果某些场景下需要保留数据，可以通过自定义 Widget 实现：
+
+```typescript
+// 自定义不清除数据的嵌套表单
+export const NestedFormWidgetWithoutClear = forwardRef((props, ref) => {
+  // 移除数据清除逻辑
+  // ...
+});
+```
+
+---
+
+## 8. 高级特性
+
+### 8.1 异步加载 Schema
 
 ```typescript
 const schema = {
@@ -404,7 +617,7 @@ const schema = {
 };
 ```
 
-### 7.2 数组中的嵌套表单
+### 8.2 数组中的嵌套表单
 
 ```typescript
 const schema = {
@@ -432,7 +645,7 @@ const schema = {
 };
 ```
 
-### 7.3 多层嵌套
+### 8.3 多层嵌套
 
 ```typescript
 const schema = {
@@ -471,9 +684,9 @@ const schema = {
 
 ---
 
-## 8. 最佳实践
+## 9. 最佳实践
 
-### 8.1 值同步策略
+### 9.1 值同步策略
 
 ```typescript
 import { useState, useEffect, useRef } from 'react';
@@ -514,7 +727,7 @@ const NestedFormWidget = ({ value, onChange }) => {
 - 使用 `isEqual` 进行深度比较，避免对象引用变化导致的误判
 - 这样可以有效避免父子组件之间的值同步死循环，且代码更简洁
 
-### 8.2 验证处理
+### 9.2 验证处理
 
 ```typescript
 // 嵌套表单的验证应该独立处理
@@ -535,9 +748,9 @@ const schema = {
 };
 ```
 
-### 8.3 性能优化
+### 9.3 性能优化
 
-#### 8.3.1 缓存 Schema
+#### 9.3.1 缓存 Schema
 
 ```typescript
 // 使用 useMemo 缓存 schema，避免每次渲染都创建新对象
@@ -563,7 +776,7 @@ const dynamicSchema = useMemo(
 );
 ```
 
-#### 8.3.2 使用 useCallback 缓存回调函数
+#### 9.3.2 使用 useCallback 缓存回调函数
 
 ```typescript
 const NestedFormWidget = ({ value, onChange }) => {
@@ -583,7 +796,7 @@ const NestedFormWidget = ({ value, onChange }) => {
 };
 ```
 
-#### 8.3.3 防抖处理频繁变化
+#### 9.3.3 防抖处理频繁变化
 
 ```typescript
 import { useMemo } from 'react';

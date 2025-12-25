@@ -24,7 +24,6 @@ export const FormField: React.FC<FormFieldProps> = ({
   linkageState,
 }) => {
   const {
-    register,
     control,
     formState: { errors },
     setValue,

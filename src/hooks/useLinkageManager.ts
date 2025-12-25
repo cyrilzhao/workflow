@@ -1,8 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
-import type { LinkageConfig, LinkageFunction } from '@/types/linkage';
+import type { LinkageConfig, LinkageFunction, ConditionExpression } from '@/types/linkage';
 import type { LinkageResult } from '@/types/linkage';
 import { ConditionEvaluator } from '@/utils/conditionEvaluator';
+import { DependencyGraph } from '@/utils/dependencyGraph';
+import { PathResolver } from '@/utils/pathResolver';
 
 interface LinkageManagerOptions {
   form: UseFormReturn<any>;
@@ -20,37 +22,89 @@ export function useLinkageManager({
 }: LinkageManagerOptions) {
   const { watch, getValues } = form;
 
-  // 收集所有需要监听的字段
-  const watchFields = useMemo(() => {
-    const fields = new Set<string>();
-    Object.values(linkages).forEach(linkage => {
-      linkage.dependencies.forEach(dep => fields.add(dep));
-    });
+  // 构建依赖图
+  const dependencyGraph = useMemo(() => {
+    const graph = new DependencyGraph();
 
-    // 同时监听所有有值联动的字段本身，因为它们的值可能被其他联动修改
     Object.entries(linkages).forEach(([fieldName, linkage]) => {
-      if (linkage.type === 'value') {
-        fields.add(fieldName);
-      }
+      linkage.dependencies.forEach(dep => {
+        // 标准化路径并添加依赖关系
+        const normalizedDep = PathResolver.toFieldPath(dep);
+        graph.addDependency(fieldName, normalizedDep);
+      });
     });
 
-    return Array.from(fields);
+    // 检测循环依赖
+    const cycle = graph.detectCycle();
+    if (cycle) {
+      console.error('检测到循环依赖:', cycle.join(' -> '));
+    }
+
+    return graph;
   }, [linkages]);
 
-  // 监听所有依赖字段
-  const watchedValues = watch(watchFields);
-
-  // 计算每个字段的联动状态
-  const linkageStates = useMemo(() => {
+  // 联动状态缓存（使用 useState 而不是 useMemo，以便在 useEffect 中更新）
+  // 传入的参数是初始化函数，只在组件首次挂载时调用一次，后续重新渲染时不会执行
+  const [linkageStates, setLinkageStates] = useState<Record<string, LinkageResult>>(() => {
     const formData = getValues();
     const states: Record<string, LinkageResult> = {};
-
     Object.entries(linkages).forEach(([fieldName, linkage]) => {
       states[fieldName] = evaluateLinkage(linkage, formData, linkageFunctions);
     });
-
     return states;
-  }, [watchedValues, linkages, linkageFunctions, getValues]);
+  });
+
+  // 统一的字段变化监听和联动处理
+  useEffect(() => {
+    const subscription = watch((_, { name }) => {
+      if (!name) return;
+
+      console.info('cyril changed field name: ', name);
+
+      // 获取受影响的字段（使用依赖图精确计算）
+      const affectedFields = dependencyGraph.getAffectedFields(name);
+      console.info('cyril affectedFields: ', affectedFields);
+      if (affectedFields.length === 0) return;
+
+      const formData = getValues();
+      const newStates: Record<string, LinkageResult> = {};
+      let hasStateChange = false;
+
+      // 只重新计算受影响的字段
+      affectedFields.forEach(fieldName => {
+        const linkage = linkages[fieldName];
+        if (!linkage) return;
+
+        const result = evaluateLinkage(linkage, formData, linkageFunctions);
+        newStates[fieldName] = result;
+
+        // 处理值联动：自动更新表单字段值
+        if (
+          (linkage.type === 'computed' || linkage.type === 'value') &&
+          result.value !== undefined
+        ) {
+          const currentValue = formData[fieldName];
+          if (currentValue !== result.value) {
+            console.info('cyril update value for: ', fieldName, result.value);
+            form.setValue(fieldName, result.value, {
+              shouldValidate: true,
+              shouldDirty: true,
+            });
+          }
+        }
+
+        hasStateChange = true;
+      });
+
+      // 批量更新状态（只更新变化的字段）
+      if (hasStateChange) {
+        console.info('cyril newStates: ', newStates);
+        setLinkageStates(prev => ({ ...prev, ...newStates }));
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [watch, form, getValues, linkages, linkageFunctions, dependencyGraph]);
 
   return linkageStates;
 }
@@ -65,7 +119,26 @@ function evaluateLinkage(
 ): LinkageResult {
   const result: LinkageResult = {};
 
-  // 如果指定了自定义函数，优先使用
+  // 支持新的 when/fulfill/otherwise 语法
+  if (linkage.when && (linkage.fulfill || linkage.otherwise)) {
+    const conditionMet = evaluateCondition(linkage.when, formData, linkageFunctions);
+    const effect = conditionMet ? linkage.fulfill : linkage.otherwise;
+
+    if (effect) {
+      // 应用状态变更
+      if (effect.state) {
+        Object.assign(result, effect.state);
+      }
+      // 应用值变更
+      if (effect.value !== undefined) {
+        result.value = effect.value;
+      }
+    }
+
+    return result;
+  }
+
+  // 向后兼容：如果指定了自定义函数，优先使用
   if (linkage.function && linkageFunctions[linkage.function]) {
     const fnResult = linkageFunctions[linkage.function](formData);
 
@@ -91,7 +164,7 @@ function evaluateLinkage(
     return result;
   }
 
-  // 如果有条件表达式，求值条件
+  // 向后兼容：如果有条件表达式，求值条件
   if (linkage.condition) {
     const conditionMet = ConditionEvaluator.evaluate(linkage.condition, formData);
 
@@ -115,4 +188,26 @@ function evaluateLinkage(
   }
 
   return result;
+}
+
+/**
+ * 求值条件（支持表达式对象或函数名）
+ */
+function evaluateCondition(
+  when: ConditionExpression | string,
+  formData: Record<string, any>,
+  linkageFunctions: Record<string, LinkageFunction>
+): boolean {
+  // 如果是字符串，尝试作为函数名调用
+  if (typeof when === 'string') {
+    const fn = linkageFunctions[when];
+    if (fn) {
+      return Boolean(fn(formData));
+    }
+    console.warn(`Linkage function "${when}" not found`);
+    return false;
+  }
+
+  // 否则作为条件表达式求值
+  return ConditionEvaluator.evaluate(when, formData);
 }

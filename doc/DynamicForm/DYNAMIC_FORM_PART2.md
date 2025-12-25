@@ -237,6 +237,9 @@ interface UIConfig {
   style?: React.CSSProperties;    // 内联样式
   order?: string[];               // 字段顺序
   errorMessages?: ErrorMessages;  // 自定义错误信息
+  linkage?: LinkageConfig;        // UI 联动配置（详见 UI_LINKAGE_DESIGN.md）
+  flattenPath?: boolean;          // 路径透明化：是否跳过该对象层级
+  flattenPrefix?: boolean;        // 路径透明化：是否添加当前字段 title 作为前缀
   [key: string]: any;             // 其他自定义属性
 }
 
@@ -333,6 +336,60 @@ interface ErrorMessages {
 | `time` | string | 时间选择 |
 | `color` | string | 颜色选择 |
 | `file` | string | 文件上传 |
+
+#### 5.3.4 字段路径透明化（Field Path Flattening）
+
+> **详细文档**：完整的设计和实现请参考 [字段路径透明化设计文档](./FIELD_PATH_FLATTENING.md)
+
+字段路径透明化用于解决深层嵌套参数显示冗余的问题。当后端接口参数嵌套较深时，可以通过配置跳过中间层级，直接展示目标字段。
+
+**配置属性**：
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `flattenPath` | `boolean` | 是否对该对象字段进行路径扁平化，跳过该层级直接展示子字段 |
+| `flattenPrefix` | `boolean` | 是否在扁平化后的字段标签前添加当前字段的 `title` 作为前缀 |
+
+**基础示例**：
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "auth": {
+      "type": "object",
+      "title": "认证配置",
+      "ui": {
+        "flattenPath": true,
+        "flattenPrefix": true
+      },
+      "properties": {
+        "content": {
+          "type": "object",
+          "ui": {
+            "flattenPath": true
+          },
+          "properties": {
+            "key": {
+              "type": "string",
+              "title": "密钥"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**渲染效果**：
+- 表单显示：`认证配置 - 密钥`
+- 提交数据：`{ auth: { content: { key: 'xxx' } } }`
+
+**适用场景**：
+- 后端接口参数嵌套深度超过 2 层
+- 中间层级没有实际业务意义
+- 用户只需要关注最内层的实际字段
 
 ### 5.4 条件验证（Conditional Validation）
 

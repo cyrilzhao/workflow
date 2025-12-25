@@ -1,4 +1,5 @@
 import type { ConditionExpression, ConditionOperator } from '@/types/linkage';
+import { PathResolver } from './pathResolver';
 
 /**
  * 条件表达式求值器
@@ -33,23 +34,14 @@ export class ConditionEvaluator {
   }
 
   /**
-   * 获取字段值（支持嵌套路径）
+   * 获取字段值（支持嵌套路径和 JSON Pointer）
    */
   private static getFieldValue(
     formData: Record<string, any>,
     fieldPath: string
   ): any {
-    const keys = fieldPath.split('.');
-    let value = formData;
-
-    for (const key of keys) {
-      if (value === null || value === undefined) {
-        return undefined;
-      }
-      value = value[key];
-    }
-
-    return value;
+    // 使用 PathResolver 支持 JSON Pointer 格式
+    return PathResolver.resolve(fieldPath, formData);
   }
 
   /**
