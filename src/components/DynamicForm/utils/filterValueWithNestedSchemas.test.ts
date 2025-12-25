@@ -236,5 +236,112 @@ describe('filterValueWithNestedSchemas', () => {
         ],
       });
     });
+
+    it('应该处理没有 items 的数组 schema', () => {
+      const schema: ExtendedJSONSchema = {
+        type: 'object',
+        properties: {
+          data: {
+            type: 'array',
+            // 没有定义 items
+          },
+        },
+      };
+
+      const nestedSchemas = new Map<string, ExtendedJSONSchema>();
+      const value = {
+        data: [1, 2, 3, 'test', { foo: 'bar' }],
+      };
+
+      const result = filterValueWithNestedSchemas(value, schema, nestedSchemas);
+      expect(result).toEqual({
+        data: [1, 2, 3, 'test', { foo: 'bar' }],
+      });
+    });
+  });
+
+  describe('边界情况处理', () => {
+    it('应该处理没有 properties 的对象 schema', () => {
+      const schema: ExtendedJSONSchema = {
+        type: 'object',
+        properties: {
+          config: {
+            type: 'object',
+            // 没有定义 properties
+          },
+        },
+      };
+
+      const nestedSchemas = new Map<string, ExtendedJSONSchema>();
+      const value = {
+        config: {
+          key1: 'value1',
+          key2: 'value2',
+          nested: { foo: 'bar' },
+        },
+      };
+
+      const result = filterValueWithNestedSchemas(value, schema, nestedSchemas);
+      expect(result).toEqual({
+        config: {
+          key1: 'value1',
+          key2: 'value2',
+          nested: { foo: 'bar' },
+        },
+      });
+    });
+
+    it('应该跳过 schema 中定义但数据中不存在的字段', () => {
+      const schema: ExtendedJSONSchema = {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          age: { type: 'number' },
+          email: { type: 'string' },
+          phone: { type: 'string' },
+        },
+      };
+
+      const nestedSchemas = new Map<string, ExtendedJSONSchema>();
+      const value = {
+        name: 'John',
+        age: 30,
+        // email 和 phone 不存在
+      };
+
+      const result = filterValueWithNestedSchemas(value, schema, nestedSchemas);
+      expect(result).toEqual({
+        name: 'John',
+        age: 30,
+      });
+      expect(result).not.toHaveProperty('email');
+      expect(result).not.toHaveProperty('phone');
+    });
+
+    it('应该正确处理顶层数组的路径（currentPath 为空）', () => {
+      const schema: ExtendedJSONSchema = {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'number' },
+            name: { type: 'string' },
+          },
+        },
+      };
+
+      const nestedSchemas = new Map<string, ExtendedJSONSchema>();
+      const value = [
+        { id: 1, name: 'Item 1', extra: 'remove' },
+        { id: 2, name: 'Item 2', another: 'remove' },
+      ];
+
+      // 直接传入数组作为顶层值，currentPath 为空字符串
+      const result = filterValueWithNestedSchemas(value, schema, nestedSchemas, '');
+      expect(result).toEqual([
+        { id: 1, name: 'Item 1' },
+        { id: 2, name: 'Item 2' },
+      ]);
+    });
   });
 });
