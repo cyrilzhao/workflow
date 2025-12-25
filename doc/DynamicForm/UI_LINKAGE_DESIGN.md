@@ -164,7 +164,94 @@ const linkageFunctions = {
 };
 ```
 
-### 3.4 动态选项
+### 3.4 条件性设置字段值（value 类型）
+
+**说明**：`value` 类型用于根据条件表达式的结果，直接设置字段的值（而不是通过函数计算）。
+
+#### 方式一：使用 condition + targetValue
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "membershipType": {
+      "type": "string",
+      "title": "会员类型",
+      "enum": ["free", "premium", "vip"]
+    },
+    "maxProjects": {
+      "type": "integer",
+      "title": "最大项目数",
+      "ui": {
+        "readonly": true,
+        "linkage": {
+          "type": "value",
+          "dependencies": ["membershipType"],
+          "condition": {
+            "field": "membershipType",
+            "operator": "==",
+            "value": "free"
+          },
+          "targetValue": 3
+        }
+      }
+    }
+  }
+}
+```
+
+**说明**：当 `membershipType` 为 "free" 时，`maxProjects` 自动设置为 3。
+
+#### 方式二：使用 when/fulfill/otherwise（推荐）
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "autoConfig": {
+      "type": "boolean",
+      "title": "自动配置"
+    },
+    "memory": {
+      "type": "integer",
+      "title": "内存大小（MB）",
+      "ui": {
+        "linkage": {
+          "type": "value",
+          "dependencies": ["autoConfig"],
+          "when": {
+            "field": "autoConfig",
+            "operator": "==",
+            "value": true
+          },
+          "fulfill": {
+            "state": { "readonly": true },
+            "value": 2048
+          },
+          "otherwise": {
+            "state": { "readonly": false }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**说明**：
+- 当 `autoConfig` 为 true 时，`memory` 设置为 2048 并变为只读
+- 当 `autoConfig` 为 false 时，`memory` 变为可编辑
+
+#### value 类型 vs computed 类型
+
+| 特性 | `value` 类型 | `computed` 类型 |
+|------|-------------|----------------|
+| **值的来源** | 配置中直接指定（`targetValue` 或 `fulfill.value`） | 通过函数计算得出 |
+| **适用场景** | 条件性设置固定值、预设值 | 需要计算的值（如总价、折扣） |
+| **是否需要函数** | 否 | 是（必须提供 `function` 参数） |
+| **典型用例** | 根据会员类型设置配额、根据开关设置默认值 | 总价 = 单价 × 数量、BMI 计算 |
+
+### 3.5 动态选项
 
 ```json
 {
@@ -388,13 +475,13 @@ UI 联动和数据验证是独立的：
 
 ### 6.1 类型定义
 
-```typescript
-// src/types/linkage.ts
+**实际实现**：`src/types/linkage.ts`
 
+```typescript
 /**
  * 联动类型
  */
-export type LinkageType = 'visibility' | 'disabled' | 'readonly' | 'computed' | 'options';
+export type LinkageType = 'visibility' | 'disabled' | 'readonly' | 'value' | 'computed' | 'options';
 
 /**
  * 条件操作符
@@ -418,13 +505,34 @@ export interface ConditionExpression {
 }
 
 /**
+ * 联动效果定义
+ */
+export interface LinkageEffect {
+  state?: {
+    visible?: boolean;
+    disabled?: boolean;
+    readonly?: boolean;
+    required?: boolean;
+  };
+  value?: any;
+}
+
+/**
  * 联动配置
  */
 export interface LinkageConfig {
   type: LinkageType;
   dependencies: string[];
+
+  // 原有的单条件方式（向后兼容）
   condition?: ConditionExpression;
   function?: string;
+  targetValue?: any; // 用于 value 类型联动的目标值
+
+  // 新增：双分支方式
+  when?: ConditionExpression | string;  // 条件表达式或函数名
+  fulfill?: LinkageEffect;              // 条件满足时的效果
+  otherwise?: LinkageEffect;            // 条件不满足时的效果
 }
 
 /**
@@ -668,107 +776,119 @@ function evaluateLinkage(
 
 ### 6.4 计算字段自动更新
 
+**实现说明**：计算字段的自动更新功能已集成到 `useLinkageManager` 和 `FormField` 组件中，无需单独的 Hook。
+
+#### 实现方式
+
+**1. useLinkageManager 中的值联动处理**
+
 ```typescript
-// src/hooks/useComputedFields.ts
+// src/hooks/useLinkageManager.ts (第 78-89 行)
 
-import { useEffect } from 'react';
-import { UseFormReturn } from 'react-hook-form';
-import { LinkageConfig, LinkageFunction } from '@/types/linkage';
+useEffect(() => {
+  const subscription = watch((_, { name }) => {
+    if (!name) return;
+    const affectedFields = dependencyGraph.getAffectedFields(name);
+    if (affectedFields.length === 0) return;
 
-interface ComputedFieldsOptions {
-  form: UseFormReturn<any>;
-  computedFields: Record<string, LinkageConfig>;
-  linkageFunctions: Record<string, LinkageFunction>;
-}
+    const formData = getValues();
 
-export function useComputedFields({
-  form,
-  computedFields,
-  linkageFunctions
-}: ComputedFieldsOptions) {
-  const { watch, setValue, getValues } = form;
+    affectedFields.forEach(fieldName => {
+      const linkage = linkages[fieldName];
+      if (!linkage) return;
 
-  // 收集所有计算字段的依赖
-  const dependencies = Object.values(computedFields).flatMap(
-    config => config.dependencies
-  );
+      const result = evaluateLinkage(linkage, formData, linkageFunctions);
 
-  // 监听依赖字段变化
-  useEffect(() => {
-    const subscription = watch((value, { name }) => {
-      // 如果变化的字段是某个计算字段的依赖
-      if (name && dependencies.includes(name)) {
-        const formData = getValues();
-
-        // 更新所有相关的计算字段
-        Object.entries(computedFields).forEach(([fieldName, config]) => {
-          if (config.dependencies.includes(name)) {
-            const fn = linkageFunctions[config.function!];
-            if (fn) {
-              const computedValue = fn(formData);
-              setValue(fieldName, computedValue, { shouldValidate: true });
-            }
-          }
-        });
+      // 处理值联动：自动更新表单字段值
+      if (
+        (linkage.type === 'computed' || linkage.type === 'value') &&
+        result.value !== undefined
+      ) {
+        const currentValue = formData[fieldName];
+        if (currentValue !== result.value) {
+          form.setValue(fieldName, result.value, {
+            shouldValidate: true,
+            shouldDirty: true,
+          });
+        }
       }
     });
+  });
 
-    return () => subscription.unsubscribe();
-  }, [watch, setValue, getValues, computedFields, linkageFunctions, dependencies]);
-}
+  return () => subscription.unsubscribe();
+}, [watch, form, getValues, linkages, linkageFunctions, dependencyGraph]);
 ```
+
+**2. FormField 组件中的值同步**
+
+```typescript
+// src/components/DynamicForm/layout/FormField.tsx (第 33-37 行)
+
+// 当联动状态中有值时，自动设置字段值
+React.useEffect(() => {
+  if (linkageState?.value !== undefined) {
+    setValue(field.name, linkageState.value);
+  }
+}, [linkageState?.value, field.name, setValue]);
+```
+
+#### 工作流程
+
+1. **依赖字段变化** → `useLinkageManager` 的 `watch` 监听到变化
+2. **计算受影响字段** → 使用 `DependencyGraph` 精确计算受影响的字段
+3. **求值联动配置** → 调用 `evaluateLinkage` 计算新的联动状态
+4. **自动更新值** → 如果是 `computed` 或 `value` 类型，直接调用 `form.setValue` 更新
+5. **组件同步** → `FormField` 组件的 `useEffect` 确保 UI 与状态同步
+
+#### 优势
+
+- ✅ **统一处理**：所有联动逻辑在一个地方管理
+- ✅ **性能优化**：使用依赖图避免不必要的计算
+- ✅ **避免重复监听**：不需要额外的 `watch` 订阅
+- ✅ **类型安全**：同时支持 `computed` 和 `value` 类型
 
 ### 6.5 在 DynamicForm 中集成
 
+**实际实现**：`src/components/DynamicForm/DynamicForm.tsx`
+
 ```typescript
-// src/components/DynamicForm/DynamicForm.tsx
+// 解析 schema 中的联动配置（第 48-49 行）
+const { linkages } = useMemo(() => parseSchemaLinkages(schema), [schema]);
 
-import React from 'react';
-import { useForm } from 'react-hook-form';
-import { useLinkageManager } from '@/hooks/useLinkageManager';
-import { useComputedFields } from '@/hooks/useComputedFields';
-import { ExtendedJSONSchema } from '@/types/schema';
-import { LinkageFunction } from '@/types/linkage';
+// 使用联动管理器（第 51-56 行）
+const linkageStates = useLinkageManager({
+  form: methods,
+  linkages,
+  linkageFunctions,
+});
+```
 
-interface DynamicFormProps {
-  schema: ExtendedJSONSchema;
-  defaultValues?: Record<string, any>;
-  linkageFunctions?: Record<string, LinkageFunction>;
-  onSubmit?: (data: Record<string, any>) => void;
-}
+**渲染字段时应用联动状态**（第 83-105 行）：
 
-export function DynamicForm({
-  schema,
-  defaultValues,
-  linkageFunctions = {},
-  onSubmit
-}: DynamicFormProps) {
-  const form = useForm({ defaultValues });
+```typescript
+const renderFields = () => (
+  <div className="dynamic-form__fields">
+    {fields.map(field => {
+      const linkageState = linkageStates[field.name];
 
-  // 解析 schema 中的联动配置
-  const { linkages, computedFields } = parseSchemaLinkages(schema);
+      // 如果联动状态指定不可见，则不渲染该字段
+      if (linkageState?.visible === false) {
+        return null;
+      }
 
-  // 使用联动管理器
-  const linkageStates = useLinkageManager({
-    form,
-    linkages,
-    linkageFunctions
-  });
-
-  // 使用计算字段自动更新
-  useComputedFields({
-    form,
-    computedFields,
-    linkageFunctions
-  });
-
-  // 渲染表单字段...
-  return (
-    <form onSubmit={form.handleSubmit(onSubmit || (() => {}))}>
-      {/* 渲染字段，应用 linkageStates */}
-    </form>
-  );
-}
+      return (
+        <FormField
+          key={field.name}
+          field={field}
+          disabled={disabled || field.disabled || loading || linkageState?.disabled}
+          readonly={readonly || field.readonly || linkageState?.readonly}
+          widgets={widgets}
+          linkageState={linkageState}
+        />
+      );
+    })}
+  </div>
+);
 ```
 ---
 
@@ -776,23 +896,29 @@ export function DynamicForm({
 
 ### 7.1 解析联动配置
 
+**实际实现**：`src/utils/schemaLinkageParser.ts`
+
 ```typescript
-// src/utils/schemaParser.ts
+import type { ExtendedJSONSchema, LinkageConfig } from '@/types/schema';
 
-import { ExtendedJSONSchema } from '@/types/schema';
-import { LinkageConfig } from '@/types/linkage';
-
-interface ParsedLinkages {
+/**
+ * 解析结果
+ */
+export interface ParsedLinkages {
   linkages: Record<string, LinkageConfig>;
-  computedFields: Record<string, LinkageConfig>;
 }
 
+/**
+ * 解析 Schema 中的联动配置
+ *
+ * 注意：所有类型的联动（包括 computed、value、visibility 等）都统一在 linkages 中返回，
+ * 由 useLinkageManager 统一处理。不再区分 computedFields。
+ */
 export function parseSchemaLinkages(schema: ExtendedJSONSchema): ParsedLinkages {
   const linkages: Record<string, LinkageConfig> = {};
-  const computedFields: Record<string, LinkageConfig> = {};
 
   if (!schema.properties) {
-    return { linkages, computedFields };
+    return { linkages };
   }
 
   // 遍历所有字段
@@ -803,18 +929,19 @@ export function parseSchemaLinkages(schema: ExtendedJSONSchema): ParsedLinkages 
     const linkageConfig = typedSchema.ui?.linkage;
 
     if (linkageConfig) {
-      // 区分计算字段和其他联动类型
-      if (linkageConfig.type === 'computed') {
-        computedFields[fieldName] = linkageConfig;
-      } else {
-        linkages[fieldName] = linkageConfig;
-      }
+      linkages[fieldName] = linkageConfig;
     }
   });
 
-  return { linkages, computedFields };
+  return { linkages };
 }
 ```
+
+**设计说明**：
+
+- ✅ **统一处理**：不再区分 `computedFields`，所有联动类型统一返回
+- ✅ **简化逻辑**：`useLinkageManager` 根据 `type` 字段自动处理不同类型的联动
+- ✅ **向后兼容**：支持所有联动类型（visibility、disabled、readonly、value、computed、options）
 
 
 ---

@@ -6,5 +6,6 @@
 - 补充字段路径透明化的示例
 - 补充 schemaKey 跨层级字段依赖的示例
 - 为 schemaParser, PathResolver, filterValueBySchema, conditionEvaluator, dependencyGraph 添加单元测试
-- 确认 schemaLinkageParser 是否还有必要保留
+- 确认 schemaLinkageParser 是否还有必要保留 - 要保留
+- 目前已经没有 useComputedFields 的实现方式，需要在文档中更新
 - 文档与代码实现对齐

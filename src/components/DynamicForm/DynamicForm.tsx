@@ -7,7 +7,10 @@ import type { DynamicFormProps } from './types';
 import { parseSchemaLinkages } from '@/utils/schemaLinkageParser';
 import { useLinkageManager } from '@/hooks/useLinkageManager';
 import { filterValueWithNestedSchemas } from './utils/filterValueWithNestedSchemas';
-import { NestedSchemaProvider, useNestedSchemaRegistryOptional } from './context/NestedSchemaContext';
+import {
+  NestedSchemaProvider,
+  useNestedSchemaRegistryOptional,
+} from './context/NestedSchemaContext';
 import '@blueprintjs/core/lib/css/blueprint.css';
 
 // 内层组件：实际的表单逻辑
