@@ -1,4 +1,4 @@
-import { forwardRef } from 'react';
+import React, { forwardRef } from 'react';
 import { RadioGroup, Radio } from '@blueprintjs/core';
 import type { FieldWidgetProps } from '../types';
 import type { FieldOption } from '@/types/schema';

@@ -58,12 +58,8 @@ export function useLinkageManager({
   useEffect(() => {
     const subscription = watch((_, { name }) => {
       if (!name) return;
-
-      console.info('cyril changed field name: ', name);
-
       // 获取受影响的字段（使用依赖图精确计算）
       const affectedFields = dependencyGraph.getAffectedFields(name);
-      console.info('cyril affectedFields: ', affectedFields);
       if (affectedFields.length === 0) return;
 
       const formData = getValues();
@@ -85,7 +81,6 @@ export function useLinkageManager({
         ) {
           const currentValue = formData[fieldName];
           if (currentValue !== result.value) {
-            console.info('cyril update value for: ', fieldName, result.value);
             form.setValue(fieldName, result.value, {
               shouldValidate: true,
               shouldDirty: true,
@@ -98,7 +93,6 @@ export function useLinkageManager({
 
       // 批量更新状态（只更新变化的字段）
       if (hasStateChange) {
-        console.info('cyril newStates: ', newStates);
         setLinkageStates(prev => ({ ...prev, ...newStates }));
       }
     });

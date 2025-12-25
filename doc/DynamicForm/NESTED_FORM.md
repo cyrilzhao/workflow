@@ -8,7 +8,7 @@
 4. [类型定义和接口设计](#4-类型定义和接口设计)
 5. [组件实现](#5-组件实现)
 6. [使用示例](#6-使用示例)
-7. [SchemaKey 路径格式与数据清除机制](#7-schemakey-路径格式与数据清除机制)
+7. [SchemaKey 路径格式与数据过滤机制](#7-schemakey-路径格式与数据过滤机制)
 8. [高级特性](#8-高级特性)
 9. [最佳实践](#9-最佳实践)
 10. [注意事项](#10-注意事项)
@@ -86,7 +86,7 @@
 }
 ```
 
-**数据清除机制**：当 `type` 从 `personal` 切换到 `company` 时，`details` 字段会被自动清空为 `{}`，避免数据污染。
+**数据保留机制**：当 `type` 从 `personal` 切换到 `company` 时，`details` 字段的数据会被保留。在表单提交时，会根据当前 schema 自动过滤掉不需要的字段。
 
 ### 2.3 场景 3: 跨层级字段依赖（JSON Pointer）
 
@@ -171,7 +171,7 @@
 3. **验证独立**: 内层表单有自己的验证规则
 4. **样式隔离**: 内层表单可以有独立的样式配置
 5. **跨层级依赖**: 支持 JSON Pointer 格式依赖任意层级的字段
-6. **自动数据清除**: 类型切换时自动清空旧数据，避免数据污染
+6. **智能数据过滤**: 类型切换时保留所有数据，提交时根据当前 schema 自动过滤
 
 ---
 
@@ -431,7 +431,7 @@ const schema = {
 
 ---
 
-## 7. SchemaKey 路径格式与数据清除机制
+## 7. SchemaKey 路径格式与数据过滤机制
 
 ### 7.1 SchemaKey 路径格式
 
@@ -502,11 +502,11 @@ const schema = {
 | `#/properties/company/type` | `company.type` | 嵌套字段 |
 | `#/properties/user/profile/age` | `user.profile.age` | 多层嵌套 |
 
-### 7.2 自动数据清除机制
+### 7.2 智能数据过滤机制
 
-当 `schemaKey` 指向的字段值发生变化时，嵌套表单会自动清除旧数据。
+当 `schemaKey` 指向的字段值发生变化时，嵌套表单会保留所有历史数据，在表单提交时根据当前 schema 自动过滤掉不需要的字段。
 
-#### 7.2.1 数据清除行为
+#### 7.2.1 数据保留行为
 
 ```typescript
 // 初始状态
@@ -518,73 +518,205 @@ const schema = {
   }
 }
 
-// 用户将 userType 从 'personal' 切换到 'company'
-// ↓ 自动清除 details 字段
+// 用户将 userType 从 'personal' 切换到 'company'，填写新数据
+// ↓ 保留所有数据
 
-{
-  userType: 'company',
-  details: {}  // ✅ 自动清空，避免数据污染
-}
-```
-
-#### 7.2.2 为什么需要数据清除
-
-**问题场景**：如果不清除数据，会导致数据污染
-
-```typescript
-// 不清除的情况（错误示例）
 {
   userType: 'company',
   details: {
-    // ❌ 遗留的 personal 类型数据
-    firstName: 'John',
-    lastName: 'Doe',
-    // 新的 company 类型数据
-    companyName: '',
-    taxId: ''
+    firstName: 'John',      // ✅ 保留旧数据
+    lastName: 'Doe',        // ✅ 保留旧数据
+    companyName: 'Acme Inc',
+    taxId: '123456'
+  }
+}
+
+// 提交时根据当前 schema (company) 自动过滤
+{
+  userType: 'company',
+  details: {
+    companyName: 'Acme Inc',  // ✅ 只保留 company schema 中的字段
+    taxId: '123456'
+  }
+}
+
+// 如果用户又切回 'personal'，数据还在
+{
+  userType: 'personal',
+  details: {
+    firstName: 'John',  // ✅ 数据恢复了
+    lastName: 'Doe'
   }
 }
 ```
 
-**后果**：
-1. 提交时包含无效字段
-2. 后端验证可能失败
-3. 数据库存储冗余数据
-4. 类型安全问题
+#### 7.2.2 数据过滤的优势
+
+**用户体验优势**：
+
+1. ✅ **容错性好**：用户误操作切换类型后，可以切回来，数据还在
+2. ✅ **避免数据丢失**：不会因为误操作而丢失已填写的数据
+3. ✅ **支持试错**：用户可以自由切换类型查看不同表单，不用担心数据丢失
+
+**数据安全性**：
+
+1. ✅ **提交时自动过滤**：只提交当前 schema 需要的字段
+2. ✅ **避免数据污染**：后端不会收到无效字段
+3. ✅ **类型安全**：确保提交的数据结构与 schema 一致
 
 #### 7.2.3 实现原理
 
+使用 `filterValueBySchema` 工具函数在表单提交时过滤数据：
+
 ```typescript
-// NestedFormWidget 内部实现
-const previousKeyRef = useRef<string | undefined>();
+import { filterValueBySchema } from '@/components/DynamicForm/utils/filterValueBySchema';
 
-useEffect(() => {
-  const subscription = watch((formValue, { name: changedField }) => {
-    if (changedField === watchFieldPath) {
-      const key = getSchemaKeyValue();
+// 在 DynamicForm 的 onSubmit 中使用
+const handleSubmit = (data: Record<string, any>) => {
+  // 根据当前 schema 过滤数据
+  const filteredData = filterValueBySchema(data, schema);
 
-      // 检测到类型切换
-      if (previousKeyRef.current && previousKeyRef.current !== key) {
-        // 自动清空字段值
-        setValue(name, {}, { shouldValidate: false, shouldDirty: true });
-      }
-
-      previousKeyRef.current = key;
-    }
-  });
-}, [/* ... */]);
+  // 提交过滤后的数据
+  onSubmit?.(filteredData);
+};
 ```
 
-#### 7.2.4 禁用数据清除（如果需要）
+`filterValueBySchema` 函数会递归处理嵌套对象和数组，只保留 schema 中定义的字段。
 
-如果某些场景下需要保留数据，可以通过自定义 Widget 实现：
+#### 7.2.4 filterValueBySchema 函数详解
+
+`filterValueBySchema` 是一个递归工具函数，用于根据 JSON Schema 过滤数据。
+
+**函数签名**：
 
 ```typescript
-// 自定义不清除数据的嵌套表单
-export const NestedFormWidgetWithoutClear = forwardRef((props, ref) => {
-  // 移除数据清除逻辑
-  // ...
-});
+function filterValueBySchema(
+  value: any,
+  schema: ExtendedJSONSchema
+): any
+```
+
+**支持的场景**：
+
+1. **基本类型**：直接返回原值
+2. **对象类型**：只保留 `schema.properties` 中定义的字段
+3. **数组类型**：递归过滤数组中的每个元素
+4. **嵌套对象**：递归处理多层嵌套结构
+
+**使用示例 1：简单对象过滤**
+
+```typescript
+const schema = {
+  type: 'object',
+  properties: {
+    name: { type: 'string' },
+    age: { type: 'number' }
+  }
+};
+
+const dirtyData = {
+  name: 'John',
+  age: 30,
+  extraField: 'should be removed'
+};
+
+const cleanData = filterValueBySchema(dirtyData, schema);
+// 结果: { name: 'John', age: 30 }
+```
+
+**使用示例 2：嵌套对象过滤**
+
+```typescript
+const schema = {
+  type: 'object',
+  properties: {
+    name: { type: 'string' },
+    company: {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        address: {
+          type: 'object',
+          properties: {
+            street: { type: 'string' },
+            city: { type: 'string' }
+          }
+        }
+      }
+    }
+  }
+};
+
+const dirtyData = {
+  name: 'John',
+  age: 30,  // ❌ 不在 schema 中
+  company: {
+    name: 'Acme',
+    taxId: '123',  // ❌ 不在 schema 中
+    address: {
+      street: 'Main St',
+      city: 'NYC',
+      country: 'USA'  // ❌ 不在 schema 中
+    }
+  }
+};
+
+const cleanData = filterValueBySchema(dirtyData, schema);
+// 结果:
+// {
+//   name: 'John',
+//   company: {
+//     name: 'Acme',
+//     address: {
+//       street: 'Main St',
+//       city: 'NYC'
+//     }
+//   }
+// }
+```
+
+**使用示例 3：数组过滤**
+
+```typescript
+const schema = {
+  type: 'object',
+  properties: {
+    contacts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          email: { type: 'string' }
+        }
+      }
+    }
+  }
+};
+
+const dirtyData = {
+  contacts: [
+    {
+      name: 'Alice',
+      email: 'alice@example.com',
+      phone: '123456'  // ❌ 不在 schema 中
+    },
+    {
+      name: 'Bob',
+      email: 'bob@example.com',
+      address: 'NYC'  // ❌ 不在 schema 中
+    }
+  ]
+};
+
+const cleanData = filterValueBySchema(dirtyData, schema);
+// 结果:
+// {
+//   contacts: [
+//     { name: 'Alice', email: 'alice@example.com' },
+//     { name: 'Bob', email: 'bob@example.com' }
+//   ]
+// }
 ```
 
 ---
@@ -830,7 +962,7 @@ const NestedFormWidget = ({ value, onChange }) => {
 };
 ```
 
-#### 8.3.4 使用 React.memo 避免不必要的重渲染
+#### 9.3.4 使用 React.memo 避免不必要的重渲染
 
 ```typescript
 import React, { memo } from 'react';
@@ -864,7 +996,7 @@ export const NestedFormWidget = memo(
 );
 ```
 
-#### 8.3.5 组件拆分优化
+#### 9.3.5 组件拆分优化
 
 ```typescript
 // 不好的做法：所有逻辑都在一个大组件中
@@ -934,7 +1066,7 @@ const NestedFormWidget = ({ schema, value, onChange }) => {
 
 ---
 
-## 9. 注意事项
+## 10. 注意事项
 
 1. **避免过深嵌套** - 建议最多 2-3 层
 2. **值类型一致** - 确保字段值始终是对象类型

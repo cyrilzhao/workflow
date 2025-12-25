@@ -1,10 +1,11 @@
-import { forwardRef, useState, useEffect, useRef } from 'react';
+import React, { forwardRef, useState, useEffect, useRef } from 'react';
 import { useFormContext, Controller } from 'react-hook-form';
 import { Card } from '@blueprintjs/core';
 import { DynamicForm } from '../DynamicForm';
 import type { FieldWidgetProps } from '../types';
 import type { ExtendedJSONSchema } from '@/types/schema';
 import { PathResolver } from '@/utils/pathResolver';
+import { useNestedSchemaRegistry } from '../context/NestedSchemaContext';
 
 export interface NestedFormWidgetProps extends FieldWidgetProps {
   // 当前字段的 schema（包含 properties）
@@ -38,6 +39,9 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
     const [loading, setLoading] = useState(false);
     const { control, watch, getValues, setValue } = useFormContext();
 
+    // 获取嵌套 schema 注册表
+    const nestedSchemaRegistry = useNestedSchemaRegistry();
+
     // 从 schema.ui 中获取嵌套表单配置
     const schemaKey = schema.ui?.schemaKey;
     const schemas = schema.ui?.schemas;
@@ -45,6 +49,17 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
 
     // 保存当前的 schema key 值，用于检测切换
     const previousKeyRef = useRef<string | undefined>();
+
+    // 注册当前 schema 到 Context（当 currentSchema 变化时更新）
+    useEffect(() => {
+      nestedSchemaRegistry.register(name, currentSchema);
+      console.info(`[NestedFormWidget] 注册字段 "${name}" 的 schema 到 Context`);
+
+      return () => {
+        nestedSchemaRegistry.unregister(name);
+        console.info(`[NestedFormWidget] 注销字段 "${name}" 的 schema`);
+      };
+    }, [name, currentSchema, nestedSchemaRegistry]);
 
     // 处理动态 schema 加载
     useEffect(() => {
@@ -70,16 +85,19 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
         const watchFieldPath = PathResolver.toFieldPath(schemaKey);
 
         // 监听依赖字段变化
-        const subscription = watch((formValue, { name: changedField }) => {
+        const subscription = watch((_, { name: changedField }) => {
           if (changedField === watchFieldPath) {
             const key = getSchemaKeyValue();
             const dynamicSchema = schemas[key];
 
             if (dynamicSchema) {
-              // 检测到类型切换，清除旧数据
+              // 检测到类型切换，保留旧数据（不清除）
               if (previousKeyRef.current && previousKeyRef.current !== key) {
-                console.info(`[NestedFormWidget] 类型从 "${previousKeyRef.current}" 切换到 "${key}"，清除字段 "${name}" 的旧数据`);
-                setValue(name, {}, { shouldValidate: false, shouldDirty: true });
+                console.info(
+                  `[NestedFormWidget] 类型从 "${previousKeyRef.current}" 切换到 "${key}"，保留字段 "${name}" 的数据`
+                );
+                // 注意：这里不清除数据，让用户可以自由切换类型而不丢失数据
+                // 数据过滤会在表单提交时通过 filterValueBySchema 自动处理
               }
 
               // 更新 schema

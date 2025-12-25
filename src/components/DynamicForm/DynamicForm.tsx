@@ -6,9 +6,12 @@ import { FormField } from './layout/FormField';
 import type { DynamicFormProps } from './types';
 import { parseSchemaLinkages } from '@/utils/schemaLinkageParser';
 import { useLinkageManager } from '@/hooks/useLinkageManager';
+import { filterValueWithNestedSchemas } from './utils/filterValueWithNestedSchemas';
+import { NestedSchemaProvider, useNestedSchemaRegistryOptional } from './context/NestedSchemaContext';
 import '@blueprintjs/core/lib/css/blueprint.css';
 
-export const DynamicForm: React.FC<DynamicFormProps> = ({
+// 内层组件：实际的表单逻辑
+const DynamicFormInner: React.FC<DynamicFormProps> = ({
   schema,
   defaultValues = {},
   onSubmit,
@@ -49,10 +52,10 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     linkageFunctions,
   });
 
-  const {
-    handleSubmit,
-    watch,
-  } = methods;
+  const { handleSubmit, watch } = methods;
+
+  // 获取嵌套 schema 注册表（可选，因为可能不在 Provider 内部）
+  const nestedSchemaRegistry = useNestedSchemaRegistryOptional();
 
   React.useEffect(() => {
     if (onChange) {
@@ -63,7 +66,13 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
 
   const onSubmitHandler = async (data: Record<string, any>) => {
     if (onSubmit) {
-      await onSubmit(data);
+      // 根据当前 schema 过滤数据，只保留 schema 中定义的字段
+      // 如果有嵌套 schema 注册表，使用它来正确过滤动态嵌套表单的数据
+      const filteredData = nestedSchemaRegistry
+        ? filterValueWithNestedSchemas(data, schema, nestedSchemaRegistry.getAllSchemas())
+        : filterValueWithNestedSchemas(data, schema, new Map());
+
+      await onSubmit(filteredData);
     }
   };
 
@@ -110,11 +119,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   return (
     <FormProvider {...methods}>
       {renderAsForm ? (
-        <form
-          onSubmit={handleSubmit(onSubmitHandler)}
-          className={formClassName}
-          style={style}
-        >
+        <form onSubmit={handleSubmit(onSubmitHandler)} className={formClassName} style={style}>
           {renderFields()}
           {renderSubmitButton()}
         </form>
@@ -125,5 +130,22 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         </div>
       )}
     </FormProvider>
+  );
+};
+
+// 外层组件：提供 NestedSchemaProvider
+export const DynamicForm: React.FC<DynamicFormProps> = props => {
+  // 如果已经在 NestedSchemaProvider 内部（嵌套表单场景），直接渲染内层组件
+  const existingRegistry = useNestedSchemaRegistryOptional();
+
+  if (existingRegistry) {
+    return <DynamicFormInner {...props} />;
+  }
+
+  // 否则提供新的 NestedSchemaProvider（顶层表单场景）
+  return (
+    <NestedSchemaProvider>
+      <DynamicFormInner {...props} />
+    </NestedSchemaProvider>
   );
 };
