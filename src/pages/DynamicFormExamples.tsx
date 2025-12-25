@@ -110,6 +110,7 @@ export const DynamicFormExamples: React.FC = () => {
         <Tab id="basic" title="基础表单" panel={<BasicFormPanel schema={basicSchema} />} />
         <Tab id="conditional" title="条件渲染" panel={<ConditionalFormPanel />} />
         <Tab id="nested" title="嵌套表单" panel={<NestedFormPanel />} />
+        <Tab id="flatten" title="路径透明化" panel={<FlattenPathPanel />} />
         <Tab id="complex" title="复杂场景" panel={<ComplexFormPanel />} />
       </Tabs>
     </div>
@@ -474,6 +475,322 @@ const JsonPointerNestedExample: React.FC = () => {
         <li>初创公司：显示成立年份、融资阶段、团队规模</li>
         <li>大型企业：显示员工数量、年营收、股票代码、分支机构数量</li>
         <li>切换类型时数据会保留，提交时自动过滤无效字段</li>
+      </ul>
+      <DynamicForm schema={schema} onSubmit={handleSubmit} />
+    </Card>
+  );
+};
+
+// 路径透明化示例面板
+const FlattenPathPanel: React.FC = () => {
+  const [selectedExample, setSelectedExample] = useState('basic');
+
+  return (
+    <div style={{ marginTop: '20px' }}>
+      <Tabs selectedTabId={selectedExample} onChange={id => setSelectedExample(id as string)}>
+        <Tab id="basic" title="基础用法" panel={<BasicFlattenExample />} />
+        <Tab id="withPrefix" title="带前缀" panel={<WithPrefixFlattenExample />} />
+        <Tab id="multiLevel" title="多层前缀" panel={<MultiLevelPrefixExample />} />
+        <Tab id="mixed" title="混合使用" panel={<MixedFlattenExample />} />
+      </Tabs>
+    </div>
+  );
+};
+
+// 基础用法：不带前缀的透明化
+const BasicFlattenExample: React.FC = () => {
+  const schema: ExtendedJSONSchema = {
+    type: 'object',
+    properties: {
+      auth: {
+        type: 'object',
+        title: '认证信息',
+        ui: {
+          flattenPath: true,
+        },
+        properties: {
+          content: {
+            type: 'object',
+            ui: {
+              flattenPath: true,
+            },
+            properties: {
+              key: {
+                type: 'string',
+                title: 'API Key',
+                minLength: 10,
+                ui: {
+                  placeholder: '请输入至少10个字符的API密钥',
+                  errorMessages: {
+                    required: 'API Key 不能为空',
+                    minLength: 'API Key 至少需要10个字符',
+                  },
+                },
+              },
+            },
+            required: ['key'],
+          },
+        },
+      },
+    },
+  };
+
+  const handleSubmit = (data: any) => {
+    console.log('基础透明化表单数据:', data);
+    alert('提交成功！请查看控制台输出');
+  };
+
+  return (
+    <Card style={{ marginTop: '20px', maxWidth: '600px' }}>
+      <h3>基础用法：不带前缀的透明化</h3>
+      <p>
+        后端接口要求的数据结构为 <code>{`{ auth: { content: { key: 'value' } } }`}</code>
+        <br />
+        但表单只显示一个 "API Key" 输入框，提交时自动构建完整的嵌套结构。
+      </p>
+      <DynamicForm schema={schema} onSubmit={handleSubmit} />
+    </Card>
+  );
+};
+
+// 带前缀的透明化
+const WithPrefixFlattenExample: React.FC = () => {
+  const schema: ExtendedJSONSchema = {
+    type: 'object',
+    properties: {
+      auth: {
+        type: 'object',
+        title: '认证配置',
+        ui: {
+          flattenPath: true,
+          flattenPrefix: true,
+        },
+        properties: {
+          content: {
+            type: 'object',
+            ui: {
+              flattenPath: true,
+            },
+            properties: {
+              key: {
+                type: 'string',
+                title: '密钥',
+                minLength: 10,
+                ui: {
+                  placeholder: '请输入密钥',
+                },
+              },
+              secret: {
+                type: 'string',
+                title: '密文',
+                ui: {
+                  widget: 'password',
+                  placeholder: '请输入密文',
+                },
+              },
+            },
+            required: ['key', 'secret'],
+          },
+        },
+      },
+    },
+  };
+
+  const handleSubmit = (data: any) => {
+    console.log('带前缀透明化表单数据:', data);
+    alert('提交成功！请查看控制台输出');
+  };
+
+  return (
+    <Card style={{ marginTop: '20px', maxWidth: '600px' }}>
+      <h3>带前缀的透明化</h3>
+      <p>
+        使用 <code>flattenPrefix: true</code> 后，字段标签会自动添加父级标题作为前缀。
+        <br />
+        表单显示：
+      </p>
+      <ul style={{ fontSize: '14px', color: '#666' }}>
+        <li>认证配置 - 密钥</li>
+        <li>认证配置 - 密文</li>
+      </ul>
+      <p>提交数据结构：<code>{`{ auth: { content: { key: '...', secret: '...' } } }`}</code></p>
+      <DynamicForm schema={schema} onSubmit={handleSubmit} />
+    </Card>
+  );
+};
+
+// 多层前缀叠加
+const MultiLevelPrefixExample: React.FC = () => {
+  const schema: ExtendedJSONSchema = {
+    type: 'object',
+    properties: {
+      service: {
+        type: 'object',
+        title: '服务',
+        ui: {
+          flattenPath: true,
+          flattenPrefix: true,
+        },
+        properties: {
+          auth: {
+            type: 'object',
+            title: '认证',
+            ui: {
+              flattenPath: true,
+              flattenPrefix: true,
+            },
+            properties: {
+              credentials: {
+                type: 'object',
+                ui: {
+                  flattenPath: true,
+                },
+                properties: {
+                  username: {
+                    type: 'string',
+                    title: '用户名',
+                    ui: {
+                      placeholder: '请输入用户名',
+                    },
+                  },
+                  password: {
+                    type: 'string',
+                    title: '密码',
+                    ui: {
+                      widget: 'password',
+                      placeholder: '请输入密码',
+                    },
+                  },
+                },
+                required: ['username', 'password'],
+              },
+            },
+          },
+        },
+      },
+    },
+  };
+
+  const handleSubmit = (data: any) => {
+    console.log('多层前缀叠加表单数据:', data);
+    alert('提交成功！请查看控制台输出');
+  };
+
+  return (
+    <Card style={{ marginTop: '20px', maxWidth: '600px' }}>
+      <h3>多层前缀叠加</h3>
+      <p>
+        多个层级都设置了 <code>flattenPrefix: true</code>，前缀会自动叠加。
+        <br />
+        表单显示：
+      </p>
+      <ul style={{ fontSize: '14px', color: '#666' }}>
+        <li>服务 - 认证 - 用户名</li>
+        <li>服务 - 认证 - 密码</li>
+      </ul>
+      <p>
+        提交数据结构：
+        <code>{`{ service: { auth: { credentials: { username: 'admin', password: '***' } } } }`}</code>
+      </p>
+      <DynamicForm schema={schema} onSubmit={handleSubmit} />
+    </Card>
+  );
+};
+
+// 混合使用：部分透明化 + 部分正常嵌套
+const MixedFlattenExample: React.FC = () => {
+  const schema: ExtendedJSONSchema = {
+    type: 'object',
+    properties: {
+      basicInfo: {
+        type: 'object',
+        title: '基本信息',
+        properties: {
+          name: {
+            type: 'string',
+            title: '名称',
+            ui: {
+              placeholder: '请输入名称',
+            },
+          },
+          description: {
+            type: 'string',
+            title: '描述',
+            ui: {
+              widget: 'textarea',
+              placeholder: '请输入描述',
+            },
+          },
+        },
+        required: ['name'],
+        ui: {
+          widget: 'nested-form',
+        },
+      },
+      advancedConfig: {
+        type: 'object',
+        title: '高级配置',
+        ui: {
+          flattenPath: true,
+          flattenPrefix: true,
+        },
+        properties: {
+          performance: {
+            type: 'object',
+            ui: {
+              flattenPath: true,
+            },
+            properties: {
+              timeout: {
+                type: 'integer',
+                title: '超时时间（秒）',
+                minimum: 1,
+                maximum: 300,
+                default: 30,
+                ui: {
+                  placeholder: '请输入超时时间',
+                },
+              },
+              retries: {
+                type: 'integer',
+                title: '重试次数',
+                minimum: 0,
+                maximum: 10,
+                default: 3,
+                ui: {
+                  placeholder: '请输入重试次数',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  };
+
+  const handleSubmit = (data: any) => {
+    console.log('混合使用表单数据:', data);
+    alert('提交成功！请查看控制台输出');
+  };
+
+  return (
+    <Card style={{ marginTop: '20px', maxWidth: '600px' }}>
+      <h3>混合使用：部分透明化 + 部分正常嵌套</h3>
+      <p>
+        基本信息使用正常的嵌套表单，高级配置使用路径透明化。
+        <br />
+        表单显示结构：
+      </p>
+      <ul style={{ fontSize: '14px', color: '#666' }}>
+        <li>
+          基本信息（嵌套表单）
+          <ul>
+            <li>├─ 名称</li>
+            <li>└─ 描述</li>
+          </ul>
+        </li>
+        <li>高级配置 - 超时时间（秒）</li>
+        <li>高级配置 - 重试次数</li>
       </ul>
       <DynamicForm schema={schema} onSubmit={handleSubmit} />
     </Card>
