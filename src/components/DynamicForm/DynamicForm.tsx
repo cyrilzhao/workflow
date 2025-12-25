@@ -85,6 +85,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             disabled={disabled || field.disabled || loading || linkageState?.disabled}
             readonly={readonly || field.readonly || linkageState?.readonly}
             widgets={widgets}
+            linkageState={linkageState}
           />
         );
       })}

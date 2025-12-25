@@ -3,7 +3,10 @@ import { HTMLSelect } from '@blueprintjs/core';
 import type { FieldWidgetProps } from '../types';
 
 export const SelectWidget = forwardRef<HTMLSelectElement, FieldWidgetProps>(
-  ({ name, placeholder, disabled, readonly, options = [], error, ...rest }, ref) => {
+  (
+    { name, placeholder, disabled, readonly, options = [], error, value, onChange, ...rest },
+    ref
+  ) => {
     return (
       <HTMLSelect
         elementRef={ref}
@@ -11,13 +14,11 @@ export const SelectWidget = forwardRef<HTMLSelectElement, FieldWidgetProps>(
         disabled={disabled || readonly}
         intent={error ? 'danger' : 'none'}
         fill
+        value={value ?? ''}
+        onChange={e => onChange?.(e.target.value)}
         {...rest}
       >
-        {placeholder && (
-          <option value="" disabled>
-            {placeholder}
-          </option>
-        )}
+        {placeholder && <option value="">{placeholder}</option>}
         {options.map(option => (
           <option key={option.value} value={option.value} disabled={option.disabled}>
             {option.label}

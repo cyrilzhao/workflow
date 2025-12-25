@@ -26,6 +26,14 @@ export function useLinkageManager({
     Object.values(linkages).forEach(linkage => {
       linkage.dependencies.forEach(dep => fields.add(dep));
     });
+
+    // 同时监听所有有值联动的字段本身，因为它们的值可能被其他联动修改
+    Object.entries(linkages).forEach(([fieldName, linkage]) => {
+      if (linkage.type === 'value') {
+        fields.add(fieldName);
+      }
+    });
+
     return Array.from(fields);
   }, [linkages]);
 
@@ -96,6 +104,12 @@ function evaluateLinkage(
         break;
       case 'readonly':
         result.readonly = conditionMet;
+        break;
+      case 'value':
+        // 当条件满足时，设置目标值
+        if (conditionMet && linkage.targetValue !== undefined) {
+          result.value = linkage.targetValue;
+        }
         break;
     }
   }

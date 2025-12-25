@@ -1,7 +1,7 @@
 /**
  * 联动类型
  */
-export type LinkageType = 'visibility' | 'disabled' | 'readonly' | 'computed' | 'options';
+export type LinkageType = 'visibility' | 'disabled' | 'readonly' | 'value' | 'computed' | 'options';
 
 /**
  * 条件操作符
@@ -32,6 +32,7 @@ export interface LinkageConfig {
   dependencies: string[];
   condition?: ConditionExpression;
   function?: string;
+  targetValue?: any; // 用于 value 类型联动的目标值
 }
 
 /**

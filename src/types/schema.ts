@@ -70,10 +70,11 @@ export interface UIConfig {
  * 联动配置
  */
 export interface LinkageConfig {
-  type: 'visibility' | 'disabled' | 'readonly' | 'computed' | 'options';
+  type: 'visibility' | 'disabled' | 'readonly' | 'value' | 'computed' | 'options';
   dependencies: string[];
   condition?: ConditionExpression;
   function?: string;
+  targetValue?: any; // 用于 value 类型联动的目标值
 }
 
 /**
