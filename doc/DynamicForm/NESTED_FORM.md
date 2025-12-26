@@ -247,57 +247,115 @@ export interface NestedFormWidgetProps extends FieldWidgetProps {
 
 ## 5. 组件实现
 
-### 5.1 基础 NestedFormWidget 实现
+### 5.1 完整的 NestedFormWidget 实现
 
 ```typescript
 // src/components/DynamicForm/widgets/NestedFormWidget.tsx
 
-import React, { forwardRef, useState, useEffect } from 'react';
-import { useFormContext } from 'react-hook-form';
+import React, { forwardRef, useState, useEffect, useRef } from 'react';
+import { useFormContext, Controller } from 'react-hook-form';
+import { Card } from '@blueprintjs/core';
 import { DynamicForm } from '../DynamicForm';
-import { NestedFormWidgetProps } from '../types';
+import type { FieldWidgetProps } from '../types';
+import type { ExtendedJSONSchema } from '@/types/schema';
+import { PathResolver } from '@/utils/pathResolver';
+import { useNestedSchemaRegistry } from '../context/NestedSchemaContext';
+import { usePathPrefix, joinPath, removePrefix } from '../context/PathPrefixContext';
 
 export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps>(
-  (
-    {
-      name,
-      value = {},
-      onChange,
-      schema,
-      schemaKey,
-      schemas,
-      schemaLoader,
-      disabled,
-      readonly,
-      ...props
-    },
-    ref
-  ) => {
+  ({ name, value = {}, schema, disabled, readonly }, ref) => {
     const [currentSchema, setCurrentSchema] = useState(schema);
     const [loading, setLoading] = useState(false);
-    const { watch } = useFormContext();
+
+    // 保存外层表单的 context
+    const parentFormContext = useFormContext();
+    const { control, watch, getValues } = parentFormContext;
+
+    // 获取父级路径前缀和嵌套 schema 注册表
+    const parentPathPrefix = usePathPrefix();
+    const fullPath = joinPath(parentPathPrefix, name);
+    const nestedSchemaRegistry = useNestedSchemaRegistry();
+
+    // 从 schema.ui 中获取嵌套表单配置
+    const schemaKey = schema.ui?.schemaKey;
+    const schemas = schema.ui?.schemas;
+    const schemaLoader = schema.ui?.schemaLoader;
+
+    // 保存当前的 schema key 值，用于检测切换
+    const previousKeyRef = useRef<string | undefined>();
+
+    // 【关键】注册当前 schema 到 Context（当 currentSchema 变化时更新）
+    useEffect(() => {
+      nestedSchemaRegistry.register(fullPath, currentSchema);
+      console.info(`[NestedFormWidget] 注册字段 "${fullPath}" 的 schema 到 Context`);
+
+      return () => {
+        nestedSchemaRegistry.unregister(fullPath);
+        console.info(`[NestedFormWidget] 注销字段 "${fullPath}" 的 schema`);
+      };
+    }, [fullPath, currentSchema, nestedSchemaRegistry]);
 
     // 处理动态 schema 加载
     useEffect(() => {
-      if (schemaKey && schemas) {
-        // 监听依赖字段变化
-        const subscription = watch((formValue, { name: changedField }) => {
-          if (changedField === schemaKey) {
-            const key = formValue[schemaKey];
-            const dynamicSchema = schemas[key];
-            if (dynamicSchema) {
-              // 合并动态 properties 到当前 schema
-              setCurrentSchema({
-                ...schema,
-                properties: dynamicSchema.properties,
-                required: dynamicSchema.required
-              });
-            }
-          }
+      if (!schemaKey || !schemas) return;
+
+      // 转换为 react-hook-form 的字段路径用于监听
+      const watchFieldPath = PathResolver.toFieldPath(schemaKey);
+
+      // 获取依赖字段的值（支持 JSON Pointer）
+      const getSchemaKeyValue = () => {
+        const currentFormValues = getValues();
+        const fullFieldPath = PathResolver.toFieldPath(schemaKey);
+        const value = PathResolver.getNestedValue(
+          currentFormValues,
+          removePrefix(fullFieldPath, parentPathPrefix)
+        );
+        return value;
+      };
+
+      // 初始化时检查当前值
+      const currentKey = getSchemaKeyValue();
+      if (currentKey && schemas[currentKey]) {
+        setCurrentSchema({
+          ...schema,
+          properties: schemas[currentKey].properties,
+          required: schemas[currentKey].required,
         });
-        return () => subscription.unsubscribe();
+        previousKeyRef.current = currentKey;
       }
-    }, [schemaKey, schemas, watch, schema]);
+
+      // 监听依赖字段变化
+      const subscription = watch((formValues, { name: changedField }) => {
+        const fullChangedField = parentPathPrefix
+          ? joinPath(parentPathPrefix, changedField || '')
+          : changedField;
+
+        if (fullChangedField === watchFieldPath) {
+          const key = getSchemaKeyValue();
+          const dynamicSchema = schemas[key];
+
+          if (dynamicSchema) {
+            // 检测到类型切换，保留旧数据（不清除）
+            if (previousKeyRef.current && previousKeyRef.current !== key) {
+              console.info(
+                `[NestedFormWidget] 类型从 "${previousKeyRef.current}" 切换到 "${key}"，保留字段 "${name}" 的数据`
+              );
+            }
+
+            // 更新 schema（会触发重新注册）
+            setCurrentSchema({
+              ...schema,
+              properties: dynamicSchema.properties,
+              required: dynamicSchema.required,
+            });
+
+            previousKeyRef.current = key;
+          }
+        }
+      });
+
+      return () => subscription.unsubscribe();
+    }, [schemaKey, schemas, watch, schema, getValues, name, parentPathPrefix]);
 
     // 处理异步 schema 加载
     useEffect(() => {
@@ -309,36 +367,74 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
       }
     }, [schemaLoader, value]);
 
-    // 内层表单值变化处理
-    const handleNestedChange = (nestedValue: Record<string, any>) => {
-      onChange?.(nestedValue);
-    };
-
     if (loading) {
-      return <div className="nested-form-loading">Loading...</div>;
+      return (
+        <div ref={ref} className="nested-form-loading">
+          加载中...
+        </div>
+      );
     }
 
-    if (!currentSchema) {
+    if (!currentSchema || !currentSchema.properties) {
       return null;
     }
 
     return (
-      <div ref={ref} className="nested-form-widget" {...props}>
-        <DynamicForm
-          schema={currentSchema}
-          defaultValues={value}
-          onChange={handleNestedChange}
-          disabled={disabled}
-          readonly={readonly}
-          onSubmit={() => {}} // 嵌套表单不需要提交按钮
-        />
-      </div>
+      <Controller
+        name={name}
+        control={control}
+        render={({ field }) => (
+          <Card ref={ref} className="nested-form-widget" elevation={1} style={{ padding: '15px' }}>
+            <DynamicForm
+              schema={currentSchema}
+              defaultValues={field.value || {}}
+              onChange={field.onChange}
+              disabled={disabled}
+              readonly={readonly}
+              showSubmitButton={false}
+              renderAsForm={false}
+              onSubmit={() => {}}
+              pathPrefix={fullPath}
+            />
+          </Card>
+        )}
+      />
     );
   }
 );
 
 NestedFormWidget.displayName = 'NestedFormWidget';
 ```
+
+### 5.2 关键实现要点
+
+#### 5.2.1 Schema 注册机制
+
+```typescript
+// 每次 currentSchema 变化时，重新注册到 Context
+useEffect(() => {
+  nestedSchemaRegistry.register(fullPath, currentSchema);
+  return () => {
+    nestedSchemaRegistry.unregister(fullPath);
+  };
+}, [fullPath, currentSchema, nestedSchemaRegistry]);
+```
+
+**说明**：
+- 当 `schemaKey` 依赖字段变化时，`currentSchema` 会更新
+- `useEffect` 会自动重新注册新的 schema
+- 这确保注册表中始终是最新的 schema
+
+#### 5.2.2 路径计算
+
+```typescript
+const parentPathPrefix = usePathPrefix();
+const fullPath = joinPath(parentPathPrefix, name);
+```
+
+**说明**：
+- 支持多层嵌套表单的路径计算
+- 例如：`company.details` 表示 `company` 字段下的 `details` 嵌套表单
 
 ---
 
@@ -566,29 +662,38 @@ const schema = {
 
 #### 7.2.3 实现原理
 
-使用 `filterValueBySchema` 工具函数在表单提交时过滤数据：
+使用 `filterValueWithNestedSchemas` 工具函数在表单提交时过滤数据：
 
 ```typescript
-import { filterValueBySchema } from '@/components/DynamicForm/utils/filterValueBySchema';
+import { filterValueWithNestedSchemas } from '@/components/DynamicForm/utils/filterValueWithNestedSchemas';
 
 // 在 DynamicForm 的 onSubmit 中使用
 const handleSubmit = (data: Record<string, any>) => {
-  // 根据当前 schema 过滤数据
-  const filteredData = filterValueBySchema(data, schema);
+  // 获取嵌套 schema 注册表（由 NestedSchemaContext 提供）
+  const nestedSchemaRegistry = useNestedSchemaRegistry();
+
+  // 根据当前 schema 和注册的嵌套 schema 过滤数据
+  const filteredData = nestedSchemaRegistry
+    ? filterValueWithNestedSchemas(data, schema, nestedSchemaRegistry.getAllSchemas())
+    : filterValueWithNestedSchemas(data, schema, new Map());
 
   // 提交过滤后的数据
   onSubmit?.(filteredData);
 };
 ```
 
-`filterValueBySchema` 函数会递归处理嵌套对象和数组，只保留 schema 中定义的字段。
+**关键点**：
+- `filterValueWithNestedSchemas` 函数会递归处理嵌套对象和数组
+- 对于动态嵌套表单字段，使用注册表中的当前 schema 进行过滤
+- 只保留当前 schema 中定义的字段，过滤掉类型切换时遗留的旧字段
 
-#### 7.2.4 filterValueBySchema 函数详解
+#### 7.2.4 两个过滤函数的区别
 
-`filterValueBySchema` 是一个递归工具函数，用于根据 JSON Schema 过滤数据。
+系统提供了两个数据过滤函数，适用于不同场景：
+
+##### `filterValueBySchema` - 基础过滤函数
 
 **函数签名**：
-
 ```typescript
 function filterValueBySchema(
   value: any,
@@ -596,127 +701,268 @@ function filterValueBySchema(
 ): any
 ```
 
-**支持的场景**：
+**适用场景**：
+- 静态 schema，不涉及动态切换
+- 简单的嵌套对象过滤
+- 不需要跟踪嵌套表单的 schema 变化
 
-1. **基本类型**：直接返回原值
-2. **对象类型**：只保留 `schema.properties` 中定义的字段
-3. **数组类型**：递归过滤数组中的每个元素
-4. **嵌套对象**：递归处理多层嵌套结构
+**特点**：
+- 只根据传入的 schema 进行过滤
+- 递归处理嵌套对象和数组
+- 不支持动态嵌套表单的 schema 注册机制
 
-**使用示例 1：简单对象过滤**
+##### `filterValueWithNestedSchemas` - 增强过滤函数
 
+**函数签名**：
 ```typescript
-const schema = {
-  type: 'object',
-  properties: {
-    name: { type: 'string' },
-    age: { type: 'number' }
-  }
-};
-
-const dirtyData = {
-  name: 'John',
-  age: 30,
-  extraField: 'should be removed'
-};
-
-const cleanData = filterValueBySchema(dirtyData, schema);
-// 结果: { name: 'John', age: 30 }
+function filterValueWithNestedSchemas(
+  value: any,
+  schema: ExtendedJSONSchema,
+  nestedSchemas: Map<string, ExtendedJSONSchema>,
+  currentPath?: string
+): any
 ```
 
-**使用示例 2：嵌套对象过滤**
+**适用场景**：
+- 动态嵌套表单（使用 `schemaKey` 和 `schemas` 配置）
+- 需要根据当前激活的 schema 过滤数据
+- 多层嵌套表单场景
+
+**特点**：
+- 支持嵌套 schema 注册表
+- 对于注册的字段路径，使用注册表中的当前 schema 进行过滤
+- 完美支持类型切换时的数据过滤
+
+**使用建议**：
+- DynamicForm 内部统一使用 `filterValueWithNestedSchemas`
+- 如果没有嵌套 schema 注册表，传入空 Map 即可，功能等同于 `filterValueBySchema`
+
+#### 7.2.5 filterValueWithNestedSchemas 函数详解
+
+`filterValueWithNestedSchemas` 是增强版的数据过滤函数，专门用于处理动态嵌套表单场景。
+
+**函数签名**：
 
 ```typescript
-const schema = {
+function filterValueWithNestedSchemas(
+  value: any,
+  schema: ExtendedJSONSchema,
+  nestedSchemas: Map<string, ExtendedJSONSchema>,
+  currentPath?: string
+): any
+```
+
+**参数说明**：
+- `value`: 要过滤的数据
+- `schema`: 顶层 JSON Schema
+- `nestedSchemas`: 嵌套字段的 schema 注册表（字段路径 -> 当前激活的 schema）
+- `currentPath`: 当前字段路径（用于递归，通常不需要手动传入）
+
+**工作原理**：
+
+1. 递归遍历数据结构
+2. 对于每个对象字段，检查是否在 `nestedSchemas` 中有注册的 schema
+3. 如果有注册的 schema，使用注册的 schema 进行过滤（这是动态嵌套表单的当前 schema）
+4. 否则使用原始 schema 中的定义进行过滤
+
+**使用示例：动态嵌套表单场景**
+
+```typescript
+// 顶层 schema
+const schema: ExtendedJSONSchema = {
   type: 'object',
   properties: {
-    name: { type: 'string' },
-    company: {
+    userType: { type: 'string' },
+    details: {
       type: 'object',
-      properties: {
-        name: { type: 'string' },
-        address: {
-          type: 'object',
-          properties: {
-            street: { type: 'string' },
-            city: { type: 'string' }
-          }
-        }
-      }
-    }
-  }
+      properties: {}, // 初始为空，由动态 schema 填充
+    },
+  },
 };
 
+// 嵌套 schema 注册表（由 NestedFormWidget 自动维护）
+const nestedSchemas = new Map<string, ExtendedJSONSchema>();
+
+// 当前 details 字段使用的是 company schema
+nestedSchemas.set('details', {
+  type: 'object',
+  properties: {
+    companyName: { type: 'string' },
+    taxId: { type: 'string' },
+  },
+});
+
+// 用户数据（包含切换类型时遗留的字段）
 const dirtyData = {
-  name: 'John',
-  age: 30,  // ❌ 不在 schema 中
-  company: {
-    name: 'Acme',
-    taxId: '123',  // ❌ 不在 schema 中
-    address: {
-      street: 'Main St',
-      city: 'NYC',
-      country: 'USA'  // ❌ 不在 schema 中
-    }
-  }
+  userType: 'company',
+  details: {
+    // personal 类型的字段（应该被过滤）
+    firstName: 'John',
+    lastName: 'Doe',
+    // company 类型的字段（应该保留）
+    companyName: 'Acme Inc',
+    taxId: '123456',
+  },
 };
 
-const cleanData = filterValueBySchema(dirtyData, schema);
-// 结果:
+// 使用 filterValueWithNestedSchemas 过滤
+const cleanData = filterValueWithNestedSchemas(dirtyData, schema, nestedSchemas);
+
+// 结果：只保留 company schema 中定义的字段
 // {
-//   name: 'John',
-//   company: {
-//     name: 'Acme',
-//     address: {
-//       street: 'Main St',
-//       city: 'NYC'
-//     }
+//   userType: 'company',
+//   details: {
+//     companyName: 'Acme Inc',
+//     taxId: '123456'
 //   }
 // }
 ```
 
-**使用示例 3：数组过滤**
+### 7.3 NestedSchemaContext 机制
+
+为了支持动态嵌套表单的数据过滤，系统引入了 `NestedSchemaContext` 机制，用于在组件树中共享和管理嵌套表单的 schema 注册表。
+
+#### 7.3.1 核心概念
+
+**问题背景**：
+- 动态嵌套表单的 schema 会根据 `schemaKey` 的值动态切换
+- 表单提交时需要知道每个嵌套字段当前使用的是哪个 schema
+- 需要一个全局注册表来跟踪所有嵌套字段的当前 schema
+
+**解决方案**：
+- 使用 React Context 提供全局的 schema 注册表
+- 每个 `NestedFormWidget` 在挂载时注册自己的当前 schema
+- `DynamicForm` 在提交时获取注册表，用于数据过滤
+
+#### 7.3.2 Context 定义
 
 ```typescript
-const schema = {
-  type: 'object',
-  properties: {
-    contacts: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          name: { type: 'string' },
-          email: { type: 'string' }
-        }
-      }
-    }
-  }
-};
+// src/components/DynamicForm/context/NestedSchemaContext.tsx
 
-const dirtyData = {
-  contacts: [
-    {
-      name: 'Alice',
-      email: 'alice@example.com',
-      phone: '123456'  // ❌ 不在 schema 中
-    },
-    {
-      name: 'Bob',
-      email: 'bob@example.com',
-      address: 'NYC'  // ❌ 不在 schema 中
-    }
-  ]
-};
+interface NestedSchemaRegistry {
+  // 注册嵌套字段的 schema
+  register(path: string, schema: ExtendedJSONSchema): void;
 
-const cleanData = filterValueBySchema(dirtyData, schema);
-// 结果:
-// {
-//   contacts: [
-//     { name: 'Alice', email: 'alice@example.com' },
-//     { name: 'Bob', email: 'bob@example.com' }
-//   ]
-// }
+  // 注销嵌套字段的 schema
+  unregister(path: string): void;
+
+  // 获取所有注册的 schema
+  getAllSchemas(): Map<string, ExtendedJSONSchema>;
+}
+
+// Context Provider
+export const NestedSchemaProvider: React.FC<{ children: React.ReactNode }>;
+
+// Hook：获取注册表（必须在 Provider 内部使用）
+export const useNestedSchemaRegistry: () => NestedSchemaRegistry;
+
+// Hook：可选获取注册表（可以在 Provider 外部使用）
+export const useNestedSchemaRegistryOptional: () => NestedSchemaRegistry | null;
+```
+
+#### 7.3.3 使用方式
+
+**1. DynamicForm 自动提供 Context**
+
+```typescript
+// DynamicForm 组件会自动包裹 NestedSchemaProvider
+export const DynamicForm: React.FC<DynamicFormProps> = (props) => {
+  return (
+    <NestedSchemaProvider>
+      <PathPrefixProvider pathPrefix={props.pathPrefix || ''}>
+        <DynamicFormInner {...props} />
+      </PathPrefixProvider>
+    </NestedSchemaProvider>
+  );
+};
+```
+
+**2. NestedFormWidget 自动注册 Schema**
+
+```typescript
+// NestedFormWidget 在挂载时自动注册当前 schema
+export const NestedFormWidget: React.FC<NestedFormWidgetProps> = ({
+  name,
+  schema,
+  ...props
+}) => {
+  const nestedSchemaRegistry = useNestedSchemaRegistry();
+  const fullPath = joinPath(parentPathPrefix, name);
+  const [currentSchema, setCurrentSchema] = useState(schema);
+
+  // 注册当前 schema
+  useEffect(() => {
+    nestedSchemaRegistry.register(fullPath, currentSchema);
+    console.info(`[NestedFormWidget] 注册字段 "${fullPath}" 的 schema`);
+
+    return () => {
+      nestedSchemaRegistry.unregister(fullPath);
+      console.info(`[NestedFormWidget] 注销字段 "${fullPath}" 的 schema`);
+    };
+  }, [fullPath, currentSchema, nestedSchemaRegistry]);
+
+  // ... 其他逻辑
+};
+```
+
+**3. DynamicForm 在提交时使用注册表**
+
+```typescript
+// DynamicForm 在提交时获取注册表并过滤数据
+const DynamicFormInner: React.FC<DynamicFormProps> = ({ schema, onSubmit }) => {
+  const nestedSchemaRegistry = useNestedSchemaRegistryOptional();
+
+  const onSubmitHandler = async (data: Record<string, any>) => {
+    if (onSubmit) {
+      // 使用注册表过滤数据
+      const filteredData = nestedSchemaRegistry
+        ? filterValueWithNestedSchemas(data, schema, nestedSchemaRegistry.getAllSchemas())
+        : filterValueWithNestedSchemas(data, schema, new Map());
+
+      await onSubmit(filteredData);
+    }
+  };
+
+  // ... 其他逻辑
+};
+```
+
+#### 7.3.4 完整工作流程
+
+以下是动态嵌套表单从初始化到提交的完整流程：
+
+**步骤 1：初始化**
+```
+DynamicForm 挂载
+  └─> 创建 NestedSchemaProvider
+      └─> 初始化空的 schema 注册表 Map
+```
+
+**步骤 2：嵌套表单注册**
+```
+NestedFormWidget 挂载 (字段路径: "details")
+  └─> 调用 nestedSchemaRegistry.register("details", currentSchema)
+      └─> 注册表中添加: "details" -> currentSchema
+```
+
+**步骤 3：Schema 动态切换**
+```
+用户修改 schemaKey 依赖字段 (如 userType: "personal" -> "company")
+  └─> NestedFormWidget 监听到变化
+      └─> 更新 currentSchema 为 company schema
+          └─> useEffect 触发，重新注册
+              └─> 注册表更新: "details" -> company schema
+```
+
+**步骤 4：表单提交**
+```
+用户点击提交
+  └─> DynamicForm.onSubmitHandler 执行
+      └─> 获取注册表: nestedSchemaRegistry.getAllSchemas()
+          └─> 调用 filterValueWithNestedSchemas(data, schema, 注册表)
+              └─> 遍历数据，对于 "details" 字段使用注册表中的 company schema 过滤
+                  └─> 只保留 company schema 中定义的字段
+                      └─> 提交过滤后的干净数据
 ```
 
 ---

@@ -1,7 +1,6 @@
 # TODO LIST
 
 - [x] 跨层字段联动 - PathResolver
-- [ ] 大规模表单性能
 - [x] Linkage 串行计算和性能优化 - DAG 优化
 - [x] 补充字段路径透明化的示例
 - [x] 补充 schemaKey 跨层级字段依赖的示例
@@ -18,13 +17,14 @@
 - [x] 将联动目前存在的单条件和双条件分支两种使用方式，改为只保留双条件分支
 - [x] 将 function 移动到 fulfill 和 otherwise 中
 - [x] when 和 fulfill、otherwise 中的 function 都需要支持异步函数
-- [ ] linkage type 中的 computed 和 value 类型合并
+- [x] linkage type 中的 computed 和 value 类型合并
 - [x] 并行计算联动时确保不会因为某个计算失败影响其他计算任务
 - [x] 修复表单初始化计算联动导致死循环的问题
 - [x] 拆分 src/pages/DynamicFormExamples.tsx 中的示例代码到不同的文件
 - [x] 嵌套表单 - JSON Pointer 跨层级示例切换公司类型时没有触发联动
 - [x] 初始化和触发联动时根据依赖关系的拓扑顺序计算各个字段
-- [ ] 对于嵌套很深的单边树，是否有优化的空间，不需要层层都嵌套 DynamicForm
 - [ ] NestForm 文档补充 filterValueWithNestedSchemas 的相关逻辑
 - [ ] 添加自定义 nested form widget 的代码示例
+- [ ] 对于嵌套很深的单边树，是否有优化的空间，不需要层层都嵌套 DynamicForm
+- [ ] 大规模表单性能
 - [ ] 文档与代码实现对齐
