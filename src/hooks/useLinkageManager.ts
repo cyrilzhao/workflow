@@ -44,15 +44,34 @@ export function useLinkageManager({
   }, [linkages]);
 
   // 联动状态缓存（使用 useState 而不是 useMemo，以便在 useEffect 中更新）
-  // 传入的参数是初始化函数，只在组件首次挂载时调用一次，后续重新渲染时不会执行
-  const [linkageStates, setLinkageStates] = useState<Record<string, LinkageResult>>(() => {
-    const formData = getValues();
-    const states: Record<string, LinkageResult> = {};
-    Object.entries(linkages).forEach(([fieldName, linkage]) => {
-      states[fieldName] = evaluateLinkage(linkage, formData, linkageFunctions);
-    });
-    return states;
-  });
+  const [linkageStates, setLinkageStates] = useState<Record<string, LinkageResult>>({});
+
+  // 初始化联动状态
+  useEffect(() => {
+    (async () => {
+      const formData = getValues();
+      const states: Record<string, LinkageResult> = {};
+
+      // 并行计算所有字段的初始联动状态（使用 allSettled 避免单个失败阻塞其他字段）
+      const results = await Promise.allSettled(
+        Object.entries(linkages).map(async ([fieldName, linkage]) => ({
+          fieldName,
+          result: await evaluateLinkage(linkage, formData, linkageFunctions),
+        }))
+      );
+
+      // 处理结果，忽略失败的字段
+      results.forEach(result => {
+        if (result.status === 'fulfilled') {
+          states[result.value.fieldName] = result.value.result;
+        } else {
+          console.error('联动初始化失败:', result.reason);
+        }
+      });
+
+      setLinkageStates(states);
+    })();
+  }, [linkages, linkageFunctions, getValues]);
 
   // 统一的字段变化监听和联动处理
   useEffect(() => {
@@ -63,38 +82,54 @@ export function useLinkageManager({
       if (affectedFields.length === 0) return;
 
       const formData = getValues();
-      const newStates: Record<string, LinkageResult> = {};
-      let hasStateChange = false;
 
-      // 只重新计算受影响的字段
-      affectedFields.forEach(fieldName => {
-        const linkage = linkages[fieldName];
-        if (!linkage) return;
+      // 异步处理联动逻辑
+      (async () => {
+        const newStates: Record<string, LinkageResult> = {};
+        let hasStateChange = false;
 
-        const result = evaluateLinkage(linkage, formData, linkageFunctions);
-        newStates[fieldName] = result;
+        // 并行计算所有受影响字段的联动结果（使用 allSettled 避免单个失败阻塞其他字段）
+        const results = await Promise.allSettled(
+          affectedFields.map(async fieldName => {
+            const linkage = linkages[fieldName];
+            if (!linkage) return null;
 
-        // 处理值联动：自动更新表单字段值
-        if (
-          (linkage.type === 'computed' || linkage.type === 'value') &&
-          result.value !== undefined
-        ) {
-          const currentValue = formData[fieldName];
-          if (currentValue !== result.value) {
-            form.setValue(fieldName, result.value, {
-              shouldValidate: true,
-              shouldDirty: true,
-            });
+            const result = await evaluateLinkage(linkage, formData, linkageFunctions);
+            return { fieldName, linkage, result };
+          })
+        );
+
+        // 处理结果，忽略失败的字段
+        results.forEach(promiseResult => {
+          if (promiseResult.status === 'fulfilled' && promiseResult.value) {
+            const { fieldName, linkage, result } = promiseResult.value;
+            newStates[fieldName] = result;
+
+            // 处理值联动：自动更新表单字段值
+            if (
+              (linkage.type === 'computed' || linkage.type === 'value') &&
+              result.value !== undefined
+            ) {
+              const currentValue = formData[fieldName];
+              if (currentValue !== result.value) {
+                form.setValue(fieldName, result.value, {
+                  shouldValidate: true,
+                  shouldDirty: true,
+                });
+              }
+            }
+
+            hasStateChange = true;
+          } else if (promiseResult.status === 'rejected') {
+            console.error('联动计算失败:', promiseResult.reason);
           }
+        });
+
+        // 批量更新状态（只更新变化的字段）
+        if (hasStateChange) {
+          setLinkageStates(prev => ({ ...prev, ...newStates }));
         }
-
-        hasStateChange = true;
-      });
-
-      // 批量更新状态（只更新变化的字段）
-      if (hasStateChange) {
-        setLinkageStates(prev => ({ ...prev, ...newStates }));
-      }
+      })();
     });
 
     return () => subscription.unsubscribe();
@@ -104,99 +139,86 @@ export function useLinkageManager({
 }
 
 /**
- * 求值单个联动配置
+ * 求值单个联动配置（支持异步函数）
  */
-function evaluateLinkage(
+async function evaluateLinkage(
   linkage: LinkageConfig,
   formData: Record<string, any>,
   linkageFunctions: Record<string, LinkageFunction>
-): LinkageResult {
+): Promise<LinkageResult> {
   const result: LinkageResult = {};
 
-  // 支持新的 when/fulfill/otherwise 语法
-  if (linkage.when && (linkage.fulfill || linkage.otherwise)) {
-    const conditionMet = evaluateCondition(linkage.when, formData, linkageFunctions);
-    const effect = conditionMet ? linkage.fulfill : linkage.otherwise;
+  // 如果没有 when 条件，默认使用 fulfill
+  const shouldFulfill = linkage.when
+    ? await evaluateCondition(linkage.when, formData, linkageFunctions)
+    : true;
 
-    if (effect) {
-      // 应用状态变更
-      if (effect.state) {
-        Object.assign(result, effect.state);
-      }
-      // 应用值变更
-      if (effect.value !== undefined) {
-        result.value = effect.value;
-      }
-    }
+  const effect = shouldFulfill ? linkage.fulfill : linkage.otherwise;
 
-    return result;
+  if (!effect) return result;
+
+  // 1. 应用状态变更
+  if (effect.state) {
+    Object.assign(result, effect.state);
   }
 
-  // 向后兼容：如果指定了自定义函数，优先使用
-  if (linkage.function && linkageFunctions[linkage.function]) {
-    const fnResult = linkageFunctions[linkage.function](formData);
+  // 2. 应用函数计算
+  if (effect.function) {
+    const fn = linkageFunctions[effect.function];
+    if (fn) {
+      // 使用 await 支持异步函数
+      const fnResult = await fn(formData);
 
-    // 根据联动类型处理返回值
-    switch (linkage.type) {
-      case 'visibility':
-        result.visible = Boolean(fnResult);
-        break;
-      case 'disabled':
-        result.disabled = Boolean(fnResult);
-        break;
-      case 'readonly':
-        result.readonly = Boolean(fnResult);
-        break;
-      case 'computed':
-        result.value = fnResult;
-        break;
-      case 'options':
-        result.options = fnResult;
-        break;
+      // 根据 linkage.type 决定将结果赋值给哪个字段
+      switch (linkage.type) {
+        case 'computed':
+        case 'value':
+          result.value = fnResult;
+          break;
+        case 'options':
+          result.options = fnResult;
+          break;
+        case 'visibility':
+          result.visible = Boolean(fnResult);
+          break;
+        case 'disabled':
+          result.disabled = Boolean(fnResult);
+          break;
+        case 'readonly':
+          result.readonly = Boolean(fnResult);
+          break;
+      }
     }
-
-    return result;
   }
 
-  // 向后兼容：如果有条件表达式，求值条件
-  if (linkage.condition) {
-    const conditionMet = ConditionEvaluator.evaluate(linkage.condition, formData);
+  // 3. 应用直接指定的值（优先级低于函数）
+  if (effect.value !== undefined && !effect.function) {
+    result.value = effect.value;
+  }
 
-    switch (linkage.type) {
-      case 'visibility':
-        result.visible = conditionMet;
-        break;
-      case 'disabled':
-        result.disabled = conditionMet;
-        break;
-      case 'readonly':
-        result.readonly = conditionMet;
-        break;
-      case 'value':
-        // 当条件满足时，设置目标值
-        if (conditionMet && linkage.targetValue !== undefined) {
-          result.value = linkage.targetValue;
-        }
-        break;
-    }
+  // 4. 应用直接指定的选项（优先级低于函数）
+  if (effect.options !== undefined && !effect.function) {
+    result.options = effect.options;
   }
 
   return result;
 }
 
 /**
- * 求值条件（支持表达式对象或函数名）
+ * 求值条件（支持表达式对象或函数名，支持异步函数）
  */
-function evaluateCondition(
+async function evaluateCondition(
   when: ConditionExpression | string,
   formData: Record<string, any>,
   linkageFunctions: Record<string, LinkageFunction>
-): boolean {
+): Promise<boolean> {
   // 如果是字符串，尝试作为函数名调用
   if (typeof when === 'string') {
     const fn = linkageFunctions[when];
     if (fn) {
-      return Boolean(fn(formData));
+      // 使用 await 支持异步函数
+      const result = await fn(formData);
+      return Boolean(result);
     }
     console.warn(`Linkage function "${when}" not found`);
     return false;

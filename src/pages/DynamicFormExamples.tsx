@@ -156,10 +156,16 @@ const ConditionalFormPanel: React.FC = () => {
           linkage: {
             type: 'visibility',
             dependencies: ['hasAddress'],
-            condition: {
+            when: {
               field: 'hasAddress',
               operator: '==',
               value: true,
+            },
+            fulfill: {
+              state: { visible: true },
+            },
+            otherwise: {
+              state: { visible: false },
             },
           },
         },
@@ -842,12 +848,17 @@ const ComplexFormPanel: React.FC = () => {
           linkage: {
             type: 'value',
             dependencies: ['budget'],
-            condition: {
+            when: {
               field: 'budget',
               operator: '>',
               value: 100,
             },
-            targetValue: true,
+            fulfill: {
+              value: true,
+            },
+            otherwise: {
+              value: false,
+            },
           },
         },
       },
@@ -862,10 +873,16 @@ const ComplexFormPanel: React.FC = () => {
           linkage: {
             type: 'visibility',
             dependencies: ['needsApproval'],
-            condition: {
+            when: {
               field: 'needsApproval',
               operator: '==',
               value: true,
+            },
+            fulfill: {
+              state: { visible: true },
+            },
+            otherwise: {
+              state: { visible: false },
             },
           },
         },
@@ -950,10 +967,16 @@ const ComplexFormPanel: React.FC = () => {
                     linkage: {
                       type: 'visibility',
                       dependencies: ['hasPrototype'],
-                      condition: {
+                      when: {
                         field: 'hasPrototype',
                         operator: '==',
                         value: true,
+                      },
+                      fulfill: {
+                        state: { visible: true },
+                      },
+                      otherwise: {
+                        state: { visible: false },
                       },
                     },
                   },

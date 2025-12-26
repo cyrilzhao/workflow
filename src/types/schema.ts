@@ -1,4 +1,8 @@
 import type { JSONSchema7 } from 'json-schema';
+import type { LinkageConfig, ConditionExpression } from './linkage';
+
+// 重新导出联动相关类型，方便其他模块使用
+export type { LinkageConfig, ConditionExpression } from './linkage';
 
 /**
  * Widget 类型
@@ -64,40 +68,6 @@ export interface UIConfig {
   schemaLoader?: (value: any) => Promise<ExtendedJSONSchema>; // 异步加载 schema
 
   [key: string]: any;
-}
-
-/**
- * 联动配置
- */
-export interface LinkageConfig {
-  type: 'visibility' | 'disabled' | 'readonly' | 'value' | 'computed' | 'options';
-  dependencies: string[];
-  condition?: ConditionExpression;
-  function?: string;
-  targetValue?: any; // 用于 value 类型联动的目标值
-}
-
-/**
- * 条件表达式
- */
-export interface ConditionExpression {
-  field: string;
-  operator:
-    | '=='
-    | '!='
-    | '>'
-    | '<'
-    | '>='
-    | '<='
-    | 'in'
-    | 'notIn'
-    | 'includes'
-    | 'notIncludes'
-    | 'isEmpty'
-    | 'isNotEmpty';
-  value?: any;
-  and?: ConditionExpression[];
-  or?: ConditionExpression[];
 }
 
 /**

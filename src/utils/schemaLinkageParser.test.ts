@@ -87,7 +87,9 @@ describe('parseSchemaLinkages', () => {
               linkage: {
                 type: 'computed',
                 dependencies: ['price', 'quantity'],
-                function: 'calculateTotal',
+                fulfill: {
+                  function: 'calculateTotal',
+                },
               },
             },
           },
@@ -97,7 +99,7 @@ describe('parseSchemaLinkages', () => {
       const result = parseSchemaLinkages(schema);
 
       expect(result.linkages.total.type).toBe('computed');
-      expect(result.linkages.total.function).toBe('calculateTotal');
+      expect(result.linkages.total.fulfill?.function).toBe('calculateTotal');
     });
   });
 });

@@ -18,6 +18,7 @@
 ### 1.2 与 react-hook-form 的集成
 
 利用 react-hook-form 的核心 API：
+
 - `watch(fieldName)` - 监听字段变化
 - `setValue(fieldName, value)` - 设置字段值
 - `trigger(fieldName)` - 触发字段验证
@@ -30,18 +31,46 @@
 ```typescript
 interface UILinkageConfig {
   // 联动类型
-  type: 'visibility' | 'disabled' | 'readonly' | 'computed' | 'options';
+  type: 'visibility' | 'disabled' | 'readonly' | 'value' | 'computed' | 'options';
 
   // 依赖的字段
   dependencies: string[];
 
-  // 联动条件（支持表达式或函数名）
-  condition?: string | ConditionExpression;
+  // 条件表达式或函数名（描述"什么时候触发联动"）
+  when?: ConditionExpression | string;
 
-  // 联动函数名（用于复杂逻辑）
+  // 条件满足时的效果（描述"触发后做什么"）
+  fulfill?: LinkageEffect;
+
+  // 条件不满足时的效果
+  otherwise?: LinkageEffect;
+}
+
+interface LinkageEffect {
+  // 状态变更
+  state?: {
+    visible?: boolean;
+    disabled?: boolean;
+    readonly?: boolean;
+    required?: boolean;
+  };
+  // 直接指定值（用于 value/computed 类型）
+  value?: any;
+  // 直接指定选项（用于 options 类型）
+  options?: Array<{ label: string; value: any }>;
+  // 通过函数计算（根据 linkage.type 决定计算结果的用途）
   function?: string;
 }
 ```
+
+**设计说明**：
+
+- **职责分离**：`when` 描述条件（什么时候触发），`fulfill/otherwise` 描述效果（触发后做什么）
+- **统一接口**：`function` 字段根据 `linkage.type` 自动适配：
+  - `computed`/`value` 类型：函数返回值赋给 `result.value`
+  - `options` 类型：函数返回值赋给 `result.options`
+  - `visibility`/`disabled`/`readonly` 类型：函数返回值转为 boolean
+- **灵活性**：支持直接指定值/选项（`value`/`options`），也支持函数计算（`function`）
 
 ### 2.2 条件表达式语法
 
@@ -83,10 +112,16 @@ interface ConditionExpression {
         "linkage": {
           "type": "visibility",
           "dependencies": ["hasAddress"],
-          "condition": {
+          "when": {
             "field": "hasAddress",
             "operator": "==",
             "value": true
+          },
+          "fulfill": {
+            "state": { "visible": true }
+          },
+          "otherwise": {
+            "state": { "visible": false }
           }
         }
       }
@@ -113,10 +148,16 @@ interface ConditionExpression {
         "linkage": {
           "type": "disabled",
           "dependencies": ["accountType"],
-          "condition": {
+          "when": {
             "field": "accountType",
             "operator": "==",
             "value": "free"
+          },
+          "fulfill": {
+            "state": { "disabled": true }
+          },
+          "otherwise": {
+            "state": { "disabled": false }
           }
         }
       }
@@ -147,7 +188,9 @@ interface ConditionExpression {
         "linkage": {
           "type": "computed",
           "dependencies": ["price", "quantity"],
-          "function": "calculateTotal"
+          "fulfill": {
+            "function": "calculateTotal"
+          }
         }
       }
     }
@@ -156,6 +199,7 @@ interface ConditionExpression {
 ```
 
 对应的计算函数：
+
 ```typescript
 const linkageFunctions = {
   calculateTotal: (formData: any) => {
@@ -164,45 +208,13 @@ const linkageFunctions = {
 };
 ```
 
+**说明**：
+
+- `type: "computed"` 表示这是一个计算字段
+- `fulfill.function` 指定计算函数名
+- 当 `price` 或 `quantity` 变化时，自动重新计算 `total`
+
 ### 3.4 条件性设置字段值（value 类型）
-
-**说明**：`value` 类型用于根据条件表达式的结果，直接设置字段的值（而不是通过函数计算）。
-
-#### 方式一：使用 condition + targetValue
-
-```json
-{
-  "type": "object",
-  "properties": {
-    "membershipType": {
-      "type": "string",
-      "title": "会员类型",
-      "enum": ["free", "premium", "vip"]
-    },
-    "maxProjects": {
-      "type": "integer",
-      "title": "最大项目数",
-      "ui": {
-        "readonly": true,
-        "linkage": {
-          "type": "value",
-          "dependencies": ["membershipType"],
-          "condition": {
-            "field": "membershipType",
-            "operator": "==",
-            "value": "free"
-          },
-          "targetValue": 3
-        }
-      }
-    }
-  }
-}
-```
-
-**说明**：当 `membershipType` 为 "free" 时，`maxProjects` 自动设置为 3。
-
-#### 方式二：使用 when/fulfill/otherwise（推荐）
 
 ```json
 {
@@ -239,17 +251,19 @@ const linkageFunctions = {
 ```
 
 **说明**：
+
 - 当 `autoConfig` 为 true 时，`memory` 设置为 2048 并变为只读
 - 当 `autoConfig` 为 false 时，`memory` 变为可编辑
 
 #### value 类型 vs computed 类型
 
-| 特性 | `value` 类型 | `computed` 类型 |
-|------|-------------|----------------|
-| **值的来源** | 配置中直接指定（`targetValue` 或 `fulfill.value`） | 通过函数计算得出 |
-| **适用场景** | 条件性设置固定值、预设值 | 需要计算的值（如总价、折扣） |
-| **是否需要函数** | 否 | 是（必须提供 `function` 参数） |
-| **典型用例** | 根据会员类型设置配额、根据开关设置默认值 | 总价 = 单价 × 数量、BMI 计算 |
+| 特性             | `value` 类型                             | `computed` 类型                          |
+| ---------------- | ---------------------------------------- | ---------------------------------------- |
+| **值的来源**     | 配置中直接指定（`fulfill.value`）        | 通过函数计算得出（`fulfill.function`）   |
+| **适用场景**     | 条件性设置固定值、预设值                 | 需要计算的值（如总价、折扣）             |
+| **是否需要函数** | 否（直接指定值）                         | 是（必须提供 `fulfill.function`）        |
+| **典型用例**     | 根据会员类型设置配额、根据开关设置默认值 | 总价 = 单价 × 数量、BMI 计算             |
+| **条件判断**     | 支持（通过 `when/fulfill/otherwise`）    | 支持（通过 `when/fulfill/otherwise`）    |
 
 ### 3.5 动态选项
 
@@ -269,7 +283,9 @@ const linkageFunctions = {
         "linkage": {
           "type": "options",
           "dependencies": ["country"],
-          "function": "getProvinceOptions"
+          "fulfill": {
+            "function": "getProvinceOptions"
+          }
         }
       }
     }
@@ -278,24 +294,31 @@ const linkageFunctions = {
 ```
 
 对应的选项函数：
+
 ```typescript
 const linkageFunctions = {
   getProvinceOptions: (formData: any) => {
     if (formData.country === 'china') {
       return [
         { label: '北京', value: 'beijing' },
-        { label: '上海', value: 'shanghai' }
+        { label: '上海', value: 'shanghai' },
       ];
     } else if (formData.country === 'usa') {
       return [
         { label: 'California', value: 'ca' },
-        { label: 'New York', value: 'ny' }
+        { label: 'New York', value: 'ny' },
       ];
     }
     return [];
-  }
+  },
 };
 ```
+
+**说明**：
+
+- `type: "options"` 表示这是动态选项联动
+- `fulfill.function` 指定选项计算函数
+- 函数返回 `Array<{ label: string; value: any }>` 格式的选项列表
 
 ## 4. 复杂联动场景
 
@@ -320,7 +343,7 @@ const linkageFunctions = {
         "linkage": {
           "type": "visibility",
           "dependencies": ["age", "income"],
-          "condition": {
+          "when": {
             "and": [
               {
                 "field": "age",
@@ -333,6 +356,12 @@ const linkageFunctions = {
                 "value": 50000
               }
             ]
+          },
+          "fulfill": {
+            "state": { "visible": true }
+          },
+          "otherwise": {
+            "state": { "visible": false }
           }
         }
       }
@@ -342,6 +371,7 @@ const linkageFunctions = {
 ```
 
 **说明**：
+
 - 简单的 `and` 组合：年龄 ≥ 18 **且** 年收入 ≥ 50000
 - 两个条件是平级的，没有嵌套结构
 - 适用于简单的多条件判断场景
@@ -373,7 +403,7 @@ const linkageFunctions = {
         "linkage": {
           "type": "visibility",
           "dependencies": ["userType", "country", "age"],
-          "condition": {
+          "when": {
             "and": [
               {
                 "field": "userType",
@@ -422,6 +452,7 @@ const linkageFunctions = {
 ```
 
 **说明**：
+
 - 用户类型必须是"个人" **且**
 - （国家是中国 **且** 年龄 ≥ 16）**或**（国家是日本 **且** 年龄 ≥ 20）
 - 这展示了 `and` 和 `or` 的多层嵌套组合
@@ -446,7 +477,7 @@ UI 联动和数据验证是独立的：
         "linkage": {
           "type": "visibility",
           "dependencies": ["hasAddress"],
-          "condition": {
+          "when": {
             "field": "hasAddress",
             "operator": "==",
             "value": true
@@ -465,6 +496,7 @@ UI 联动和数据验证是独立的：
 ```
 
 **说明**：
+
 - `ui.linkage` 控制 `address` 字段的显示/隐藏（UI 层面）
 - `if/then` 控制当 `hasAddress` 为 true 时，`address` 必填（验证层面）
 - 两者配合使用，职责清晰
@@ -487,11 +519,18 @@ export type LinkageType = 'visibility' | 'disabled' | 'readonly' | 'value' | 'co
  * 条件操作符
  */
 export type ConditionOperator =
-  | '==' | '!='
-  | '>' | '<' | '>=' | '<='
-  | 'in' | 'notIn'
-  | 'includes' | 'notIncludes'
-  | 'isEmpty' | 'isNotEmpty';
+  | '=='
+  | '!='
+  | '>'
+  | '<'
+  | '>='
+  | '<='
+  | 'in'
+  | 'notIn'
+  | 'includes'
+  | 'notIncludes'
+  | 'isEmpty'
+  | 'isNotEmpty';
 
 /**
  * 条件表达式
@@ -508,13 +547,19 @@ export interface ConditionExpression {
  * 联动效果定义
  */
 export interface LinkageEffect {
+  // 状态变更
   state?: {
     visible?: boolean;
     disabled?: boolean;
     readonly?: boolean;
     required?: boolean;
   };
+  // 直接指定值（用于 value/computed 类型）
   value?: any;
+  // 直接指定选项（用于 options 类型）
+  options?: Array<{ label: string; value: any }>;
+  // 通过函数计算（根据 linkage.type 决定计算结果的用途）
+  function?: string;
 }
 
 /**
@@ -524,15 +569,12 @@ export interface LinkageConfig {
   type: LinkageType;
   dependencies: string[];
 
-  // 原有的单条件方式（向后兼容）
-  condition?: ConditionExpression;
-  function?: string;
-  targetValue?: any; // 用于 value 类型联动的目标值
-
-  // 新增：双分支方式
-  when?: ConditionExpression | string;  // 条件表达式或函数名
-  fulfill?: LinkageEffect;              // 条件满足时的效果
-  otherwise?: LinkageEffect;            // 条件不满足时的效果
+  // 条件表达式或函数名（描述"什么时候触发联动"）
+  when?: ConditionExpression | string;
+  // 条件满足时的效果（描述"触发后做什么"）
+  fulfill?: LinkageEffect;
+  // 条件不满足时的效果
+  otherwise?: LinkageEffect;
 }
 
 /**
@@ -547,16 +589,22 @@ export interface LinkageResult {
 }
 
 /**
- * 联动函数签名
+ * 联动函数签名（支持同步和异步函数）
  */
-export type LinkageFunction = (formData: Record<string, any>) => any;
+export type LinkageFunction = (formData: Record<string, any>) => any | Promise<any>;
 ```
 
 ### 6.2 条件表达式求值器
 
-```typescript
-// src/utils/conditionEvaluator.ts
+**实际实现**：`src/utils/conditionEvaluator.ts`
 
+```typescript
+import type { ConditionExpression, ConditionOperator } from '@/types/linkage';
+import { PathResolver } from './pathResolver';
+
+/**
+ * 条件表达式求值器
+ */
 export class ConditionEvaluator {
   /**
    * 求值条件表达式
@@ -565,11 +613,12 @@ export class ConditionEvaluator {
     condition: ConditionExpression,
     formData: Record<string, any>
   ): boolean {
-    // 处理逻辑组合
+    // 处理逻辑组合 - and
     if (condition.and) {
       return condition.and.every(c => this.evaluate(c, formData));
     }
 
+    // 处理逻辑组合 - or
     if (condition.or) {
       return condition.or.some(c => this.evaluate(c, formData));
     }
@@ -586,23 +635,14 @@ export class ConditionEvaluator {
   }
 
   /**
-   * 获取字段值（支持嵌套路径）
+   * 获取字段值（支持嵌套路径和 JSON Pointer）
    */
   private static getFieldValue(
     formData: Record<string, any>,
     fieldPath: string
   ): any {
-    const keys = fieldPath.split('.');
-    let value = formData;
-
-    for (const key of keys) {
-      if (value === null || value === undefined) {
-        return undefined;
-      }
-      value = value[key];
-    }
-
-    return value;
+    // 使用 PathResolver 支持 JSON Pointer 格式
+    return PathResolver.resolve(fieldPath, formData);
   }
 
   /**
@@ -645,16 +685,20 @@ export class ConditionEvaluator {
         return Array.isArray(fieldValue) && !fieldValue.includes(compareValue);
 
       case 'isEmpty':
-        return fieldValue === null ||
-               fieldValue === undefined ||
-               fieldValue === '' ||
-               (Array.isArray(fieldValue) && fieldValue.length === 0);
+        return (
+          fieldValue === null ||
+          fieldValue === undefined ||
+          fieldValue === '' ||
+          (Array.isArray(fieldValue) && fieldValue.length === 0)
+        );
 
       case 'isNotEmpty':
-        return fieldValue !== null &&
-               fieldValue !== undefined &&
-               fieldValue !== '' &&
-               (!Array.isArray(fieldValue) || fieldValue.length > 0);
+        return (
+          fieldValue !== null &&
+          fieldValue !== undefined &&
+          fieldValue !== '' &&
+          (!Array.isArray(fieldValue) || fieldValue.length > 0)
+        );
 
       default:
         return false;
@@ -663,19 +707,31 @@ export class ConditionEvaluator {
 }
 ```
 
+**关键特性**：
+
+- ✅ 使用 `PathResolver.resolve()` 统一处理字段路径
+- ✅ 支持简单字段名、点号路径和 JSON Pointer 格式
+- ✅ 支持 `and`/`or` 逻辑组合的递归求值
+- ✅ 完整的操作符支持（包括 `isEmpty`/`isNotEmpty`）
+
 ---
 
 **下一部分**：联动管理器实现
 
 ### 6.3 联动管理器
 
-```typescript
-// src/hooks/useLinkageManager.ts
+**实际实现**：`src/hooks/useLinkageManager.ts`
 
-import { useEffect, useMemo } from 'react';
-import { UseFormReturn } from 'react-hook-form';
-import { LinkageConfig, LinkageResult, LinkageFunction } from '@/types/linkage';
+#### 核心实现
+
+```typescript
+import { useMemo, useEffect, useState } from 'react';
+import type { UseFormReturn } from 'react-hook-form';
+import type { LinkageConfig, LinkageFunction, ConditionExpression } from '@/types/linkage';
+import type { LinkageResult } from '@/types/linkage';
 import { ConditionEvaluator } from '@/utils/conditionEvaluator';
+import { DependencyGraph } from '@/utils/dependencyGraph';
+import { PathResolver } from '@/utils/pathResolver';
 
 interface LinkageManagerOptions {
   form: UseFormReturn<any>;
@@ -683,96 +739,445 @@ interface LinkageManagerOptions {
   linkageFunctions?: Record<string, LinkageFunction>;
 }
 
+/**
+ * 联动管理器 Hook
+ */
 export function useLinkageManager({
   form,
   linkages,
-  linkageFunctions = {}
+  linkageFunctions = {},
 }: LinkageManagerOptions) {
-  const { watch, setValue, getValues } = form;
+  const { watch, getValues } = form;
 
-  // 收集所有需要监听的字段
-  const watchFields = useMemo(() => {
-    const fields = new Set<string>();
-    Object.values(linkages).forEach(linkage => {
-      linkage.dependencies.forEach(dep => fields.add(dep));
-    });
-    return Array.from(fields);
-  }, [linkages]);
-
-  // 监听所有依赖字段
-  const watchedValues = watch(watchFields);
-
-  // 计算每个字段的联动状态
-  const linkageStates = useMemo(() => {
-    const formData = getValues();
-    const states: Record<string, LinkageResult> = {};
+  // 构建依赖图
+  const dependencyGraph = useMemo(() => {
+    const graph = new DependencyGraph();
 
     Object.entries(linkages).forEach(([fieldName, linkage]) => {
-      states[fieldName] = evaluateLinkage(linkage, formData, linkageFunctions);
+      linkage.dependencies.forEach(dep => {
+        // 标准化路径并添加依赖关系
+        const normalizedDep = PathResolver.toFieldPath(dep);
+        graph.addDependency(fieldName, normalizedDep);
+      });
     });
 
-    return states;
-  }, [watchedValues, linkages, linkageFunctions]);
+    // 检测循环依赖
+    const cycle = graph.detectCycle();
+    if (cycle) {
+      console.error('检测到循环依赖:', cycle.join(' -> '));
+    }
+
+    return graph;
+  }, [linkages]);
+
+  // 联动状态缓存（使用 useState 而不是 useMemo，以便在 useEffect 中更新）
+  const [linkageStates, setLinkageStates] = useState<Record<string, LinkageResult>>({});
+
+  // 初始化联动状态
+  useEffect(() => {
+    (async () => {
+      const formData = getValues();
+      const states: Record<string, LinkageResult> = {};
+
+      // 并行计算所有字段的初始联动状态（使用 allSettled 避免单个失败阻塞其他字段）
+      const results = await Promise.allSettled(
+        Object.entries(linkages).map(async ([fieldName, linkage]) => ({
+          fieldName,
+          result: await evaluateLinkage(linkage, formData, linkageFunctions),
+        }))
+      );
+
+      // 处理结果，忽略失败的字段
+      results.forEach(result => {
+        if (result.status === 'fulfilled') {
+          states[result.value.fieldName] = result.value.result;
+        } else {
+          console.error('联动初始化失败:', result.reason);
+        }
+      });
+
+      setLinkageStates(states);
+    })();
+  }, [linkages, linkageFunctions, getValues]);
+
+  // 统一的字段变化监听和联动处理
+  useEffect(() => {
+    const subscription = watch((_, { name }) => {
+      if (!name) return;
+      // 获取受影响的字段（使用依赖图精确计算）
+      const affectedFields = dependencyGraph.getAffectedFields(name);
+      if (affectedFields.length === 0) return;
+
+      const formData = getValues();
+
+      // 异步处理联动逻辑
+      (async () => {
+        const newStates: Record<string, LinkageResult> = {};
+        let hasStateChange = false;
+
+        // 并行计算所有受影响字段的联动结果（使用 allSettled 避免单个失败阻塞其他字段）
+        const results = await Promise.allSettled(
+          affectedFields.map(async fieldName => {
+            const linkage = linkages[fieldName];
+            if (!linkage) return null;
+
+            const result = await evaluateLinkage(linkage, formData, linkageFunctions);
+            return { fieldName, linkage, result };
+          })
+        );
+
+        // 处理结果，忽略失败的字段
+        results.forEach(promiseResult => {
+          if (promiseResult.status === 'fulfilled' && promiseResult.value) {
+            const { fieldName, linkage, result } = promiseResult.value;
+            newStates[fieldName] = result;
+
+            // 处理值联动：自动更新表单字段值
+            if (
+              (linkage.type === 'computed' || linkage.type === 'value') &&
+              result.value !== undefined
+            ) {
+              const currentValue = formData[fieldName];
+              if (currentValue !== result.value) {
+                form.setValue(fieldName, result.value, {
+                  shouldValidate: true,
+                  shouldDirty: true,
+                });
+              }
+            }
+
+            hasStateChange = true;
+          } else if (promiseResult.status === 'rejected') {
+            console.error('联动计算失败:', promiseResult.reason);
+          }
+        });
+
+        // 批量更新状态（只更新变化的字段）
+        if (hasStateChange) {
+          setLinkageStates(prev => ({ ...prev, ...newStates }));
+        }
+      })();
+    });
+
+    return () => subscription.unsubscribe();
+  }, [watch, form, getValues, linkages, linkageFunctions, dependencyGraph]);
 
   return linkageStates;
 }
 
 /**
- * 求值单个联动配置
+ * 求值单个联动配置（支持异步函数）
  */
-function evaluateLinkage(
+async function evaluateLinkage(
   linkage: LinkageConfig,
   formData: Record<string, any>,
   linkageFunctions: Record<string, LinkageFunction>
-): LinkageResult {
+): Promise<LinkageResult> {
   const result: LinkageResult = {};
 
-  // 如果指定了自定义函数，优先使用
-  if (linkage.function && linkageFunctions[linkage.function]) {
-    const fnResult = linkageFunctions[linkage.function](formData);
+  // 如果没有 when 条件，默认使用 fulfill
+  const shouldFulfill = linkage.when
+    ? await evaluateCondition(linkage.when, formData, linkageFunctions)
+    : true;
 
-    // 根据联动类型处理返回值
-    switch (linkage.type) {
-      case 'visibility':
-        result.visible = Boolean(fnResult);
-        break;
-      case 'disabled':
-        result.disabled = Boolean(fnResult);
-        break;
-      case 'readonly':
-        result.readonly = Boolean(fnResult);
-        break;
-      case 'computed':
-        result.value = fnResult;
-        break;
-      case 'options':
-        result.options = fnResult;
-        break;
-    }
+  const effect = shouldFulfill ? linkage.fulfill : linkage.otherwise;
 
-    return result;
+  if (!effect) return result;
+
+  // 1. 应用状态变更
+  if (effect.state) {
+    Object.assign(result, effect.state);
   }
 
-  // 如果有条件表达式，求值条件
-  if (linkage.condition) {
-    const conditionMet = ConditionEvaluator.evaluate(linkage.condition, formData);
+  // 2. 应用函数计算
+  if (effect.function) {
+    const fn = linkageFunctions[effect.function];
+    if (fn) {
+      // 使用 await 支持异步函数
+      const fnResult = await fn(formData);
 
-    switch (linkage.type) {
-      case 'visibility':
-        result.visible = conditionMet;
-        break;
-      case 'disabled':
-        result.disabled = conditionMet;
-        break;
-      case 'readonly':
-        result.readonly = conditionMet;
-        break;
+      // 根据 linkage.type 决定将结果赋值给哪个字段
+      switch (linkage.type) {
+        case 'computed':
+        case 'value':
+          result.value = fnResult;
+          break;
+        case 'options':
+          result.options = fnResult;
+          break;
+        case 'visibility':
+          result.visible = Boolean(fnResult);
+          break;
+        case 'disabled':
+          result.disabled = Boolean(fnResult);
+          break;
+        case 'readonly':
+          result.readonly = Boolean(fnResult);
+          break;
+      }
     }
+  }
+
+  // 3. 应用直接指定的值（优先级低于函数）
+  if (effect.value !== undefined && !effect.function) {
+    result.value = effect.value;
+  }
+
+  // 4. 应用直接指定的选项（优先级低于函数）
+  if (effect.options !== undefined && !effect.function) {
+    result.options = effect.options;
   }
 
   return result;
 }
+
+/**
+ * 求值条件（支持表达式对象或函数名，支持异步函数）
+ */
+async function evaluateCondition(
+  when: ConditionExpression | string,
+  formData: Record<string, any>,
+  linkageFunctions: Record<string, LinkageFunction>
+): Promise<boolean> {
+  // 如果是字符串，尝试作为函数名调用
+  if (typeof when === 'string') {
+    const fn = linkageFunctions[when];
+    if (fn) {
+      // 使用 await 支持异步函数
+      const result = await fn(formData);
+      return Boolean(result);
+    }
+    console.warn(`Linkage function "${when}" not found`);
+    return false;
+  }
+
+  // 否则作为条件表达式求值
+  return ConditionEvaluator.evaluate(when, formData);
+}
 ```
+
+**关键特性**：
+
+- ✅ **职责清晰**：`when` 描述条件，`fulfill/otherwise` 描述效果，`function` 在效果中计算结果
+- ✅ **统一接口**：`function` 字段根据 `linkage.type` 自动适配不同的返回值类型
+- ✅ **异步支持**：完整支持同步和异步联动函数，使用 `await` 处理 Promise
+- ✅ **错误隔离**：使用 `Promise.allSettled` 确保单个字段失败不会阻塞其他字段的计算
+- ✅ **并行执行**：多个字段的联动计算并行执行，提高性能
+- ✅ **依赖图优化**：使用 `DependencyGraph` 精确计算受影响的字段，避免不必要的重新计算
+- ✅ **循环依赖检测**：在构建依赖图时自动检测并警告循环依赖
+- ✅ **路径标准化**：使用 `PathResolver.toFieldPath()` 统一处理 JSON Pointer 和简单字段名
+- ✅ **状态管理**：使用 `useState` 而非 `useMemo`，支持在 `useEffect` 中异步更新状态
+- ✅ **自动值更新**：在 `useEffect` 中直接调用 `form.setValue` 更新 `computed` 和 `value` 类型的字段
+- ✅ **批量更新**：只更新受影响的字段，提高性能
+
+#### 异步函数使用示例
+
+联动系统完整支持异步函数，适用于需要调用 API、执行异步计算等场景。
+
+**示例 1：异步加载动态选项**
+
+```typescript
+const schema = {
+  type: "object",
+  properties: {
+    country: {
+      type: "string",
+      title: "国家",
+      enum: ["china", "usa"]
+    },
+    province: {
+      type: "string",
+      title: "省份/州",
+      ui: {
+        linkage: {
+          type: "options",
+          dependencies: ["country"],
+          fulfill: {
+            function: "fetchProvinceOptions"
+          }
+        }
+      }
+    }
+  }
+};
+
+const linkageFunctions = {
+  // 异步函数：从 API 获取选项
+  fetchProvinceOptions: async (formData: any) => {
+    try {
+      const response = await fetch(`/api/provinces?country=${formData.country}`);
+      if (!response.ok) {
+        console.error('获取省份列表失败:', response.statusText);
+        return [];
+      }
+      const data = await response.json();
+      return data.provinces.map((p: any) => ({
+        label: p.name,
+        value: p.code
+      }));
+    } catch (error) {
+      console.error('获取省份列表出错:', error);
+      return [];
+    }
+  }
+};
+```
+
+**示例 2：异步权限检查**
+
+```typescript
+const schema = {
+  type: "object",
+  properties: {
+    userId: {
+      type: "string",
+      title: "用户 ID"
+    },
+    advancedSettings: {
+      type: "object",
+      title: "高级设置",
+      ui: {
+        linkage: {
+          type: "visibility",
+          dependencies: ["userId"],
+          when: "checkAdminPermission",
+          fulfill: {
+            state: { visible: true }
+          },
+          otherwise: {
+            state: { visible: false }
+          }
+        }
+      }
+    }
+  }
+};
+
+const linkageFunctions = {
+  // 异步函数：检查用户权限
+  checkAdminPermission: async (formData: any) => {
+    try {
+      const response = await fetch(`/api/users/${formData.userId}/permissions`);
+      const data = await response.json();
+      return data.isAdmin;
+    } catch (error) {
+      console.error('权限检查失败:', error);
+      return false;
+    }
+  }
+};
+```
+
+**示例 3：混合使用同步和异步函数**
+
+```typescript
+const schema = {
+  type: "object",
+  properties: {
+    price: {
+      type: "number",
+      title: "单价",
+      minimum: 0
+    },
+    quantity: {
+      type: "integer",
+      title: "数量",
+      minimum: 1
+    },
+    region: {
+      type: "string",
+      title: "地区",
+      enum: ["north", "south", "east", "west"],
+      enumNames: ["华北", "华南", "华东", "华西"]
+    },
+    discount: {
+      type: "number",
+      title: "折扣金额",
+      ui: {
+        readonly: true,
+        linkage: {
+          type: "computed",
+          dependencies: ["price", "quantity"],
+          fulfill: {
+            function: "calculateDiscount"
+          }
+        }
+      }
+    },
+    tax: {
+      type: "number",
+      title: "税费",
+      ui: {
+        readonly: true,
+        linkage: {
+          type: "computed",
+          dependencies: ["price", "quantity", "region"],
+          fulfill: {
+            function: "calculateTax"
+          }
+        }
+      }
+    },
+    total: {
+      type: "number",
+      title: "总价",
+      ui: {
+        readonly: true,
+        linkage: {
+          type: "computed",
+          dependencies: ["price", "quantity", "discount", "tax"],
+          fulfill: {
+            function: "calculateTotal"
+          }
+        }
+      }
+    }
+  },
+  required: ["price", "quantity", "region"]
+};
+
+const linkageFunctions = {
+  // 同步函数：简单计算
+  calculateDiscount: (formData: any) => {
+    const subtotal = (formData.price || 0) * (formData.quantity || 0);
+    return subtotal > 100 ? 10 : 0;
+  },
+
+  // 异步函数：调用 API 计算税费
+  calculateTax: async (formData: any) => {
+    try {
+      const response = await fetch('/api/calculate-tax', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: formData.price * formData.quantity,
+          region: formData.region
+        })
+      });
+      const data = await response.json();
+      return data.tax;
+    } catch (error) {
+      console.error('税费计算失败:', error);
+      return 0;
+    }
+  },
+
+  // 异步函数：计算最终总价
+  calculateTotal: async (formData: any) => {
+    const subtotal = (formData.price || 0) * (formData.quantity || 0);
+    const discount = formData.discount || 0;
+    const tax = formData.tax || 0;
+    return subtotal - discount + tax;
+  }
+};
+```
+
+**注意事项**：
+
+1. **错误处理**：异步函数应该包含适当的错误处理，避免未捕获的异常
+2. **降级方案**：当 API 调用失败时，应返回合理的默认值（如空数组、false 等）
+3. **性能优化**：系统使用 `Promise.allSettled` 并行执行多个异步函数，单个失败不会阻塞其他字段
+4. **防抖建议**：对于频繁触发的异步函数（如输入框联动），建议在函数内部实现防抖逻辑
 
 ### 6.4 计算字段自动更新
 
@@ -782,22 +1187,29 @@ function evaluateLinkage(
 
 **1. useLinkageManager 中的值联动处理**
 
+在 `useLinkageManager` 的 `useEffect` 中（第 725-768 行），当依赖字段变化时：
+
 ```typescript
-// src/hooks/useLinkageManager.ts (第 78-89 行)
+// src/hooks/useLinkageManager.ts
 
 useEffect(() => {
   const subscription = watch((_, { name }) => {
     if (!name) return;
+    // 获取受影响的字段（使用依赖图精确计算）
     const affectedFields = dependencyGraph.getAffectedFields(name);
     if (affectedFields.length === 0) return;
 
     const formData = getValues();
+    const newStates: Record<string, LinkageResult> = {};
+    let hasStateChange = false;
 
+    // 只重新计算受影响的字段
     affectedFields.forEach(fieldName => {
       const linkage = linkages[fieldName];
       if (!linkage) return;
 
       const result = evaluateLinkage(linkage, formData, linkageFunctions);
+      newStates[fieldName] = result;
 
       // 处理值联动：自动更新表单字段值
       if (
@@ -812,7 +1224,14 @@ useEffect(() => {
           });
         }
       }
+
+      hasStateChange = true;
     });
+
+    // 批量更新状态（只更新变化的字段）
+    if (hasStateChange) {
+      setLinkageStates(prev => ({ ...prev, ...newStates }));
+    }
   });
 
   return () => subscription.unsubscribe();
@@ -831,6 +1250,8 @@ React.useEffect(() => {
   }
 }, [linkageState?.value, field.name, setValue]);
 ```
+
+**说明**：这个 `useEffect` 提供了额外的保障，确保 UI 与联动状态同步。
 
 #### 工作流程
 
@@ -890,6 +1311,7 @@ const renderFields = () => (
   </div>
 );
 ```
+
 ---
 
 ## 7. Schema 解析器更新
@@ -941,8 +1363,7 @@ export function parseSchemaLinkages(schema: ExtendedJSONSchema): ParsedLinkages 
 
 - ✅ **统一处理**：不再区分 `computedFields`，所有联动类型统一返回
 - ✅ **简化逻辑**：`useLinkageManager` 根据 `type` 字段自动处理不同类型的联动
-- ✅ **向后兼容**：支持所有联动类型（visibility、disabled、readonly、value、computed、options）
-
+- ✅ **完整支持**：支持所有联动类型（visibility、disabled、readonly、value、computed、options）
 
 ---
 
@@ -966,10 +1387,16 @@ const schema = {
         linkage: {
           type: "visibility",
           dependencies: ["hasAddress"],
-          condition: {
+          when: {
             field: "hasAddress",
             operator: "==",
             value: true
+          },
+          fulfill: {
+            state: { visible: true }
+          },
+          otherwise: {
+            state: { visible: false }
           }
         }
       }
@@ -986,7 +1413,6 @@ const schema = {
 
 <DynamicForm schema={schema} />
 ```
-
 
 ### 8.2 计算字段示例
 
@@ -1012,7 +1438,9 @@ const schema = {
         linkage: {
           type: "computed",
           dependencies: ["price", "quantity"],
-          function: "calculateTotal"
+          fulfill: {
+            function: "calculateTotal"
+          }
         }
       }
     }
@@ -1025,12 +1453,11 @@ const linkageFunctions = {
   }
 };
 
-<DynamicForm 
-  schema={schema} 
+<DynamicForm
+  schema={schema}
   linkageFunctions={linkageFunctions}
 />
 ```
-
 
 ### 8.3 动态选项示例
 
@@ -1051,7 +1478,9 @@ const schema = {
         linkage: {
           type: "options",
           dependencies: ["country"],
-          function: "getProvinceOptions"
+          fulfill: {
+            function: "getProvinceOptions"
+          }
         }
       }
     }
@@ -1078,12 +1507,11 @@ const linkageFunctions = {
   }
 };
 
-<DynamicForm 
-  schema={schema} 
+<DynamicForm
+  schema={schema}
   linkageFunctions={linkageFunctions}
 />
 ```
-
 
 ---
 
@@ -1091,11 +1519,11 @@ const linkageFunctions = {
 
 ### 9.1 职责分离
 
-| 层面 | 负责内容 | 实现方式 |
-|------|---------|---------|
-| **JSON Schema** | 数据验证 | `required`, `minLength`, `pattern`, `if/then/else`, `dependencies` 等 |
-| **UI 扩展 (ui.linkage)** | UI 联动逻辑 | `visibility`, `disabled`, `readonly`, `computed`, `options` |
-| **react-hook-form** | 表单状态管理 | `watch`, `setValue`, `trigger`, `getValues` |
+| 层面                     | 负责内容     | 实现方式                                                              |
+| ------------------------ | ------------ | --------------------------------------------------------------------- |
+| **JSON Schema**          | 数据验证     | `required`, `minLength`, `pattern`, `if/then/else`, `dependencies` 等 |
+| **UI 扩展 (ui.linkage)** | UI 联动逻辑  | `visibility`, `disabled`, `readonly`, `computed`, `options`           |
+| **react-hook-form**      | 表单状态管理 | `watch`, `setValue`, `trigger`, `getValues`                           |
 
 ### 9.2 关键优势
 
@@ -1104,16 +1532,16 @@ const linkageFunctions = {
 3. **性能优化**：只监听必要的字段变化
 4. **类型安全**：完整的 TypeScript 类型定义
 5. **易于扩展**：支持自定义联动函数
+6. **异步支持**：完整支持同步和异步联动函数
 
 ### 9.3 与之前设计的对比
 
-| 方面 | 之前的设计 | 新设计 |
-|------|-----------|--------|
-| 条件渲染位置 | 滥用 JSON Schema 验证关键字 | 在 `ui.linkage` 中定义 |
-| 职责 | 混淆验证和 UI 逻辑 | 职责清晰分离 |
-| 与 RHF 集成 | 未考虑 | 深度集成 `watch`/`setValue` |
-| 性能 | 可能过度渲染 | 精确监听依赖字段 |
-
+| 方面         | 之前的设计                  | 新设计                      |
+| ------------ | --------------------------- | --------------------------- |
+| 条件渲染位置 | 滥用 JSON Schema 验证关键字 | 在 `ui.linkage` 中定义      |
+| 职责         | 混淆验证和 UI 逻辑          | 职责清晰分离                |
+| 与 RHF 集成  | 未考虑                      | 深度集成 `watch`/`setValue` |
+| 性能         | 可能过度渲染                | 精确监听依赖字段            |
 
 ---
 
@@ -1126,64 +1554,153 @@ const linkageFunctions = {
 #### 路径格式
 
 ```typescript
-// 简单字段名（向后兼容）
-dependencies: ["age", "income"]
+// 简单字段名
+dependencies: ['age', 'income'];
 
-// JSON Pointer 格式（推荐）
-dependencies: ["#/properties/age", "#/properties/address/city"]
+// JSON Pointer 格式（推荐用于嵌套字段）
+dependencies: ['#/properties/age', '#/properties/address/city'];
 
 // 支持嵌套对象
-dependencies: ["#/properties/user/name", "#/properties/user/profile/age"]
+dependencies: ['#/properties/user/name', '#/properties/user/profile/age'];
 ```
 
 #### 路径解析工具
 
-```typescript
-// src/utils/pathResolver.ts
+**实际实现**：`src/utils/pathResolver.ts`
 
+```typescript
+/**
+ * JSON Pointer 路径解析器
+ * 支持标准的 JSON Pointer 格式和简单字段名
+ */
 export class PathResolver {
   /**
-   * 解析 JSON Pointer 路径
+   * 解析 JSON Pointer 路径获取值
+   * @param path - 字段路径，支持简单字段名或 JSON Pointer 格式
+   * @param formData - 表单数据
+   * @returns 字段值
+   *
+   * @example
+   * // 简单字段名
+   * PathResolver.resolve('age', { age: 18 }) // 18
+   *
+   * // JSON Pointer 格式
+   * PathResolver.resolve('#/properties/user/age', { user: { age: 18 } }) // 18
    */
   static resolve(path: string, formData: Record<string, any>): any {
     // 如果不是 JSON Pointer 格式，直接返回字段值
     if (!path.startsWith('#/')) {
-      return formData[path];
+      return this.getNestedValue(formData, path);
     }
 
     // 移除 #/ 前缀
     const cleanPath = path.replace(/^#\//, '');
-    
+
     // 分割路径
     const segments = cleanPath.split('/');
-    
+
     let value = formData;
     for (const segment of segments) {
       // 跳过 "properties" 关键字
       if (segment === 'properties') continue;
-      
+
       if (value === null || value === undefined) {
         return undefined;
       }
-      
-      value = value[segment];
+
+      // 解码 JSON Pointer 转义字符
+      const decodedSegment = this.decodePointerSegment(segment);
+      value = value[decodedSegment];
     }
-    
+
     return value;
   }
 
   /**
    * 标准化路径格式
+   * @param path - 原始路径
+   * @returns 标准化的 JSON Pointer 路径
+   *
+   * @example
+   * PathResolver.normalize('age') // '#/properties/age'
+   * PathResolver.normalize('#/properties/age') // '#/properties/age'
    */
   static normalize(path: string): string {
     if (path.startsWith('#/')) {
       return path;
     }
+
+    // 处理嵌套路径 (如 'user.age')
+    if (path.includes('.')) {
+      const parts = path.split('.');
+      return `#/properties/${parts.join('/properties/')}`;
+    }
+
     return `#/properties/${path}`;
+  }
+
+  /**
+   * 从 JSON Pointer 路径提取字段名
+   * @param path - JSON Pointer 路径
+   * @returns 实际的字段路径（用于 react-hook-form）
+   *
+   * @example
+   * PathResolver.toFieldPath('#/properties/user/age') // 'user.age'
+   * PathResolver.toFieldPath('age') // 'age'
+   */
+  static toFieldPath(path: string): string {
+    if (!path.startsWith('#/')) {
+      return path;
+    }
+
+    const cleanPath = path.replace(/^#\//, '');
+    const segments = cleanPath.split('/').filter(s => s !== 'properties');
+    return segments.join('.');
+  }
+
+  /**
+   * 获取嵌套对象的值（支持点号路径）
+   */
+  private static getNestedValue(obj: Record<string, any>, path: string): any {
+    const keys = path.split('.');
+    let value = obj;
+
+    for (const key of keys) {
+      if (value === null || value === undefined) {
+        return undefined;
+      }
+      value = value[key];
+    }
+
+    return value;
+  }
+
+  /**
+   * 解码 JSON Pointer 转义字符
+   * 根据 RFC 6901 规范：
+   * - ~1 表示 /
+   * - ~0 表示 ~
+   */
+  private static decodePointerSegment(segment: string): string {
+    return segment.replace(/~1/g, '/').replace(/~0/g, '~');
+  }
+
+  /**
+   * 编码 JSON Pointer 转义字符
+   */
+  static encodePointerSegment(segment: string): string {
+    return segment.replace(/~/g, '~0').replace(/\//g, '~1');
   }
 }
 ```
 
+**关键特性**：
+
+- ✅ **多格式支持**：同时支持简单字段名、点号路径和 JSON Pointer 格式
+- ✅ **双向转换**：`normalize()` 转换为 JSON Pointer，`toFieldPath()` 转换为字段路径
+- ✅ **嵌套路径**：`getNestedValue()` 支持点号分隔的嵌套路径（如 `user.profile.age`）
+- ✅ **RFC 6901 兼容**：正确处理 JSON Pointer 转义字符（`~0` 和 `~1`）
+- ✅ **空值安全**：在路径解析过程中正确处理 `null` 和 `undefined`
 
 #### 使用示例
 
@@ -1216,7 +1733,7 @@ export class PathResolver {
         "linkage": {
           "type": "visibility",
           "dependencies": ["#/properties/user/age"],
-          "condition": {
+          "when": {
             "field": "#/properties/user/age",
             "operator": ">=",
             "value": 18
@@ -1228,44 +1745,9 @@ export class PathResolver {
 }
 ```
 
-
 ### 10.2 fulfill/otherwise 双分支设计
 
-参考其他方案，我们扩展联动配置支持更清晰的条件分支语义。
-
-#### 扩展的 LinkageConfig 类型
-
-```typescript
-// src/types/linkage.ts
-
-export interface LinkageConfig {
-  type: LinkageType;
-  dependencies: string[];
-  
-  // 原有的单条件方式（向后兼容）
-  condition?: ConditionExpression;
-  function?: string;
-  
-  // 新增：双分支方式
-  when?: ConditionExpression | string;  // 条件表达式
-  fulfill?: LinkageEffect;              // 条件满足时的效果
-  otherwise?: LinkageEffect;            // 条件不满足时的效果
-}
-
-/**
- * 联动效果定义
- */
-export interface LinkageEffect {
-  state?: {
-    visible?: boolean;
-    disabled?: boolean;
-    readonly?: boolean;
-    required?: boolean;
-  };
-  value?: any;
-}
-```
-
+`fulfill/otherwise` 双分支语法已在类型系统中完整支持（参见第 6.1 节的 `LinkageConfig` 和 `LinkageEffect` 类型定义），提供了更清晰的条件分支语义。
 
 #### 使用示例
 
@@ -1302,43 +1784,11 @@ export interface LinkageEffect {
 }
 ```
 
+**说明**：
 
-#### 求值逻辑更新
-
-```typescript
-// src/hooks/useLinkageManager.ts
-
-function evaluateLinkage(
-  linkage: LinkageConfig,
-  formData: Record<string, any>,
-  linkageFunctions: Record<string, LinkageFunction>
-): LinkageResult {
-  const result: LinkageResult = {};
-
-  // 支持新的 when/fulfill/otherwise 语法
-  if (linkage.when && (linkage.fulfill || linkage.otherwise)) {
-    const conditionMet = evaluateCondition(linkage.when, formData);
-    const effect = conditionMet ? linkage.fulfill : linkage.otherwise;
-    
-    if (effect) {
-      // 应用状态变更
-      if (effect.state) {
-        Object.assign(result, effect.state);
-      }
-      // 应用值变更
-      if (effect.value !== undefined) {
-        result.value = effect.value;
-      }
-    }
-    
-    return result;
-  }
-
-  // 向后兼容原有逻辑...
-  // (保留之前的实现)
-}
-```
-
+- `fulfill/otherwise` 双分支语法已在第 6.3 节的 `evaluateLinkage` 函数中完整实现
+- 该语法提供了更清晰的条件分支语义，使配置更易读
+- 实际实现中同时支持自定义函数和 `when/fulfill/otherwise` 语法
 
 ### 10.3 表达式安全性考虑
 
@@ -1359,7 +1809,7 @@ function evaluateLinkage(
 ```typescript
 // ✅ 安全：结构化条件
 {
-  "condition": {
+  "when": {
     "field": "age",
     "operator": ">",
     "value": 18
@@ -1372,15 +1822,14 @@ function evaluateLinkage(
 }
 ```
 
-
 **方案二：使用安全的表达式库**
 
 如果必须支持字符串表达式，使用专门的表达式解析库：
 
 ```typescript
 // 推荐的安全表达式库
-import { evaluate } from 'expr-eval';  // 数学表达式
-import filtrex from 'filtrex';         // 过滤表达式
+import { evaluate } from 'expr-eval'; // 数学表达式
+import filtrex from 'filtrex'; // 过滤表达式
 
 // 示例：使用 expr-eval
 function evaluateExpression(expr: string, context: Record<string, any>): any {
@@ -1394,7 +1843,6 @@ function evaluateExpression(expr: string, context: Record<string, any>): any {
 }
 ```
 
-
 **方案三：沙箱执行（高级）**
 
 使用 Web Worker 或 VM 沙箱隔离表达式执行：
@@ -1405,10 +1853,10 @@ import { VM } from 'vm2';
 
 function evaluateInSandbox(expr: string, context: Record<string, any>): any {
   const vm = new VM({
-    timeout: 1000,  // 1秒超时
-    sandbox: context
+    timeout: 1000, // 1秒超时
+    sandbox: context,
   });
-  
+
   return vm.run(expr);
 }
 ```
@@ -1418,11 +1866,11 @@ function evaluateInSandbox(expr: string, context: Record<string, any>): any {
 **采用方案一**：只支持结构化条件对象，通过函数引用处理复杂逻辑。
 
 优势：
+
 - ✅ 完全安全，无代码注入风险
 - ✅ 类型安全，编译时检查
 - ✅ 易于测试和调试
 - ✅ 性能更好
-
 
 ### 10.4 DAG 依赖图优化
 
@@ -1438,17 +1886,23 @@ quantity┘
 
 如果 `price` 变化，只需要更新 `total` 和 `discount`，而不是重新计算所有字段。
 
-
 #### 依赖图构建
 
-```typescript
-// src/utils/dependencyGraph.ts
+**实际实现**：`src/utils/dependencyGraph.ts`
 
+```typescript
+/**
+ * 依赖图（DAG）管理器
+ * 用于优化联动字段的更新顺序和性能
+ */
 export class DependencyGraph {
+  // 依赖关系图：key 是源字段，value 是依赖该字段的目标字段集合
   private graph: Map<string, Set<string>> = new Map();
-  
+
   /**
    * 添加依赖关系
+   * @param target - 目标字段（依赖其他字段的字段）
+   * @param source - 源字段（被依赖的字段）
    */
   addDependency(target: string, source: string) {
     if (!this.graph.has(source)) {
@@ -1456,18 +1910,19 @@ export class DependencyGraph {
     }
     this.graph.get(source)!.add(target);
   }
-  
+
   /**
    * 获取受影响的字段（拓扑排序）
+   * 当某个字段变化时，返回所有需要更新的字段，按依赖顺序排列
    */
   getAffectedFields(changedField: string): string[] {
     const affected: string[] = [];
     const visited = new Set<string>();
-    
+
     const dfs = (field: string) => {
       if (visited.has(field)) return;
       visited.add(field);
-      
+
       const dependents = this.graph.get(field);
       if (dependents) {
         dependents.forEach(dependent => {
@@ -1476,54 +1931,129 @@ export class DependencyGraph {
         });
       }
     };
-    
+
     dfs(changedField);
     return affected;
+  }
+
+  /**
+   * 检测循环依赖
+   * @returns 如果存在循环依赖，返回循环路径；否则返回 null
+   */
+  detectCycle(): string[] | null {
+    const visited = new Set<string>();
+    const recStack = new Set<string>();
+    const path: string[] = [];
+
+    const dfs = (node: string): boolean => {
+      visited.add(node);
+      recStack.add(node);
+      path.push(node);
+
+      const neighbors = this.graph.get(node);
+      if (neighbors) {
+        for (const neighbor of neighbors) {
+          if (!visited.has(neighbor)) {
+            if (dfs(neighbor)) return true;
+          } else if (recStack.has(neighbor)) {
+            // 找到循环
+            return true;
+          }
+        }
+      }
+
+      recStack.delete(node);
+      path.pop();
+      return false;
+    };
+
+    for (const node of this.graph.keys()) {
+      if (!visited.has(node)) {
+        if (dfs(node)) {
+          return path;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * 获取所有源字段（被依赖的字段）
+   */
+  getSources(): string[] {
+    return Array.from(this.graph.keys());
+  }
+
+  /**
+   * 获取字段的直接依赖者
+   */
+  getDirectDependents(field: string): string[] {
+    const dependents = this.graph.get(field);
+    return dependents ? Array.from(dependents) : [];
+  }
+
+  /**
+   * 清空依赖图
+   */
+  clear() {
+    this.graph.clear();
   }
 }
 ```
 
+**关键特性**：
+
+- ✅ **循环依赖检测**：`detectCycle()` 方法使用 DFS 算法检测循环依赖
+- ✅ **拓扑排序**：`getAffectedFields()` 按依赖顺序返回受影响的字段
+- ✅ **性能优化**：只计算和更新真正受影响的字段，避免全量重新计算
+- ✅ **辅助方法**：提供 `getSources()`、`getDirectDependents()`、`clear()` 等实用方法
 
 #### 在联动管理器中使用
+
+在 `useLinkageManager` 中（第 694-712 行）：
 
 ```typescript
 // src/hooks/useLinkageManager.ts
 
-export function useLinkageManager({
-  form,
-  linkages,
-  linkageFunctions
-}: LinkageManagerOptions) {
-  const { watch, setValue, getValues } = form;
+// 构建依赖图
+const dependencyGraph = useMemo(() => {
+  const graph = new DependencyGraph();
 
-  // 构建依赖图
-  const dependencyGraph = useMemo(() => {
-    const graph = new DependencyGraph();
-    
-    Object.entries(linkages).forEach(([fieldName, linkage]) => {
-      linkage.dependencies.forEach(dep => {
-        const normalizedDep = PathResolver.normalize(dep);
-        graph.addDependency(fieldName, normalizedDep);
-      });
+  Object.entries(linkages).forEach(([fieldName, linkage]) => {
+    linkage.dependencies.forEach(dep => {
+      // 标准化路径并添加依赖关系
+      const normalizedDep = PathResolver.toFieldPath(dep);
+      graph.addDependency(fieldName, normalizedDep);
     });
-    
-    return graph;
-  }, [linkages]);
+  });
 
-  // 监听字段变化，只更新受影响的字段
-  useEffect(() => {
-    const subscription = watch((value, { name }) => {
-      if (!name) return;
-      
-      const affectedFields = dependencyGraph.getAffectedFields(name);
-      // 只更新受影响的字段...
-    });
-    
-    return () => subscription.unsubscribe();
-  }, [watch, dependencyGraph]);
-}
+  // 检测循环依赖
+  const cycle = graph.detectCycle();
+  if (cycle) {
+    console.error('检测到循环依赖:', cycle.join(' -> '));
+  }
+
+  return graph;
+}, [linkages]);
 ```
 
+在 `useEffect` 中使用依赖图（第 725-768 行）：
+
+```typescript
+useEffect(() => {
+  const subscription = watch((_, { name }) => {
+    if (!name) return;
+    // 获取受影响的字段（使用依赖图精确计算）
+    const affectedFields = dependencyGraph.getAffectedFields(name);
+    if (affectedFields.length === 0) return;
+
+    // 只重新计算受影响的字段...
+  });
+
+  return () => subscription.unsubscribe();
+}, [watch, form, getValues, linkages, linkageFunctions, dependencyGraph]);
+```
 
 ### 10.5 readonly 状态支持
 
@@ -1535,12 +2065,11 @@ export function useLinkageManager({
 export interface LinkageResult {
   visible?: boolean;
   disabled?: boolean;
-  readonly?: boolean;  // 新增：只读状态
+  readonly?: boolean;
   value?: any;
   options?: Array<{ label: string; value: any }>;
 }
 ```
-
 
 #### 使用示例
 
@@ -1578,7 +2107,6 @@ export interface LinkageResult {
 }
 ```
 
-
 #### 在字段组件中应用
 
 ```typescript
@@ -1586,7 +2114,7 @@ export interface LinkageResult {
 
 function FormField({ fieldName, linkageStates }: FormFieldProps) {
   const linkageState = linkageStates[fieldName];
-  
+
   return (
     <input
       name={fieldName}
@@ -1597,4 +2125,3 @@ function FormField({ fieldName, linkageStates }: FormFieldProps) {
   );
 }
 ```
-

@@ -7,11 +7,18 @@ export type LinkageType = 'visibility' | 'disabled' | 'readonly' | 'value' | 'co
  * 条件操作符
  */
 export type ConditionOperator =
-  | '==' | '!='
-  | '>' | '<' | '>=' | '<='
-  | 'in' | 'notIn'
-  | 'includes' | 'notIncludes'
-  | 'isEmpty' | 'isNotEmpty';
+  | '=='
+  | '!='
+  | '>'
+  | '<'
+  | '>='
+  | '<='
+  | 'in'
+  | 'notIn'
+  | 'includes'
+  | 'notIncludes'
+  | 'isEmpty'
+  | 'isNotEmpty';
 
 /**
  * 条件表达式
@@ -28,13 +35,19 @@ export interface ConditionExpression {
  * 联动效果定义
  */
 export interface LinkageEffect {
+  // 状态变更
   state?: {
     visible?: boolean;
     disabled?: boolean;
     readonly?: boolean;
     required?: boolean;
   };
+  // 直接指定值（用于 value/computed 类型）
   value?: any;
+  // 直接指定选项（用于 options 类型）
+  options?: Array<{ label: string; value: any }>;
+  // 通过函数计算（根据 linkage.type 决定计算结果的用途）
+  function?: string;
 }
 
 /**
@@ -44,15 +57,12 @@ export interface LinkageConfig {
   type: LinkageType;
   dependencies: string[];
 
-  // 原有的单条件方式（向后兼容）
-  condition?: ConditionExpression;
-  function?: string;
-  targetValue?: any; // 用于 value 类型联动的目标值
-
-  // 新增：双分支方式
-  when?: ConditionExpression | string;  // 条件表达式或函数名
-  fulfill?: LinkageEffect;              // 条件满足时的效果
-  otherwise?: LinkageEffect;            // 条件不满足时的效果
+  // 条件表达式或函数名（描述"什么时候触发联动"）
+  when?: ConditionExpression | string;
+  // 条件满足时的效果（描述"触发后做什么"）
+  fulfill?: LinkageEffect;
+  // 条件不满足时的效果
+  otherwise?: LinkageEffect;
 }
 
 /**
@@ -67,6 +77,6 @@ export interface LinkageResult {
 }
 
 /**
- * 联动函数签名
+ * 联动函数签名（支持同步和异步函数）
  */
-export type LinkageFunction = (formData: Record<string, any>) => any;
+export type LinkageFunction = (formData: Record<string, any>) => any | Promise<any>;
