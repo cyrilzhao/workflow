@@ -12,6 +12,7 @@ import {
   useNestedSchemaRegistryOptional,
 } from './context/NestedSchemaContext';
 import { PathPrefixProvider } from './context/PathPrefixContext';
+import { PathTransformer } from '@/utils/pathTransformer';
 import '@blueprintjs/core/lib/css/blueprint.css';
 
 // 空对象常量，避免每次渲染创建新对象
@@ -43,6 +44,10 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
   const stableLinkageFunctions = linkageFunctions || EMPTY_LINKAGE_FUNCTIONS;
   const stableWidgets = widgets || EMPTY_WIDGETS;
   const stableCustomFormats = customFormats || EMPTY_CUSTOM_FORMATS;
+
+  // 检查是否使用了路径扁平化
+  const useFlattenPath = useMemo(() => SchemaParser.hasFlattenPath(schema), [schema]);
+
   // 设置自定义格式验证器并解析字段
   const fields = useMemo(() => {
     if (stableCustomFormats && Object.keys(stableCustomFormats).length > 0) {
@@ -51,8 +56,15 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
     return SchemaParser.parse(schema);
   }, [schema, stableCustomFormats]);
 
+  // 将嵌套的 defaultValues 转换为扁平格式（如果使用了路径扁平化）
+  const processedDefaultValues = useMemo(() => {
+    if (!defaultValues) return undefined;
+    if (!useFlattenPath) return defaultValues;
+    return PathTransformer.nestedToFlat(defaultValues);
+  }, [defaultValues, useFlattenPath]);
+
   const methods = useForm({
-    defaultValues,
+    defaultValues: processedDefaultValues,
     mode: validateMode,
   });
 
@@ -73,27 +85,26 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
 
   React.useEffect(() => {
     if (onChange) {
-      const subscription = watch(data => onChange(data));
+      const subscription = watch(data => {
+        // 如果使用了路径扁平化，将扁平数据转换回嵌套结构
+        const processedData = useFlattenPath ? PathTransformer.flatToNested(data) : data;
+        onChange(processedData);
+      });
       return () => subscription.unsubscribe();
     }
-  }, [watch, onChange]);
+  }, [watch, onChange, useFlattenPath]);
 
   const onSubmitHandler = async (data: Record<string, any>) => {
     if (onSubmit) {
-      console.info('cyril data: ', data);
-      console.info('cyril nestedSchemaRegistry: ', nestedSchemaRegistry);
-      console.info('cyril schema: ', schema);
-      console.info(
-        'cyril nestedSchemaRegistry.getAllSchemas(): ',
-        nestedSchemaRegistry?.getAllSchemas()
-      );
+      // 如果使用了路径扁平化，将扁平数据转换回嵌套结构
+      const processedData = useFlattenPath ? PathTransformer.flatToNested(data) : data;
+
       // 根据当前 schema 过滤数据，只保留 schema 中定义的字段
       // 如果有嵌套 schema 注册表，使用它来正确过滤动态嵌套表单的数据
       const filteredData = nestedSchemaRegistry
-        ? filterValueWithNestedSchemas(data, schema, nestedSchemaRegistry.getAllSchemas())
-        : filterValueWithNestedSchemas(data, schema, new Map());
+        ? filterValueWithNestedSchemas(processedData, schema, nestedSchemaRegistry.getAllSchemas())
+        : filterValueWithNestedSchemas(processedData, schema, new Map());
 
-      console.info('cyril filteredData: ', filteredData);
       await onSubmit(filteredData);
     }
   };

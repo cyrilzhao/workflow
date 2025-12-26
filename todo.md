@@ -23,8 +23,10 @@
 - [x] 拆分 src/pages/DynamicFormExamples.tsx 中的示例代码到不同的文件
 - [x] 嵌套表单 - JSON Pointer 跨层级示例切换公司类型时没有触发联动
 - [x] 初始化和触发联动时根据依赖关系的拓扑顺序计算各个字段
-- [ ] NestForm 文档补充 filterValueWithNestedSchemas 的相关逻辑
+- [x] DependencyGraph 中的 getAffectedFields 添加 affected 节点之前先判断是否已经添加过，避免重复添加
+- [x] NestForm 文档补充 filterValueWithNestedSchemas 的相关逻辑
+- [x] 当 flattenPath: true 时，中间层级不会渲染成 NestedFormWidget 和 Card，只有真正需要分组的字段才会显示 Card 边框
+- [ ] 支持 API Node 的场景方案
 - [ ] 添加自定义 nested form widget 的代码示例
-- [ ] 对于嵌套很深的单边树，是否有优化的空间，不需要层层都嵌套 DynamicForm
 - [ ] 大规模表单性能
 - [ ] 文档与代码实现对齐

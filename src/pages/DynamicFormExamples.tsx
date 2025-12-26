@@ -18,6 +18,7 @@ import { BasicFlattenExample } from './examples/FlattenPath/BasicFlattenExample'
 import { WithPrefixFlattenExample } from './examples/FlattenPath/WithPrefixFlattenExample';
 import { MultiLevelPrefixExample } from './examples/FlattenPath/MultiLevelPrefixExample';
 import { MixedFlattenExample } from './examples/FlattenPath/MixedFlattenExample';
+import { NestedWithFlattenExample } from './examples/FlattenPath/NestedWithFlattenExample';
 
 // 复杂场景
 import { ComplexFormPanel } from './examples/ComplexForm/ComplexFormPanel';
@@ -63,6 +64,7 @@ const FlattenPathPanel: React.FC = () => {
         <Tab id="withPrefix" title="带前缀" panel={<WithPrefixFlattenExample />} />
         <Tab id="multiLevel" title="多层前缀" panel={<MultiLevelPrefixExample />} />
         <Tab id="mixed" title="混合使用" panel={<MixedFlattenExample />} />
+        <Tab id="nestedWithFlatten" title="嵌套表单+透明化" panel={<NestedWithFlattenExample />} />
       </Tabs>
     </div>
   );

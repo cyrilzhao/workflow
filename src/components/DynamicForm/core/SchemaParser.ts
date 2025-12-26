@@ -17,9 +17,43 @@ export class SchemaParser {
   }
 
   /**
-   * 解析 Schema 生成字段配置
+   * 检查 schema 中是否使用了路径扁平化
    */
-  static parse(schema: ExtendedJSONSchema): FieldConfig[] {
+  static hasFlattenPath(schema: ExtendedJSONSchema): boolean {
+    if (schema.type !== 'object' || !schema.properties) {
+      return false;
+    }
+
+    const properties = schema.properties;
+
+    for (const key of Object.keys(properties)) {
+      const property = properties[key];
+      if (!property || typeof property === 'boolean') continue;
+
+      const fieldSchema = property as ExtendedJSONSchema;
+
+      // 如果当前字段使用了 flattenPath
+      if (fieldSchema.type === 'object' && fieldSchema.ui?.flattenPath) {
+        return true;
+      }
+
+      // 递归检查子字段
+      if (fieldSchema.type === 'object' && this.hasFlattenPath(fieldSchema)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * 解析 Schema 生成字段配置（支持路径扁平化）
+   */
+  static parse(
+    schema: ExtendedJSONSchema,
+    parentPath: string = '',
+    prefixLabel: string = ''
+  ): FieldConfig[] {
     const fields: FieldConfig[] = [];
 
     if (schema.type !== 'object' || !schema.properties) {
@@ -34,14 +68,31 @@ export class SchemaParser {
       const property = properties[key];
       if (!property || typeof property === 'boolean') continue;
 
-      const fieldConfig = this.parseField(
-        key,
-        property as ExtendedJSONSchema,
-        required.includes(key)
-      );
+      const fieldSchema = property as ExtendedJSONSchema;
+      const currentPath = parentPath ? `${parentPath}.${key}` : key;
 
-      if (!fieldConfig.hidden) {
-        fields.push(fieldConfig);
+      // 检查是否需要路径扁平化
+      if (fieldSchema.type === 'object' && fieldSchema.ui?.flattenPath) {
+        // 确定是否需要添加前缀
+        const newPrefixLabel = fieldSchema.ui.flattenPrefix && fieldSchema.title
+          ? (prefixLabel ? `${prefixLabel} - ${fieldSchema.title}` : fieldSchema.title)
+          : prefixLabel;
+
+        // 递归解析子字段，跳过当前层级
+        const nestedFields = this.parse(fieldSchema, currentPath, newPrefixLabel);
+        fields.push(...nestedFields);
+      } else {
+        // 正常解析字段
+        const fieldConfig = this.parseField(
+          currentPath,
+          fieldSchema,
+          required.includes(key),
+          prefixLabel
+        );
+
+        if (!fieldConfig.hidden) {
+          fields.push(fieldConfig);
+        }
       }
     }
 
@@ -49,20 +100,26 @@ export class SchemaParser {
   }
 
   /**
-   * 解析单个字段
+   * 解析单个字段（支持嵌套路径和标签前缀）
    */
   private static parseField(
-    name: string,
+    path: string,
     schema: ExtendedJSONSchema,
-    required: boolean
+    required: boolean,
+    prefixLabel: string = ''
   ): FieldConfig {
     const ui = schema.ui || {};
 
+    // 如果有前缀标签，添加到字段标签前
+    const label = prefixLabel && schema.title
+      ? `${prefixLabel} - ${schema.title}`
+      : schema.title;
+
     return {
-      name,
+      name: path,  // 使用完整路径作为字段名
       type: schema.type as string,
       widget: this.getWidget(schema),
-      label: schema.title,
+      label,
       placeholder: ui.placeholder,
       description: schema.description,
       defaultValue: schema.default,

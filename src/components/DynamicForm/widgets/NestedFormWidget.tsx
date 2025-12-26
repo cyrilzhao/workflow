@@ -206,7 +206,13 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
         name={name}
         control={control}
         render={({ field }) => (
-          <Card ref={ref} className="nested-form-widget" elevation={1} style={{ padding: '15px' }}>
+          <Card
+            ref={ref}
+            className="nested-form-widget"
+            data-name={name}
+            elevation={1}
+            style={{ padding: '15px' }}
+          >
             <DynamicForm
               schema={currentSchema}
               defaultValues={field.value || {}}
