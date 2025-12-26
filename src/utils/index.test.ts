@@ -1,3 +1,6 @@
+/**
+ * @jest-environment jsdom
+ */
 import {
   formatDate,
   debounce,
@@ -256,7 +259,7 @@ describe('localStorage 工具函数', () => {
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
       const mockError = new Error('Storage error');
 
-      jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      const setItemSpy = jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
         throw mockError;
       });
 
@@ -264,6 +267,7 @@ describe('localStorage 工具函数', () => {
       expect(consoleErrorSpy).toHaveBeenCalledWith('存储失败:', mockError);
 
       consoleErrorSpy.mockRestore();
+      setItemSpy.mockRestore();
     });
   });
 
@@ -293,7 +297,7 @@ describe('localStorage 工具函数', () => {
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
       const mockError = new Error('Get error');
 
-      jest.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      const getItemSpy = jest.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
         throw mockError;
       });
 
@@ -302,6 +306,7 @@ describe('localStorage 工具函数', () => {
       expect(consoleErrorSpy).toHaveBeenCalledWith('获取存储失败:', mockError);
 
       consoleErrorSpy.mockRestore();
+      getItemSpy.mockRestore();
     });
 
     it('应该处理无效的 JSON', () => {
@@ -335,7 +340,7 @@ describe('localStorage 工具函数', () => {
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
       const mockError = new Error('Remove error');
 
-      jest.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+      const removeItemSpy = jest.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
         throw mockError;
       });
 
@@ -343,6 +348,7 @@ describe('localStorage 工具函数', () => {
       expect(consoleErrorSpy).toHaveBeenCalledWith('删除存储失败:', mockError);
 
       consoleErrorSpy.mockRestore();
+      removeItemSpy.mockRestore();
     });
   });
 

@@ -1,3 +1,6 @@
+/**
+ * @jest-environment jsdom
+ */
 import { renderHook, waitFor } from '@testing-library/react';
 import { useForm } from 'react-hook-form';
 import { useLinkageManager } from './useLinkageManager';
@@ -229,6 +232,30 @@ describe('useLinkageManager - 异步函数支持', () => {
     await waitFor(() => {
       expect(result.current.linkageStates.discount?.value).toBe(10);
       expect(result.current.linkageStates.total?.value).toBe(190);
+    });
+
+    // 修改 price，触发联动计算
+    result.current.form.setValue('price', 50);
+
+    // 等待联动计算完成
+    // price: 50, quantity: 2 => subtotal: 100
+    // subtotal <= 100 => discount: 0
+    // total: 100 - 0 = 100
+    await waitFor(() => {
+      expect(result.current.linkageStates.discount?.value).toBe(0);
+      expect(result.current.linkageStates.total?.value).toBe(100);
+    });
+
+    // 再次修改 price，触发联动计算
+    result.current.form.setValue('price', 200);
+
+    // 等待联动计算完成
+    // price: 200, quantity: 2 => subtotal: 400
+    // subtotal > 100 => discount: 10
+    // total: 400 - 10 = 390
+    await waitFor(() => {
+      expect(result.current.linkageStates.discount?.value).toBe(10);
+      expect(result.current.linkageStates.total?.value).toBe(390);
     });
   });
 });

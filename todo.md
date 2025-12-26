@@ -12,7 +12,7 @@
   - [x] dependencyGraph
   - [x] schemaLinkageParser
   - [x] filterValueBySchema
-  - [ ] useLinkageManager
+  - [x] useLinkageManager
 - [x] 确认 schemaLinkageParser 是否还有必要保留 - 要保留
 - [x] 目前已经没有 useComputedFields 的实现方式，需要在文档中更新
 - [x] 将联动目前存在的单条件和双条件分支两种使用方式，改为只保留双条件分支
@@ -22,6 +22,7 @@
 - [x] 并行计算联动时确保不会因为某个计算失败影响其他计算任务
 - [x] 修复表单初始化计算联动导致死循环的问题
 - [x] 拆分 src/pages/DynamicFormExamples.tsx 中的示例代码到不同的文件
-- [ ] 嵌套表单 - JSON Pointer 跨层级示例切换公司类型时没有触发联动
+- [x] 嵌套表单 - JSON Pointer 跨层级示例切换公司类型时没有触发联动
+- [x] 初始化和触发联动时根据依赖关系的拓扑顺序计算各个字段
 - [ ] 添加自定义 nested form widget 的代码示例
 - [ ] 文档与代码实现对齐

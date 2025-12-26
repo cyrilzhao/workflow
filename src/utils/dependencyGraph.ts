@@ -44,7 +44,10 @@ export class DependencyGraph {
       const dependents = this.graph.get(field);
       if (dependents) {
         dependents.forEach(dependent => {
-          affected.push(dependent);
+          // 只有在未访问过的情况下才添加到结果数组
+          if (!visited.has(dependent)) {
+            affected.push(dependent);
+          }
           dfs(dependent);
         });
       }
@@ -109,6 +112,71 @@ export class DependencyGraph {
   getDirectDependents(field: string): string[] {
     const dependents = this.graph.get(field);
     return dependents ? Array.from(dependents) : [];
+  }
+
+  /**
+   * 拓扑排序：返回按依赖顺序排列的字段列表
+   * @param fields - 需要排序的字段列表
+   * @returns 按拓扑顺序排列的字段列表
+   *
+   * @example
+   * // A -> B -> C
+   * graph.topologicalSort(['A', 'B', 'C']) // ['A', 'B', 'C']
+   */
+  topologicalSort(fields: string[]): string[] {
+    const inDegree = new Map<string, number>();
+    const adjList = new Map<string, Set<string>>();
+
+    // 初始化入度和邻接表（只考虑给定的字段）
+    const fieldSet = new Set(fields);
+    fields.forEach(field => {
+      inDegree.set(field, 0);
+      adjList.set(field, new Set());
+    });
+
+    // 构建邻接表和计算入度
+    fields.forEach(field => {
+      const dependents = this.graph.get(field);
+      if (dependents) {
+        dependents.forEach(dependent => {
+          // 只考虑在给定字段列表中的依赖关系
+          if (fieldSet.has(dependent)) {
+            adjList.get(field)!.add(dependent);
+            inDegree.set(dependent, (inDegree.get(dependent) || 0) + 1);
+          }
+        });
+      }
+    });
+
+    // Kahn 算法进行拓扑排序
+    const queue: string[] = [];
+    const result: string[] = [];
+
+    // 将所有入度为 0 的节点加入队列
+    inDegree.forEach((degree, field) => {
+      if (degree === 0) {
+        queue.push(field);
+      }
+    });
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      result.push(current);
+
+      // 减少相邻节点的入度
+      const neighbors = adjList.get(current);
+      if (neighbors) {
+        neighbors.forEach(neighbor => {
+          const newDegree = (inDegree.get(neighbor) || 0) - 1;
+          inDegree.set(neighbor, newDegree);
+          if (newDegree === 0) {
+            queue.push(neighbor);
+          }
+        });
+      }
+    }
+
+    return result;
   }
 
   /**

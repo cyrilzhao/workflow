@@ -49,30 +49,37 @@ export function useLinkageManager({
   // 初始化联动状态
   useEffect(() => {
     (async () => {
-      const formData = getValues();
+      const formData = { ...getValues() };
       const states: Record<string, LinkageResult> = {};
 
-      // 并行计算所有字段的初始联动状态（使用 allSettled 避免单个失败阻塞其他字段）
-      const results = await Promise.allSettled(
-        Object.entries(linkages).map(async ([fieldName, linkage]) => ({
-          fieldName,
-          result: await evaluateLinkage(linkage, formData, linkageFunctions),
-        }))
-      );
+      // 获取拓扑排序后的字段列表
+      const sortedFields = dependencyGraph.topologicalSort(Object.keys(linkages));
 
-      // 处理结果，忽略失败的字段
-      results.forEach(result => {
-        if (result.status === 'fulfilled') {
-          states[result.value.fieldName] = result.value.result;
-        } else {
-          console.error('联动初始化失败:', result.reason);
+      // 按拓扑顺序依次计算联动状态
+      for (const fieldName of sortedFields) {
+        const linkage = linkages[fieldName];
+        if (!linkage) continue;
+
+        try {
+          const result = await evaluateLinkage(linkage, formData, linkageFunctions);
+          states[fieldName] = result;
+
+          // 如果是值联动，更新 formData 以供后续字段使用
+          if (
+            (linkage.type === 'computed' || linkage.type === 'value') &&
+            result.value !== undefined
+          ) {
+            formData[fieldName] = result.value;
+          }
+        } catch (error) {
+          console.error('联动初始化失败:', fieldName, error);
         }
-      });
+      }
 
       setLinkageStates(states);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [linkages, linkageFunctions]);
+  }, [linkages, linkageFunctions, dependencyGraph]);
 
   // 统一的字段变化监听和联动处理
   useEffect(() => {
@@ -82,37 +89,33 @@ export function useLinkageManager({
       const affectedFields = dependencyGraph.getAffectedFields(name);
       if (affectedFields.length === 0) return;
 
-      const formData = getValues();
-
       // 异步处理联动逻辑
       (async () => {
+        const formData = { ...getValues() };
         const newStates: Record<string, LinkageResult> = {};
         let hasStateChange = false;
 
-        // 并行计算所有受影响字段的联动结果（使用 allSettled 避免单个失败阻塞其他字段）
-        const results = await Promise.allSettled(
-          affectedFields.map(async fieldName => {
-            const linkage = linkages[fieldName];
-            if (!linkage) return null;
+        // 对受影响的字段进行拓扑排序，确保按依赖顺序计算
+        const sortedFields = dependencyGraph.topologicalSort(affectedFields);
 
+        // 按拓扑顺序依次计算联动结果
+        for (const fieldName of sortedFields) {
+          const linkage = linkages[fieldName];
+          if (!linkage) continue;
+
+          try {
             const result = await evaluateLinkage(linkage, formData, linkageFunctions);
-            return { fieldName, linkage, result };
-          })
-        );
-
-        // 处理结果，忽略失败的字段
-        results.forEach(promiseResult => {
-          if (promiseResult.status === 'fulfilled' && promiseResult.value) {
-            const { fieldName, linkage, result } = promiseResult.value;
             newStates[fieldName] = result;
 
-            // 处理值联动：自动更新表单字段值
+            // 处理值联动：自动更新表单字段值和 formData
             if (
               (linkage.type === 'computed' || linkage.type === 'value') &&
               result.value !== undefined
             ) {
               const currentValue = formData[fieldName];
               if (currentValue !== result.value) {
+                // 更新 formData 以供后续字段使用
+                formData[fieldName] = result.value;
                 // 使用 shouldValidate: false 和 shouldDirty: false 避免触发额外的验证和变化事件
                 form.setValue(fieldName, result.value, {
                   shouldValidate: false,
@@ -122,10 +125,10 @@ export function useLinkageManager({
             }
 
             hasStateChange = true;
-          } else if (promiseResult.status === 'rejected') {
-            console.error('联动计算失败:', promiseResult.reason);
+          } catch (error) {
+            console.error('联动计算失败:', fieldName, error);
           }
-        });
+        }
 
         // 批量更新状态（只更新变化的字段）
         if (hasStateChange) {
