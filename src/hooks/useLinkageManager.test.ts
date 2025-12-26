@@ -1,7 +1,7 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { useForm } from 'react-hook-form';
 import { useLinkageManager } from './useLinkageManager';
-import type { LinkageConfig, LinkageFunction } from '@/types/linkage';
+import type { LinkageConfig, LinkageFunction } from '../types/linkage';
 
 describe('useLinkageManager - 异步函数支持', () => {
   it('应该支持异步的 computed 函数', async () => {

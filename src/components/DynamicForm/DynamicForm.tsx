@@ -13,15 +13,20 @@ import {
 } from './context/NestedSchemaContext';
 import '@blueprintjs/core/lib/css/blueprint.css';
 
+// 空对象常量，避免每次渲染创建新对象
+const EMPTY_LINKAGE_FUNCTIONS = {};
+const EMPTY_WIDGETS = {};
+const EMPTY_CUSTOM_FORMATS = {};
+
 // 内层组件：实际的表单逻辑
 const DynamicFormInner: React.FC<DynamicFormProps> = ({
   schema,
   defaultValues = {},
   onSubmit,
   onChange,
-  widgets = {},
-  linkageFunctions = {},
-  customFormats = {},
+  widgets,
+  linkageFunctions,
+  customFormats,
   layout = 'vertical',
   showSubmitButton = true,
   renderAsForm = true,
@@ -32,13 +37,17 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
   className,
   style,
 }) => {
+  // 使用稳定的空对象引用，避免每次渲染创建新对象导致 useEffect 重复触发
+  const stableLinkageFunctions = linkageFunctions || EMPTY_LINKAGE_FUNCTIONS;
+  const stableWidgets = widgets || EMPTY_WIDGETS;
+  const stableCustomFormats = customFormats || EMPTY_CUSTOM_FORMATS;
   // 设置自定义格式验证器并解析字段
   const fields = useMemo(() => {
-    if (customFormats && Object.keys(customFormats).length > 0) {
-      SchemaParser.setCustomFormats(customFormats);
+    if (stableCustomFormats && Object.keys(stableCustomFormats).length > 0) {
+      SchemaParser.setCustomFormats(stableCustomFormats);
     }
     return SchemaParser.parse(schema);
-  }, [schema, customFormats]);
+  }, [schema, stableCustomFormats]);
 
   const methods = useForm({
     defaultValues,
@@ -52,7 +61,7 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
   const linkageStates = useLinkageManager({
     form: methods,
     linkages,
-    linkageFunctions,
+    linkageFunctions: stableLinkageFunctions,
   });
 
   const { handleSubmit, watch } = methods;
@@ -96,7 +105,7 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
             field={field}
             disabled={disabled || field.disabled || loading || linkageState?.disabled}
             readonly={readonly || field.readonly || linkageState?.readonly}
-            widgets={widgets}
+            widgets={stableWidgets}
             linkageState={linkageState}
           />
         );

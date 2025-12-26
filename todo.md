@@ -12,6 +12,7 @@
   - [x] dependencyGraph
   - [x] schemaLinkageParser
   - [x] filterValueBySchema
+  - [ ] useLinkageManager
 - [x] 确认 schemaLinkageParser 是否还有必要保留 - 要保留
 - [x] 目前已经没有 useComputedFields 的实现方式，需要在文档中更新
 - [x] 将联动目前存在的单条件和双条件分支两种使用方式，改为只保留双条件分支
@@ -19,4 +20,7 @@
 - [x] when 和 fulfill、otherwise 中的 function 都需要支持异步函数
 - [ ] linkage type 中的 computed 和 value 类型合并
 - [x] 并行计算联动时确保不会因为某个计算失败影响其他计算任务
+- [x] 修复表单初始化计算联动导致死循环的问题
+- [x] 拆分 src/pages/DynamicFormExamples.tsx 中的示例代码到不同的文件
+- [ ] 嵌套表单 - JSON Pointer 跨层级示例切换公司类型时没有触发联动
 - [ ] 文档与代码实现对齐

@@ -69,9 +69,12 @@ export function useLinkageManager({
         }
       });
 
+      console.info('cyril 联动初始化 states: ', states);
+
       setLinkageStates(states);
     })();
-  }, [linkages, linkageFunctions, getValues]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkages, linkageFunctions]);
 
   // 统一的字段变化监听和联动处理
   useEffect(() => {
@@ -82,6 +85,7 @@ export function useLinkageManager({
       if (affectedFields.length === 0) return;
 
       const formData = getValues();
+      console.info('cyril affectedFields: ', affectedFields);
 
       // 异步处理联动逻辑
       (async () => {
@@ -112,9 +116,10 @@ export function useLinkageManager({
             ) {
               const currentValue = formData[fieldName];
               if (currentValue !== result.value) {
+                // 使用 shouldValidate: false 和 shouldDirty: false 避免触发额外的验证和变化事件
                 form.setValue(fieldName, result.value, {
-                  shouldValidate: true,
-                  shouldDirty: true,
+                  shouldValidate: false,
+                  shouldDirty: false,
                 });
               }
             }
@@ -133,7 +138,8 @@ export function useLinkageManager({
     });
 
     return () => subscription.unsubscribe();
-  }, [watch, form, getValues, linkages, linkageFunctions, dependencyGraph]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watch, form, linkages, linkageFunctions, dependencyGraph]);
 
   return linkageStates;
 }
