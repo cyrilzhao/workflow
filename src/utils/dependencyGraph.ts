@@ -75,7 +75,6 @@ export class DependencyGraph {
             if (dfs(neighbor)) return true;
           } else if (recStack.has(neighbor)) {
             // 找到循环
-            const cycleStart = path.indexOf(neighbor);
             return true;
           }
         }
