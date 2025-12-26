@@ -65,10 +65,7 @@ export function useLinkageManager({
           states[fieldName] = result;
 
           // 如果是值联动，更新 formData 以供后续字段使用
-          if (
-            (linkage.type === 'computed' || linkage.type === 'value') &&
-            result.value !== undefined
-          ) {
+          if (linkage.type === 'value' && result.value !== undefined) {
             formData[fieldName] = result.value;
           }
         } catch (error) {
@@ -108,10 +105,7 @@ export function useLinkageManager({
             newStates[fieldName] = result;
 
             // 处理值联动：自动更新表单字段值和 formData
-            if (
-              (linkage.type === 'computed' || linkage.type === 'value') &&
-              result.value !== undefined
-            ) {
+            if (linkage.type === 'value' && result.value !== undefined) {
               const currentValue = formData[fieldName];
               if (currentValue !== result.value) {
                 // 更新 formData 以供后续字段使用
@@ -177,7 +171,6 @@ async function evaluateLinkage(
 
       // 根据 linkage.type 决定将结果赋值给哪个字段
       switch (linkage.type) {
-        case 'computed':
         case 'value':
           result.value = fnResult;
           break;

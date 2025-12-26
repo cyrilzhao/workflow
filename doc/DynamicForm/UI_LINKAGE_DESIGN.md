@@ -31,7 +31,7 @@
 ```typescript
 interface UILinkageConfig {
   // 联动类型
-  type: 'visibility' | 'disabled' | 'readonly' | 'value' | 'computed' | 'options';
+  type: 'visibility' | 'disabled' | 'readonly' | 'value' | 'options';
 
   // 依赖的字段
   dependencies: string[];
@@ -54,7 +54,7 @@ interface LinkageEffect {
     readonly?: boolean;
     required?: boolean;
   };
-  // 直接指定值（用于 value/computed 类型）
+  // 直接指定值（用于 value 类型）
   value?: any;
   // 直接指定选项（用于 options 类型）
   options?: Array<{ label: string; value: any }>;
@@ -67,7 +67,7 @@ interface LinkageEffect {
 
 - **职责分离**：`when` 描述条件（什么时候触发），`fulfill/otherwise` 描述效果（触发后做什么）
 - **统一接口**：`function` 字段根据 `linkage.type` 自动适配：
-  - `computed`/`value` 类型：函数返回值赋给 `result.value`
+  - `value` 类型：函数返回值赋给 `result.value`
   - `options` 类型：函数返回值赋给 `result.options`
   - `visibility`/`disabled`/`readonly` 类型：函数返回值转为 boolean
 - **灵活性**：支持直接指定值/选项（`value`/`options`），也支持函数计算（`function`）
@@ -186,7 +186,7 @@ interface ConditionExpression {
       "ui": {
         "readonly": true,
         "linkage": {
-          "type": "computed",
+          "type": "value",
           "dependencies": ["price", "quantity"],
           "fulfill": {
             "function": "calculateTotal"
@@ -210,7 +210,7 @@ const linkageFunctions = {
 
 **说明**：
 
-- `type: "computed"` 表示这是一个计算字段
+- `type: "value"` 表示这是一个值联动字段
 - `fulfill.function` 指定计算函数名
 - 当 `price` 或 `quantity` 变化时，自动重新计算 `total`
 
@@ -254,16 +254,6 @@ const linkageFunctions = {
 
 - 当 `autoConfig` 为 true 时，`memory` 设置为 2048 并变为只读
 - 当 `autoConfig` 为 false 时，`memory` 变为可编辑
-
-#### value 类型 vs computed 类型
-
-| 特性             | `value` 类型                             | `computed` 类型                          |
-| ---------------- | ---------------------------------------- | ---------------------------------------- |
-| **值的来源**     | 配置中直接指定（`fulfill.value`）        | 通过函数计算得出（`fulfill.function`）   |
-| **适用场景**     | 条件性设置固定值、预设值                 | 需要计算的值（如总价、折扣）             |
-| **是否需要函数** | 否（直接指定值）                         | 是（必须提供 `fulfill.function`）        |
-| **典型用例**     | 根据会员类型设置配额、根据开关设置默认值 | 总价 = 单价 × 数量、BMI 计算             |
-| **条件判断**     | 支持（通过 `when/fulfill/otherwise`）    | 支持（通过 `when/fulfill/otherwise`）    |
 
 ### 3.5 动态选项
 
@@ -513,7 +503,7 @@ UI 联动和数据验证是独立的：
 /**
  * 联动类型
  */
-export type LinkageType = 'visibility' | 'disabled' | 'readonly' | 'value' | 'computed' | 'options';
+export type LinkageType = 'visibility' | 'disabled' | 'readonly' | 'value' | 'options';
 
 /**
  * 条件操作符
@@ -554,7 +544,7 @@ export interface LinkageEffect {
     readonly?: boolean;
     required?: boolean;
   };
-  // 直接指定值（用于 value/computed 类型）
+  // 直接指定值（用于 value 类型）
   value?: any;
   // 直接指定选项（用于 options 类型）
   options?: Array<{ label: string; value: any }>;
@@ -833,10 +823,7 @@ export function useLinkageManager({
             newStates[fieldName] = result;
 
             // 处理值联动：自动更新表单字段值
-            if (
-              (linkage.type === 'computed' || linkage.type === 'value') &&
-              result.value !== undefined
-            ) {
+            if (linkage.type === 'value' && result.value !== undefined) {
               const currentValue = formData[fieldName];
               if (currentValue !== result.value) {
                 form.setValue(fieldName, result.value, {
@@ -898,7 +885,6 @@ async function evaluateLinkage(
 
       // 根据 linkage.type 决定将结果赋值给哪个字段
       switch (linkage.type) {
-        case 'computed':
         case 'value':
           result.value = fnResult;
           break;
@@ -1096,7 +1082,7 @@ const schema = {
       ui: {
         readonly: true,
         linkage: {
-          type: "computed",
+          type: "value",
           dependencies: ["price", "quantity"],
           fulfill: {
             function: "calculateDiscount"
@@ -1110,7 +1096,7 @@ const schema = {
       ui: {
         readonly: true,
         linkage: {
-          type: "computed",
+          type: "value",
           dependencies: ["price", "quantity", "region"],
           fulfill: {
             function: "calculateTax"
@@ -1124,7 +1110,7 @@ const schema = {
       ui: {
         readonly: true,
         linkage: {
-          type: "computed",
+          type: "value",
           dependencies: ["price", "quantity", "discount", "tax"],
           fulfill: {
             function: "calculateTotal"
@@ -1212,10 +1198,7 @@ useEffect(() => {
       newStates[fieldName] = result;
 
       // 处理值联动：自动更新表单字段值
-      if (
-        (linkage.type === 'computed' || linkage.type === 'value') &&
-        result.value !== undefined
-      ) {
+      if (linkage.type === 'value' && result.value !== undefined) {
         const currentValue = formData[fieldName];
         if (currentValue !== result.value) {
           form.setValue(fieldName, result.value, {
@@ -1436,7 +1419,7 @@ const schema = {
       ui: {
         readonly: true,
         linkage: {
-          type: "computed",
+          type: "value",
           dependencies: ["price", "quantity"],
           fulfill: {
             function: "calculateTotal"
@@ -2086,7 +2069,7 @@ export interface LinkageResult {
       "title": "内存大小",
       "ui": {
         "linkage": {
-          "type": "computed",
+          "type": "value",
           "dependencies": ["#/properties/autoConfig"],
           "when": {
             "field": "autoConfig",

@@ -24,5 +24,7 @@
 - [x] 拆分 src/pages/DynamicFormExamples.tsx 中的示例代码到不同的文件
 - [x] 嵌套表单 - JSON Pointer 跨层级示例切换公司类型时没有触发联动
 - [x] 初始化和触发联动时根据依赖关系的拓扑顺序计算各个字段
+- [ ] 对于嵌套很深的单边树，是否有优化的空间，不需要层层都嵌套 DynamicForm
+- [ ] NestForm 文档补充 filterValueWithNestedSchemas 的相关逻辑
 - [ ] 添加自定义 nested form widget 的代码示例
 - [ ] 文档与代码实现对齐

@@ -7,7 +7,7 @@ import { useLinkageManager } from './useLinkageManager';
 import type { LinkageConfig, LinkageFunction } from '../types/linkage';
 
 describe('useLinkageManager - 异步函数支持', () => {
-  it('应该支持异步的 computed 函数', async () => {
+  it('应该支持异步的 value 函数', async () => {
     const { result } = renderHook(() => {
       const form = useForm({
         defaultValues: {
@@ -19,7 +19,7 @@ describe('useLinkageManager - 异步函数支持', () => {
 
       const linkages: Record<string, LinkageConfig> = {
         total: {
-          type: 'computed',
+          type: 'value',
           dependencies: ['price', 'quantity'],
           fulfill: {
             function: 'calculateTotal',
@@ -190,14 +190,14 @@ describe('useLinkageManager - 异步函数支持', () => {
 
       const linkages: Record<string, LinkageConfig> = {
         discount: {
-          type: 'computed',
+          type: 'value',
           dependencies: ['price', 'quantity'],
           fulfill: {
             function: 'calculateDiscount', // 同步函数
           },
         },
         total: {
-          type: 'computed',
+          type: 'value',
           dependencies: ['price', 'quantity', 'discount'],
           fulfill: {
             function: 'calculateTotal', // 异步函数

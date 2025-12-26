@@ -1,7 +1,7 @@
 /**
  * 联动类型
  */
-export type LinkageType = 'visibility' | 'disabled' | 'readonly' | 'value' | 'computed' | 'options';
+export type LinkageType = 'visibility' | 'disabled' | 'readonly' | 'value' | 'options';
 
 /**
  * 条件操作符
@@ -42,7 +42,7 @@ export interface LinkageEffect {
     readonly?: boolean;
     required?: boolean;
   };
-  // 直接指定值（用于 value/computed 类型）
+  // 直接指定值（用于 value 类型）
   value?: any;
   // 直接指定选项（用于 options 类型）
   options?: Array<{ label: string; value: any }>;

@@ -10,8 +10,8 @@ export interface ParsedLinkages {
 /**
  * 解析 Schema 中的联动配置
  *
- * 注意：所有类型的联动（包括 computed、value、visibility 等）都统一在 linkages 中返回，
- * 由 useLinkageManager 统一处理。不再区分 computedFields。
+ * 注意：所有类型的联动（包括 value、visibility、disabled、readonly、options 等）都统一在 linkages 中返回，
+ * 由 useLinkageManager 统一处理。
  */
 export function parseSchemaLinkages(schema: ExtendedJSONSchema): ParsedLinkages {
   const linkages: Record<string, LinkageConfig> = {};

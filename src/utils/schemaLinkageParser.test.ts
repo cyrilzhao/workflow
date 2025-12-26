@@ -71,7 +71,7 @@ describe('parseSchemaLinkages', () => {
   });
 
   describe('不同类型的联动配置', () => {
-    it('应该解析 computed 类型联动', () => {
+    it('应该解析 value 类型联动', () => {
       const schema: ExtendedJSONSchema = {
         type: 'object',
         properties: {
@@ -85,7 +85,7 @@ describe('parseSchemaLinkages', () => {
             type: 'number',
             ui: {
               linkage: {
-                type: 'computed',
+                type: 'value',
                 dependencies: ['price', 'quantity'],
                 fulfill: {
                   function: 'calculateTotal',
@@ -98,7 +98,7 @@ describe('parseSchemaLinkages', () => {
 
       const result = parseSchemaLinkages(schema);
 
-      expect(result.linkages.total.type).toBe('computed');
+      expect(result.linkages.total.type).toBe('value');
       expect(result.linkages.total.fulfill?.function).toBe('calculateTotal');
     });
   });
