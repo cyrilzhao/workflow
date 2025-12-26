@@ -11,6 +11,7 @@ import {
   NestedSchemaProvider,
   useNestedSchemaRegistryOptional,
 } from './context/NestedSchemaContext';
+import { PathPrefixProvider } from './context/PathPrefixContext';
 import '@blueprintjs/core/lib/css/blueprint.css';
 
 // 空对象常量，避免每次渲染创建新对象
@@ -36,6 +37,7 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
   readonly = false,
   className,
   style,
+  pathPrefix = '',
 }) => {
   // 使用稳定的空对象引用，避免每次渲染创建新对象导致 useEffect 重复触发
   const stableLinkageFunctions = linkageFunctions || EMPTY_LINKAGE_FUNCTIONS;
@@ -78,12 +80,20 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
 
   const onSubmitHandler = async (data: Record<string, any>) => {
     if (onSubmit) {
+      console.info('cyril data: ', data);
+      console.info('cyril nestedSchemaRegistry: ', nestedSchemaRegistry);
+      console.info('cyril schema: ', schema);
+      console.info(
+        'cyril nestedSchemaRegistry.getAllSchemas(): ',
+        nestedSchemaRegistry?.getAllSchemas()
+      );
       // 根据当前 schema 过滤数据，只保留 schema 中定义的字段
       // 如果有嵌套 schema 注册表，使用它来正确过滤动态嵌套表单的数据
       const filteredData = nestedSchemaRegistry
         ? filterValueWithNestedSchemas(data, schema, nestedSchemaRegistry.getAllSchemas())
         : filterValueWithNestedSchemas(data, schema, new Map());
 
+      console.info('cyril filteredData: ', filteredData);
       await onSubmit(filteredData);
     }
   };
@@ -130,17 +140,19 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
 
   return (
     <FormProvider {...methods}>
-      {renderAsForm ? (
-        <form onSubmit={handleSubmit(onSubmitHandler)} className={formClassName} style={style}>
-          {renderFields()}
-          {renderSubmitButton()}
-        </form>
-      ) : (
-        <div className={formClassName} style={style}>
-          {renderFields()}
-          {renderSubmitButton()}
-        </div>
-      )}
+      <PathPrefixProvider prefix={pathPrefix}>
+        {renderAsForm ? (
+          <form onSubmit={handleSubmit(onSubmitHandler)} className={formClassName} style={style}>
+            {renderFields()}
+            {renderSubmitButton()}
+          </form>
+        ) : (
+          <div className={formClassName} style={style}>
+            {renderFields()}
+            {renderSubmitButton()}
+          </div>
+        )}
+      </PathPrefixProvider>
     </FormProvider>
   );
 };

@@ -25,6 +25,7 @@ export interface DynamicFormProps {
   loading?: boolean;
   disabled?: boolean;
   readonly?: boolean;
+  pathPrefix?: string; // 嵌套表单的路径前缀，用于拼接完整字段路径
 }
 
 /**

@@ -61,8 +61,14 @@ export function filterValueWithNestedSchemas(
 
         if (registeredSchema) {
           // 使用注册的 schema 过滤（这是动态嵌套表单的当前 schema）
+          // 重要：继续递归调用 filterValueWithNestedSchemas 以支持多层嵌套
           console.info(`[filterValueWithNestedSchemas] 使用注册的 schema 过滤字段: ${fieldPath}`);
-          filtered[key] = filterValueBySchema(value[key], registeredSchema);
+          filtered[key] = filterValueWithNestedSchemas(
+            value[key],
+            registeredSchema,
+            nestedSchemas,
+            fieldPath
+          );
         } else if (fieldSchema.type === 'object' || fieldSchema.type === 'array') {
           // 递归处理嵌套字段
           filtered[key] = filterValueWithNestedSchemas(

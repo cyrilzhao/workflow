@@ -69,8 +69,6 @@ export function useLinkageManager({
         }
       });
 
-      console.info('cyril 联动初始化 states: ', states);
-
       setLinkageStates(states);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -85,7 +83,6 @@ export function useLinkageManager({
       if (affectedFields.length === 0) return;
 
       const formData = getValues();
-      console.info('cyril affectedFields: ', affectedFields);
 
       // 异步处理联动逻辑
       (async () => {

@@ -23,4 +23,5 @@
 - [x] 修复表单初始化计算联动导致死循环的问题
 - [x] 拆分 src/pages/DynamicFormExamples.tsx 中的示例代码到不同的文件
 - [ ] 嵌套表单 - JSON Pointer 跨层级示例切换公司类型时没有触发联动
+- [ ] 添加自定义 nested form widget 的代码示例
 - [ ] 文档与代码实现对齐

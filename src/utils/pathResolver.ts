@@ -90,7 +90,7 @@ export class PathResolver {
   /**
    * 获取嵌套对象的值（支持点号路径）
    */
-  private static getNestedValue(obj: Record<string, any>, path: string): any {
+  static getNestedValue(obj: Record<string, any>, path: string): any {
     const keys = path.split('.');
     let value = obj;
 

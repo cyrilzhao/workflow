@@ -260,6 +260,296 @@ describe('filterValueWithNestedSchemas', () => {
     });
   });
 
+  describe('多层 nested-form 嵌套处理', () => {
+    it('应该正确处理真实的公司信息表单场景（完整 schema）', () => {
+      // startup 类型的 details schema（从 ui.schemas.startup 中提取）
+      const startupDetailsSchema: ExtendedJSONSchema = {
+        type: 'object',
+        properties: {
+          foundedYear: {
+            type: 'number',
+            title: '成立年份',
+            minimum: 2000,
+            maximum: 2025,
+            ui: { placeholder: '请输入成立年份' },
+          },
+          funding: {
+            type: 'string',
+            title: '融资阶段',
+            enum: ['seed', 'seriesA', 'seriesB', 'seriesC'],
+            enumNames: ['种子轮', 'A轮', 'B轮', 'C轮'],
+            ui: { widget: 'select', placeholder: '请选择融资阶段' },
+          },
+          teamSize: {
+            type: 'integer',
+            title: '团队规模',
+            minimum: 1,
+            maximum: 500,
+            ui: { placeholder: '请输入团队人数' },
+          },
+        },
+        required: ['foundedYear', 'funding'],
+      };
+
+      const enterpriseDetailsSchema: ExtendedJSONSchema = {
+        properties: {
+          employeeCount: {
+            type: 'number',
+            title: '员工数量',
+            minimum: 500,
+            ui: { placeholder: '请输入员工数量' },
+          },
+          revenue: {
+            type: 'number',
+            title: '年营收（万元）',
+            minimum: 0,
+            ui: { placeholder: '请输入年营收' },
+          },
+          stockCode: {
+            type: 'string',
+            title: '股票代码',
+            ui: { placeholder: '如已上市，请输入股票代码' },
+          },
+          branches: {
+            type: 'integer',
+            title: '分支机构数量',
+            minimum: 0,
+            ui: { placeholder: '请输入分支机构数量' },
+          },
+        },
+        required: ['employeeCount', 'revenue'],
+      };
+
+      const detailsSchema: ExtendedJSONSchema = {
+        type: 'object',
+        title: '公司详情',
+        properties: {},
+        ui: {
+          widget: 'nested-form',
+          schemaKey: '#/properties/company/type',
+          schemas: {
+            startup: startupDetailsSchema,
+            enterprise: enterpriseDetailsSchema,
+          },
+        },
+      };
+
+      const companySchema: ExtendedJSONSchema = {
+        type: 'object',
+        title: '公司信息',
+        properties: {
+          type: {
+            type: 'string',
+            title: '公司类型',
+            enum: ['startup', 'enterprise'],
+            enumNames: ['初创公司', '大型企业'],
+            ui: { widget: 'radio' },
+          },
+          name: {
+            type: 'string',
+            title: '公司名称',
+            ui: { placeholder: '请输入公司名称' },
+          },
+          details: detailsSchema,
+        },
+        required: ['type', 'name'],
+      };
+
+      // 使用真实的完整 schema
+      const schema: ExtendedJSONSchema = {
+        type: 'object',
+        properties: {
+          company: companySchema,
+        },
+        required: ['company'],
+      };
+
+      const nestedSchemas = new Map<string, ExtendedJSONSchema>();
+      nestedSchemas.set('company', companySchema);
+      nestedSchemas.set('company.details', startupDetailsSchema);
+
+      // 模拟用户从 enterprise 切换到 startup 后的数据
+      // 数据中同时包含两种类型的字段
+      const value = {
+        company: {
+          type: 'startup',
+          name: 'Tech Startup Inc',
+          details: {
+            // startup 类型的字段（应该保留）
+            foundedYear: 2020,
+            funding: 'seriesA',
+            teamSize: 50,
+            // enterprise 类型的字段（应该被过滤掉）
+            employeeCount: 1000,
+            revenue: 50000,
+            stockCode: 'TSI',
+            branches: 5,
+          },
+        },
+      };
+
+      const result = filterValueWithNestedSchemas(value, schema, nestedSchemas);
+
+      // 验证结果
+      expect(result).toEqual({
+        company: {
+          type: 'startup',
+          name: 'Tech Startup Inc',
+          details: {
+            foundedYear: 2020,
+            funding: 'seriesA',
+            teamSize: 50,
+          },
+        },
+      });
+
+      // 验证 enterprise 字段被正确过滤
+      expect(result.company.details).not.toHaveProperty('employeeCount');
+      expect(result.company.details).not.toHaveProperty('revenue');
+      expect(result.company.details).not.toHaveProperty('stockCode');
+      expect(result.company.details).not.toHaveProperty('branches');
+    });
+
+    it('应该正确处理两层以上的 nested-form 嵌套场景', () => {
+      // 模拟实际的多层嵌套 schema 结构
+      const schema: ExtendedJSONSchema = {
+        type: 'object',
+        properties: {
+          company: {
+            type: 'object',
+            properties: {
+              type: { type: 'string' },
+              name: { type: 'string' },
+              details: {
+                type: 'object',
+                properties: {}, // nested-form 的初始 properties 为空
+              },
+            },
+          },
+        },
+      };
+
+      // 注册 company.details 的动态 schema（第一层 nested-form）
+      const startupDetailsSchema: ExtendedJSONSchema = {
+        type: 'object',
+        properties: {
+          foundedYear: { type: 'number' },
+          funding: { type: 'string' },
+          teamSize: { type: 'integer' },
+        },
+      };
+
+      const nestedSchemas = new Map<string, ExtendedJSONSchema>();
+      nestedSchemas.set('company.details', startupDetailsSchema);
+
+      const value = {
+        company: {
+          type: 'startup',
+          name: 'Tech Startup',
+          details: {
+            foundedYear: 2020,
+            funding: 'seriesA',
+            teamSize: 50,
+            // 额外的字段应该被过滤
+            extraField: 'should be removed',
+          },
+        },
+      };
+
+      const result = filterValueWithNestedSchemas(value, schema, nestedSchemas);
+
+      expect(result).toEqual({
+        company: {
+          type: 'startup',
+          name: 'Tech Startup',
+          details: {
+            foundedYear: 2020,
+            funding: 'seriesA',
+            teamSize: 50,
+          },
+        },
+      });
+      expect(result.company.details).not.toHaveProperty('extraField');
+    });
+
+    it('应该正确处理三层嵌套的 nested-form 场景', () => {
+      // 三层嵌套：root -> company -> details -> subDetails
+      const schema: ExtendedJSONSchema = {
+        type: 'object',
+        properties: {
+          company: {
+            type: 'object',
+            properties: {
+              type: { type: 'string' },
+              details: {
+                type: 'object',
+                properties: {}, // 第一层 nested-form
+              },
+            },
+          },
+        },
+      };
+
+      // 第一层 nested-form 的 schema，包含第二层 nested-form
+      const detailsSchema: ExtendedJSONSchema = {
+        type: 'object',
+        properties: {
+          foundedYear: { type: 'number' },
+          subDetails: {
+            type: 'object',
+            properties: {}, // 第二层 nested-form
+          },
+        },
+      };
+
+      // 第二层 nested-form 的 schema
+      const subDetailsSchema: ExtendedJSONSchema = {
+        type: 'object',
+        properties: {
+          field1: { type: 'string' },
+          field2: { type: 'string' },
+        },
+      };
+
+      const nestedSchemas = new Map<string, ExtendedJSONSchema>();
+      nestedSchemas.set('company.details', detailsSchema);
+      nestedSchemas.set('company.details.subDetails', subDetailsSchema);
+
+      const value = {
+        company: {
+          type: 'startup',
+          details: {
+            foundedYear: 2020,
+            extraField1: 'should be removed',
+            subDetails: {
+              field1: 'value1',
+              field2: 'value2',
+              extraField2: 'should be removed',
+            },
+          },
+        },
+      };
+
+      const result = filterValueWithNestedSchemas(value, schema, nestedSchemas);
+
+      // 预期：第二层的 subDetails 数据应该被正确保留
+      expect(result).toEqual({
+        company: {
+          type: 'startup',
+          details: {
+            foundedYear: 2020,
+            subDetails: {
+              field1: 'value1',
+              field2: 'value2',
+            },
+          },
+        },
+      });
+      expect(result.company.details).not.toHaveProperty('extraField1');
+      expect(result.company.details.subDetails).not.toHaveProperty('extraField2');
+    });
+  });
+
   describe('边界情况处理', () => {
     it('应该处理没有 properties 的对象 schema', () => {
       const schema: ExtendedJSONSchema = {
