@@ -365,18 +365,12 @@ function determineItemWidget(itemsSchema: ExtendedJSONSchema): WidgetType {
     return itemsSchema.ui.widget;
   }
 
-  // 优先级 2: 枚举类型 → 不使用 ArrayFieldWidget，直接返回 checkboxes
-  // 注意：这个判断应该在 SchemaParser 层面处理
-  if (itemsSchema.enum && itemsSchema.enum.length > 0) {
-    return 'checkboxes'; // 整个数组渲染为多选框组
-  }
-
-  // 优先级 3: 对象类型 → 嵌套表单
+  // 优先级 2: 对象类型 → 嵌套表单
   if (itemsSchema.type === 'object') {
     return 'nested-form';
   }
 
-  // 优先级 4: 基本类型 → 对应的基础 widget
+  // 优先级 3: 基本类型 → 对应的基础 widget
   switch (itemsSchema.type) {
     case 'string':
       // 根据 format 进一步判断
@@ -384,6 +378,7 @@ function determineItemWidget(itemsSchema: ExtendedJSONSchema): WidgetType {
       if (itemsSchema.format === 'uri') return 'url';
       if (itemsSchema.format === 'date') return 'date';
       if (itemsSchema.format === 'date-time') return 'datetime';
+      if (itemsSchema.format === 'time') return 'time';
       return 'text';
 
     case 'number':
@@ -398,6 +393,8 @@ function determineItemWidget(itemsSchema: ExtendedJSONSchema): WidgetType {
   }
 }
 ```
+
+**注意：** 枚举数组（items 有 enum）不在此函数中处理，而是在 ArrayFieldWidget 内部通过 `determineArrayMode()` 判断为 static 模式后，直接渲染为多选框组。
 
 ### 5.2 渲染模式判断
 
@@ -470,9 +467,51 @@ function determineArrayMode(schema: ExtendedJSONSchema): 'static' | 'dynamic' {
 [标签2: ________] [删除]
 [+ 添加标签]
 
-// 数据结构
-['tag1', 'tag2']
+// ⚠️ 重要：实际的内部数据结构
+// 由于 react-hook-form 的 useFieldArray 会过滤掉基本类型的空值，
+// ArrayFieldWidget 将基本类型包装成对象
+[
+  { value: 'tag1' },
+  { value: 'tag2' }
+]
+
+// 如果需要纯数组格式，需要在提交时转换
+const handleSubmit = (data: any) => {
+  const pureTags = data.tags.map((item: any) => item.value);
+  console.log(pureTags); // ['tag1', 'tag2']
+};
 ```
+
+#### ⚠️ 重要：基本类型数组的数据结构
+
+由于 react-hook-form 的 `useFieldArray` 会过滤掉基本类型的空值（如空字符串、0、false），`ArrayFieldWidget` 会将基本类型包装成对象：
+
+**内部数据结构：**
+```typescript
+// 用户看到的是字符串输入框，但内部存储为：
+[
+  { value: 'tag1' },
+  { value: 'tag2' }
+]
+```
+
+**表单提交时的数据转换：**
+```typescript
+const handleSubmit = (data: any) => {
+  // 方式 1: 转换为纯数组（推荐）
+  const pureTags = data.tags.map((item: any) => item.value);
+
+  // 方式 2: 在后端接收时进行解包处理
+  // 后端: tags.map(item => item.value)
+
+  console.log(pureTags); // ['tag1', 'tag2']
+};
+```
+
+**为什么需要包装？**
+- react-hook-form 的 useFieldArray 在处理基本类型时，会过滤掉"假值"（空字符串、0、false）
+- 包装成对象后，即使 value 为空，对象本身也不会被过滤
+- 这确保了数组项的稳定性和可编辑性
 
 #### 数字数组
 
@@ -741,19 +780,45 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
     return null;
   }
 
+  // 如果是对象类型，使用特殊渲染（Card 容器）
+  if (schema.type === 'object') {
+    return (
+      <Card className="array-item array-item-object">
+        {/* 对象数组的渲染逻辑 */}
+        <WidgetComponent
+          name={name}
+          schema={schema}
+          disabled={disabled}
+          readonly={readonly}
+        />
+      </Card>
+    );
+  }
+
+  // 基本类型：渲染为简单的输入框 + 操作按钮
+  // ⚠️ 重要：基本类型使用 `${name}.value` 作为字段路径
   return (
-    <div className="array-item">
+    <div className="array-item array-item-simple">
       <div className="array-item-content">
-        {/* 索引标签（可选） */}
+        {/* 索引标签 */}
         <div className="array-item-index">#{index + 1}</div>
 
         {/* 字段内容 */}
         <div className="array-item-field">
-          <WidgetComponent
-            name={name}
-            schema={schema}
-            disabled={disabled}
-            readonly={readonly}
+          <Controller
+            name={`${name}.value`}  // ← 重要：添加 .value 后缀
+            control={control}
+            rules={validationRules}
+            render={({ field: controllerField }) => (
+              <WidgetComponent
+                name={`${name}.value`}
+                schema={schema}
+                value={controllerField.value}
+                onChange={controllerField.onChange}
+                disabled={disabled}
+                readonly={readonly}
+              />
+            )}
           />
         </div>
       </div>
@@ -1114,22 +1179,9 @@ export class SchemaParser {
 
     // 处理数组类型
     if (schema.type === 'array') {
-      // 特殊情况：枚举数组 → 直接使用 checkboxes
-      if (
-        schema.items &&
-        typeof schema.items === 'object' &&
-        (schema.items as ExtendedJSONSchema).enum &&
-        !schema.ui?.arrayMode
-      ) {
-        return {
-          name,
-          widget: 'checkboxes',
-          schema,
-          required,
-        };
-      }
-
-      // 默认使用 ArrayFieldWidget
+      // 所有数组类型统一使用 ArrayFieldWidget
+      // ArrayFieldWidget 内部会根据 items.enum 自动判断渲染模式（static/dynamic）
+      // 不再需要在这里特殊处理枚举数组
       return {
         name,
         widget: 'array',
@@ -1586,6 +1638,47 @@ const arrayError = errors[name];
 // 示例
 ('contacts.0.name');
 ('contacts.1.phone');
+```
+
+#### 4. 基本类型数组的数据包装
+
+```typescript
+// ⚠️ 重要：基本类型数组会被包装成对象
+const schema = {
+  type: 'array',
+  items: { type: 'string' }
+};
+
+// 表单内部数据结构
+{
+  tags: [
+    { value: 'tag1' },
+    { value: 'tag2' }
+  ]
+}
+
+// 如果需要纯数组格式，需要转换
+const handleSubmit = (data: any) => {
+  const pureTags = data.tags.map((item: any) => item.value);
+  // 现在 pureTags = ['tag1', 'tag2']
+};
+```
+
+**原因**：react-hook-form 的 useFieldArray 会过滤掉基本类型的空值（空字符串、0、false），为了避免这个问题，ArrayFieldWidget 将基本类型包装成对象。
+
+**解决方案**：
+1. 在表单提交时进行转换（推荐）
+2. 在后端接收时进行解包处理
+3. 使用对象数组代替基本类型数组
+
+**字段路径**：
+```typescript
+// 基本类型数组的字段路径格式
+`${arrayName}.${index}.value`;  // 注意：多了 .value 后缀
+
+// 示例
+('tags.0.value');  // 第一个标签的值
+('tags.1.value');  // 第二个标签的值
 ```
 
 ---
