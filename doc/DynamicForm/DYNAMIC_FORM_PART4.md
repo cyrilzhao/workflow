@@ -21,17 +21,29 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   onSubmit,
   onChange,
   widgets = {},
+  linkageFunctions = {},
+  customFormats = {},
   layout = 'vertical',
-  showErrorList = true,
+  showSubmitButton = true,
+  renderAsForm = true,
   validateMode = 'onSubmit',
   loading = false,
   disabled = false,
   readonly = false,
   className,
   style,
+  pathPrefix = '',
 }) => {
-  // 解析 Schema 生成字段配置
-  const fields = useMemo(() => SchemaParser.parse(schema), [schema]);
+  // 检查是否使用了路径扁平化
+  const useFlattenPath = useMemo(() => SchemaParser.hasFlattenPath(schema), [schema]);
+
+  // 设置自定义格式验证器并解析字段
+  const fields = useMemo(() => {
+    if (customFormats && Object.keys(customFormats).length > 0) {
+      SchemaParser.setCustomFormats(customFormats);
+    }
+    return SchemaParser.parse(schema);
+  }, [schema, customFormats]);
 
   // 初始化表单
   const methods = useForm({
@@ -56,7 +68,9 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   // 提交处理
   const onSubmitHandler = async (data: Record<string, any>) => {
     if (onSubmit) {
-      await onSubmit(data);
+      // 如果使用了路径扁平化，将扁平数据转换回嵌套结构
+      const processedData = useFlattenPath ? PathTransformer.flatToNested(data) : data;
+      await onSubmit(processedData);
     }
   };
 
@@ -67,11 +81,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         className={`dynamic-form dynamic-form--${layout} ${className || ''}`}
         style={style}
       >
-        {/* 错误列表 */}
-        {showErrorList && Object.keys(errors).length > 0 && (
-          <ErrorList errors={errors} />
-        )}
-
         {/* 表单字段 */}
         <div className="dynamic-form__fields">
           {fields.map((field) => (
@@ -86,15 +95,17 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         </div>
 
         {/* 提交按钮 */}
-        <div className="dynamic-form__actions">
-          <button
-            type="submit"
-            className="dynamic-form__submit"
-            disabled={loading || disabled}
-          >
-            {loading ? '提交中...' : '提交'}
-          </button>
-        </div>
+        {showSubmitButton && (
+          <div className="dynamic-form__actions">
+            <button
+              type="submit"
+              className="dynamic-form__submit"
+              disabled={loading || disabled}
+            >
+              {loading ? '提交中...' : '提交'}
+            </button>
+          </div>
+        )}
       </form>
     </FormProvider>
   );

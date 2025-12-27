@@ -26,7 +26,16 @@
 - [x] DependencyGraph 中的 getAffectedFields 添加 affected 节点之前先判断是否已经添加过，避免重复添加
 - [x] NestForm 文档补充 filterValueWithNestedSchemas 的相关逻辑
 - [x] 当 flattenPath: true 时，中间层级不会渲染成 NestedFormWidget 和 Card，只有真正需要分组的字段才会显示 Card 边框
+- [ ] 完善 DYNAMIC_FORM_PART2 文档中表单校验 JSON Schema 的内容
+  - [ ] 5.4.6, 5.4.7 下方需要补充含义说明
+  - [ ] 5.4.1 提到的 dependencies 是不是只能用于必填校验
+  - [ ] if-else 分支判断和 anyOf/allOf/oneOf 判断中都只提到 required 校验，能否支持其他的校验方式（如 minLength, pattern 等）
+  - [ ] 5.5.3 跨字段验证里为什么 schema 中还需要定义 "dependencies": ["password"]
+  - [ ] 自定义格式和自定义关键字验证代码示例中的 Ajv 起到什么作用
 - [ ] 支持 API Node 的场景方案
+- [ ] type 为 object 类型的字段需要支持在 ui 字段中配置表单的 layout 是 vertical 还是 horizontal
+- [ ] 确认 NestedForm 除了 object 之外是否支持 array 类型字段的渲染
+- [ ] FormField 组件中有从传入的 widgets 和 FieldRegistry 两个来源获取 widget 的方法，这两种方法有何异同，是否只需要保留 FieldRegistry
 - [ ] 添加自定义 nested form widget 的代码示例
 - [ ] 大规模表单性能
 - [ ] 文档与代码实现对齐

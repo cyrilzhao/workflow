@@ -20,6 +20,7 @@
 ```
 
 **支持的验证规则**:
+
 - `minLength`: 最小长度
 - `maxLength`: 最大长度
 - `pattern`: 正则表达式
@@ -27,6 +28,7 @@
 - `enum`: 枚举值
 
 **UI 扩展属性**:
+
 ```json
 {
   "type": "string",
@@ -52,6 +54,7 @@
 ```
 
 **支持的验证规则**:
+
 - `minimum`: 最小值
 - `maximum`: 最大值
 - `exclusiveMinimum`: 排他最小值
@@ -59,6 +62,7 @@
 - `multipleOf`: 倍数
 
 **UI 扩展属性**:
+
 ```json
 {
   "type": "number",
@@ -81,6 +85,7 @@
 ```
 
 **UI 扩展属性**:
+
 ```json
 {
   "type": "boolean",
@@ -108,6 +113,7 @@
 ```
 
 **对象数组示例**:
+
 ```json
 {
   "type": "array",
@@ -227,33 +233,41 @@
 
 ```typescript
 interface UIConfig {
-  widget?: string;                // 组件类型
-  placeholder?: string;           // 占位符
-  disabled?: boolean;             // 是否禁用
-  readonly?: boolean;             // 是否只读
-  hidden?: boolean;               // 是否隐藏
-  help?: string;                  // 帮助文本
-  className?: string;             // CSS 类名
-  style?: React.CSSProperties;    // 内联样式
-  order?: string[];               // 字段顺序
-  errorMessages?: ErrorMessages;  // 自定义错误信息
-  linkage?: LinkageConfig;        // UI 联动配置（详见 UI_LINKAGE_DESIGN.md）
-  flattenPath?: boolean;          // 路径透明化：是否跳过该对象层级
-  flattenPrefix?: boolean;        // 路径透明化：是否添加当前字段 title 作为前缀
-  [key: string]: any;             // 其他自定义属性
+  widget?: string; // 组件类型
+  placeholder?: string; // 占位符
+  disabled?: boolean; // 是否禁用
+  readonly?: boolean; // 是否只读
+  hidden?: boolean; // 是否隐藏
+  help?: string; // 帮助文本
+  className?: string; // CSS 类名
+  style?: React.CSSProperties; // 内联样式
+  order?: string[]; // 字段顺序
+  errorMessages?: ErrorMessages; // 自定义错误信息
+  linkage?: LinkageConfig; // UI 联动配置（详见 UI_LINKAGE_DESIGN.md）
+
+  // 路径透明化配置（详见 FIELD_PATH_FLATTENING.md）
+  flattenPath?: boolean; // 是否跳过该对象层级
+  flattenPrefix?: boolean; // 是否添加当前字段 title 作为前缀
+
+  // 动态嵌套表单配置（详见 NESTED_FORM.md）
+  schemaKey?: string; // 动态 schema 的依赖字段
+  schemas?: Record<string, { properties?; required?[] }>; // 多个子表单 schema 片段
+  schemaLoader?: (value: any) => Promise<ExtendedJSONSchema>; // 异步加载 schema
+
+  [key: string]: any; // 其他自定义属性
 }
 
 /**
  * 错误信息配置
  */
 interface ErrorMessages {
-  required?: string;              // 必填错误信息
-  minLength?: string;             // 最小长度错误信息
-  maxLength?: string;             // 最大长度错误信息
-  min?: string;                   // 最小值错误信息
-  max?: string;                   // 最大值错误信息
-  pattern?: string;               // 格式错误信息
-  [key: string]: string;          // 其他自定义错误信息
+  required?: string; // 必填错误信息
+  minLength?: string; // 最小长度错误信息
+  maxLength?: string; // 最大长度错误信息
+  min?: string; // 最小值错误信息
+  max?: string; // 最大值错误信息
+  pattern?: string; // 格式错误信息
+  [key: string]: string; // 其他自定义错误信息
 }
 ```
 
@@ -317,25 +331,29 @@ interface ErrorMessages {
 
 #### 5.3.3 支持的 Widget 类型
 
-| Widget 类型 | 适用字段类型 | 说明 |
-|------------|------------|------|
-| `text` | string | 单行文本输入 |
-| `textarea` | string | 多行文本输入 |
-| `password` | string | 密码输入 |
-| `email` | string | 邮箱输入 |
-| `url` | string | URL 输入 |
-| `number` | number/integer | 数字输入 |
-| `range` | number/integer | 滑块 |
-| `select` | string/number | 下拉选择 |
-| `radio` | string/number | 单选按钮 |
-| `checkboxes` | array | 多选框组 |
-| `checkbox` | boolean | 单个复选框 |
-| `switch` | boolean | 开关 |
-| `date` | string | 日期选择 |
-| `datetime` | string | 日期时间选择 |
-| `time` | string | 时间选择 |
-| `color` | string | 颜色选择 |
-| `file` | string | 文件上传 |
+| Widget 类型    | 适用字段类型   | 说明                                       |
+| -------------- | -------------- | ------------------------------------------ |
+| `text`         | string         | 单行文本输入                               |
+| `textarea`     | string         | 多行文本输入                               |
+| `password`     | string         | 密码输入                                   |
+| `email`        | string         | 邮箱输入                                   |
+| `number`       | number/integer | 数字输入                                   |
+| `range`        | number/integer | 滑块                                       |
+| `select`       | string/number  | 下拉选择                                   |
+| `radio`        | string/number  | 单选按钮                                   |
+| `checkboxes`   | array          | 多选框组                                   |
+| `checkbox`     | boolean        | 单个复选框                                 |
+| `switch`       | boolean        | 开关                                       |
+| `date`         | string         | 日期选择                                   |
+| `datetime`     | string         | 日期时间选择                               |
+| `time`         | string         | 时间选择                                   |
+| `color`        | string         | 颜色选择                                   |
+| `file`         | string         | 文件上传                                   |
+| `nested-form`  | object         | 嵌套表单（详见 NESTED_FORM.md）            |
+
+> **注意**：
+> - `url` widget 计划中，当前未实现
+> - `nested-form` widget 用于渲染嵌套对象，支持静态和动态 schema
 
 #### 5.3.4 字段路径透明化（Field Path Flattening）
 
@@ -345,9 +363,9 @@ interface ErrorMessages {
 
 **配置属性**：
 
-| 属性 | 类型 | 说明 |
-|------|------|------|
-| `flattenPath` | `boolean` | 是否对该对象字段进行路径扁平化，跳过该层级直接展示子字段 |
+| 属性            | 类型      | 说明                                                      |
+| --------------- | --------- | --------------------------------------------------------- |
+| `flattenPath`   | `boolean` | 是否对该对象字段进行路径扁平化，跳过该层级直接展示子字段  |
 | `flattenPrefix` | `boolean` | 是否在扁平化后的字段标签前添加当前字段的 `title` 作为前缀 |
 
 **基础示例**：
@@ -383,10 +401,12 @@ interface ErrorMessages {
 ```
 
 **渲染效果**：
+
 - 表单显示：`认证配置 - 密钥`
 - 提交数据：`{ auth: { content: { key: 'xxx' } } }`
 
 **适用场景**：
+
 - 后端接口参数嵌套深度超过 2 层
 - 中间层级没有实际业务意义
 - 用户只需要关注最内层的实际字段
@@ -403,6 +423,7 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
 2. **逻辑组合（allOf/anyOf/oneOf/if-then-else）**：也定义在 schema 根级别，用于表达复杂的逻辑验证条件
 
 **关键区别**：
+
 - `dependencies` 是 JSON Schema 的专用属性，专门用于字段依赖验证场景
 - `allOf/anyOf/oneOf` 是 JSON Schema 的逻辑组合关键字，可以组合多个验证 schema
 - `if/then/else` 是 JSON Schema Draft-07+ 引入的条件验证逻辑关键字
@@ -414,6 +435,7 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
 `dependencies` 用于表达"当某个字段存在或有特定值时，其他字段的约束条件"。
 
 **简单依赖（数组形式）**：
+
 ```json
 {
   "type": "object",
@@ -432,9 +454,11 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
   }
 }
 ```
+
 **含义**：如果填写了 `creditCard`，则 `billingAddress` 变为必填。
 
 **复杂依赖（Schema 依赖）**：
+
 ```json
 {
   "type": "object",
@@ -463,6 +487,7 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
   }
 }
 ```
+
 **含义**：当 `hasAddress` 为 `true` 时，`address` 变为必填且至少1个字符。
 
 **注意**：`dependencies` 中的 `oneOf` 是在依赖关系内部使用的，不是顶层的逻辑组合。
@@ -497,6 +522,7 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
 `allOf` 是顶层的逻辑组合关键字，用于组合多个 schema，要求数据同时满足所有子 schema。
 
 **与 dependencies 的区别**：
+
 - `dependencies` 关注的是"字段 A 存在时，字段 B 的约束"（字段间的依赖关系）
 - `allOf` 关注的是"数据必须同时满足多个条件"（逻辑组合）
 
@@ -549,11 +575,13 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
 ```
 
 **含义**：
+
 1. 第一个条件：如果是学生，则学号和学校必填
 2. 第二个条件：如果年龄小于18岁，则监护人电话必填
 3. 这两个条件是**独立的**，可以同时生效（例如：17岁的学生需要填写学号、学校和监护人电话）
 
 **对比 dependencies 的实现方式**：
+
 ```json
 {
   "dependencies": {
@@ -568,6 +596,7 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
   }
 }
 ```
+
 这种方式虽然也能实现，但语义上不如 `allOf` 清晰，因为这不是典型的"字段依赖"场景。
 
 #### 5.4.4 使用 anyOf (任一条件满足)
@@ -594,17 +623,14 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
       "title": "微信号"
     }
   },
-  "anyOf": [
-    { "required": ["email"] },
-    { "required": ["phone"] },
-    { "required": ["wechat"] }
-  ]
+  "anyOf": [{ "required": ["email"] }, { "required": ["phone"] }, { "required": ["wechat"] }]
 }
 ```
 
 **含义**：用户必须至少填写邮箱、手机号、微信号中的一个。可以填写多个，但不能一个都不填。
 
 **实际应用示例**：
+
 ```json
 {
   "type": "object",
@@ -618,11 +644,7 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
     "phone": { "type": "string", "title": "手机号" },
     "wechat": { "type": "string", "title": "微信号" }
   },
-  "anyOf": [
-    { "required": ["email"] },
-    { "required": ["phone"] },
-    { "required": ["wechat"] }
-  ],
+  "anyOf": [{ "required": ["email"] }, { "required": ["phone"] }, { "required": ["wechat"] }],
   "if": {
     "properties": { "contactMethod": { "const": "email" } }
   },
@@ -631,6 +653,7 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
   }
 }
 ```
+
 **含义**：至少填写一种联系方式，如果选择了邮箱作为首选，则邮箱必填。
 
 #### 5.4.5 使用 oneOf (仅一个条件满足)
@@ -640,6 +663,7 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
 **使用场景**：当需要"互斥选择"时使用 `oneOf`，确保只能选择一种情况。
 
 **与 anyOf 的区别**：
+
 - `anyOf`：至少满足一个（可以满足多个）
 - `oneOf`：有且仅有一个（不能同时满足多个）
 
@@ -679,6 +703,7 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
 ```
 
 **含义**：
+
 - 如果是个人账户，必须填写身份证号（不能填写营业执照）
 - 如果是企业账户，必须填写营业执照号（不能填写身份证）
 - 不能同时满足两个条件
@@ -741,23 +766,6 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
   }
 }
 ```
-
-#### 5.4.8 条件渲染机制对比总结
-
-| 机制 | 位置 | 语义 | 使用场景 | 示例 |
-|------|------|------|----------|------|
-| **dependencies** | 根级别 | 字段间依赖关系 | 当字段A存在/有值时，字段B的约束 | 填写信用卡时必须填写账单地址 |
-| **if/then/else** | 根级别 | 条件分支 | 根据条件选择不同的验证规则 | 中国用户填身份证，美国用户填SSN |
-| **allOf** | 根级别 | 逻辑与（全部满足） | 同时应用多个独立条件 | 学生要填学号，未成年要填监护人电话 |
-| **anyOf** | 根级别 | 逻辑或（至少一个） | 至少满足一个条件 | 至少填写邮箱、手机、微信之一 |
-| **oneOf** | 根级别 | 逻辑异或（仅一个） | 互斥选择，只能满足一个 | 个人账户或企业账户（二选一） |
-
-**选择建议**：
-1. 简单的字段依赖 → 使用 `dependencies`
-2. 条件分支逻辑 → 使用 `if/then/else`
-3. 多个独立条件同时生效 → 使用 `allOf`
-4. 至少满足一个条件 → 使用 `anyOf`
-5. 互斥选择 → 使用 `oneOf`
 
 #### 5.4.7 多字段联合判断
 
@@ -827,6 +835,24 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
 }
 ```
 
+#### 5.4.8 条件渲染机制对比总结
+
+| 机制             | 位置   | 语义               | 使用场景                        | 示例                               |
+| ---------------- | ------ | ------------------ | ------------------------------- | ---------------------------------- |
+| **dependencies** | 根级别 | 字段间依赖关系     | 当字段A存在/有值时，字段B的约束 | 填写信用卡时必须填写账单地址       |
+| **if/then/else** | 根级别 | 条件分支           | 根据条件选择不同的验证规则      | 中国用户填身份证，美国用户填SSN    |
+| **allOf**        | 根级别 | 逻辑与（全部满足） | 同时应用多个独立条件            | 学生要填学号，未成年要填监护人电话 |
+| **anyOf**        | 根级别 | 逻辑或（至少一个） | 至少满足一个条件                | 至少填写邮箱、手机、微信之一       |
+| **oneOf**        | 根级别 | 逻辑异或（仅一个） | 互斥选择，只能满足一个          | 个人账户或企业账户（二选一）       |
+
+**选择建议**：
+
+1. 简单的字段依赖 → 使用 `dependencies`
+2. 条件分支逻辑 → 使用 `if/then/else`
+3. 多个独立条件同时生效 → 使用 `allOf`
+4. 至少满足一个条件 → 使用 `anyOf`
+5. 互斥选择 → 使用 `oneOf`
+
 ### 5.5 自定义验证
 
 #### 5.5.1 自定义格式验证
@@ -840,6 +866,7 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
 ```
 
 对应的验证器注册：
+
 ```typescript
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
@@ -868,11 +895,12 @@ ajv.addKeyword({
   keyword: 'isAdult',
   validate: (schema: boolean, data: number) => {
     return schema ? data >= 18 : true;
-  }
+  },
 });
 ```
 
 使用：
+
 ```json
 {
   "type": "integer",
@@ -908,6 +936,7 @@ ajv.addKeyword({
 ```
 
 对应的验证函数：
+
 ```typescript
 const customValidators = {
   matchPassword: (value: string, formData: any) => {

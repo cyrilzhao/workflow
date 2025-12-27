@@ -40,7 +40,17 @@ export interface UIConfig {
   style?: React.CSSProperties;
   order?: string[];
   errorMessages?: ErrorMessages;
-  linkage?: LinkageConfig;  // UI 联动配置（完整设计详见 UI_LINKAGE_DESIGN.md）
+  linkage?: LinkageConfig;  // UI 联动配置（详见 UI_LINKAGE_DESIGN.md）
+
+  // 路径透明化配置（详见 FIELD_PATH_FLATTENING.md）
+  flattenPath?: boolean;  // 是否跳过该对象层级
+  flattenPrefix?: boolean;  // 是否添加当前字段 title 作为前缀
+
+  // 动态嵌套表单配置（详见 NESTED_FORM.md）
+  schemaKey?: string;  // 动态 schema 的依赖字段
+  schemas?: Record<string, { properties?; required?[] }>;  // 多个子表单 schema 片段
+  schemaLoader?: (value: any) => Promise<ExtendedJSONSchema>;  // 异步加载 schema
+
   [key: string]: any; // 支持其他自定义属性
 }
 
@@ -88,7 +98,8 @@ export type WidgetType =
   | 'time'
   | 'range'
   | 'color'
-  | 'file';
+  | 'file'
+  | 'nested-form';  // 嵌套表单组件
 
 /**
  * 字段配置
@@ -107,7 +118,8 @@ export interface FieldConfig {
   hidden?: boolean;
   validation?: ValidationRules;
   options?: FieldOption[];
-  dependencies?: string[];
+  dependencies?: any;  // JSON Schema dependencies（保留原始格式）
+  schema?: ExtendedJSONSchema;  // 用于嵌套表单
 }
 
 /**
@@ -155,16 +167,16 @@ export interface DynamicFormProps {
 
   // 自定义配置
   widgets?: Record<string, React.ComponentType<any>>;
-  validators?: Record<string, Function>;
+  linkageFunctions?: Record<string, LinkageFunction>;  // 联动函数（详见 UI_LINKAGE_DESIGN.md）
+  customFormats?: Record<string, (value: string) => boolean>;  // 自定义格式验证器
 
   // UI 配置
   layout?: 'vertical' | 'horizontal' | 'inline';
-  labelWidth?: number | string;
-  showErrorList?: boolean;
+  showSubmitButton?: boolean;  // 是否显示提交按钮
+  renderAsForm?: boolean;  // 是否渲染为 <form> 标签（默认 true）
 
   // 表单行为
   validateMode?: 'onSubmit' | 'onBlur' | 'onChange' | 'all';
-  reValidateMode?: 'onSubmit' | 'onBlur' | 'onChange';
 
   // 样式
   className?: string;
@@ -174,6 +186,7 @@ export interface DynamicFormProps {
   loading?: boolean;
   disabled?: boolean;
   readonly?: boolean;
+  pathPrefix?: string;  // 路径前缀（用于嵌套表单）
 }
 
 /**
@@ -261,9 +274,27 @@ import { ExtendedJSONSchema, FieldConfig } from '@/types/schema';
 
 export class SchemaParser {
   /**
-   * 解析 Schema 生成字段配置
+   * 设置自定义格式验证器
    */
-  static parse(schema: ExtendedJSONSchema): FieldConfig[] {
+  static setCustomFormats(formats: Record<string, (value: string) => boolean>) {
+    // 设置自定义格式验证器
+  }
+
+  /**
+   * 检查 schema 中是否使用了路径扁平化
+   */
+  static hasFlattenPath(schema: ExtendedJSONSchema): boolean {
+    // 递归检查 schema 中是否有 flattenPath 配置
+  }
+
+  /**
+   * 解析 Schema 生成字段配置（支持路径扁平化）
+   */
+  static parse(
+    schema: ExtendedJSONSchema,
+    parentPath: string = '',
+    prefixLabel: string = ''
+  ): FieldConfig[] {
     const fields: FieldConfig[] = [];
 
     if (schema.type !== 'object' || !schema.properties) {
@@ -278,14 +309,31 @@ export class SchemaParser {
       const property = properties[key];
       if (!property || typeof property === 'boolean') continue;
 
-      const fieldConfig = this.parseField(
-        key,
-        property as ExtendedJSONSchema,
-        required.includes(key)
-      );
+      const fieldSchema = property as ExtendedJSONSchema;
+      const currentPath = parentPath ? `${parentPath}.${key}` : key;
 
-      if (!fieldConfig.hidden) {
-        fields.push(fieldConfig);
+      // 检查是否需要路径扁平化
+      if (fieldSchema.type === 'object' && fieldSchema.ui?.flattenPath) {
+        // 确定是否需要添加前缀
+        const newPrefixLabel = fieldSchema.ui.flattenPrefix && fieldSchema.title
+          ? (prefixLabel ? `${prefixLabel} - ${fieldSchema.title}` : fieldSchema.title)
+          : prefixLabel;
+
+        // 递归解析子字段，跳过当前层级
+        const nestedFields = this.parse(fieldSchema, currentPath, newPrefixLabel);
+        fields.push(...nestedFields);
+      } else {
+        // 正常解析字段
+        const fieldConfig = this.parseField(
+          currentPath,
+          fieldSchema,
+          required.includes(key),
+          prefixLabel
+        );
+
+        if (!fieldConfig.hidden) {
+          fields.push(fieldConfig);
+        }
       }
     }
 
@@ -293,20 +341,26 @@ export class SchemaParser {
   }
 
   /**
-   * 解析单个字段
+   * 解析单个字段（支持嵌套路径和标签前缀）
    */
   private static parseField(
-    name: string,
+    path: string,
     schema: ExtendedJSONSchema,
-    required: boolean
+    required: boolean,
+    prefixLabel: string = ''
   ): FieldConfig {
     const ui = schema.ui || {};
 
+    // 如果有前缀标签，添加到字段标签前
+    const label = prefixLabel && schema.title
+      ? `${prefixLabel} - ${schema.title}`
+      : schema.title;
+
     return {
-      name,
+      name: path,  // 使用完整路径作为字段名
       type: schema.type as string,
       widget: this.getWidget(schema),
-      label: schema.title,
+      label,
       placeholder: ui.placeholder,
       description: schema.description,
       defaultValue: schema.default,
@@ -358,7 +412,7 @@ export class SchemaParser {
     }
 
     if (type === 'object') {
-      return 'nested-form';
+      return 'nested-form';  // 嵌套表单组件
     }
 
     return 'text';
