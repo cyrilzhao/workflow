@@ -30,6 +30,7 @@ export const ArrayNestedExample: React.FC = () => {
             phone: {
               type: 'string',
               title: '电话',
+              format: 'phone',
               ui: {
                 placeholder: '请输入电话号码',
               },

@@ -13,6 +13,7 @@ export const BasicArrayExample: React.FC = () => {
         items: {
           type: 'string',
           maxLength: 20,
+          minLength: 3,
         },
         minItems: 1,
         maxItems: 5,

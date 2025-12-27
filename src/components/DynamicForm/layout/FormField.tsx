@@ -1,5 +1,5 @@
 import React from 'react';
-import { useFormContext, Controller } from 'react-hook-form';
+import { useFormContext, Controller, type FieldErrors } from 'react-hook-form';
 import { FormGroup } from '@blueprintjs/core';
 import { FieldLabel } from '../components/FieldLabel';
 import { FieldError } from '../components/FieldError';
@@ -7,6 +7,24 @@ import { FieldHelp } from '../components/FieldHelp';
 import { FieldRegistry } from '../core/FieldRegistry';
 import type { FieldConfig } from '@/types/schema';
 import type { LinkageResult } from '@/types/linkage';
+
+/**
+ * 根据嵌套路径获取错误信息
+ * 例如：getNestedError(errors, 'address.city') 会返回 errors.address?.city
+ */
+function getNestedError(errors: FieldErrors, path: string): string | undefined {
+  const parts = path.split('.');
+  let current: any = errors;
+
+  for (const part of parts) {
+    if (current === undefined || current === null) {
+      return undefined;
+    }
+    current = current[part];
+  }
+
+  return current?.message as string | undefined;
+}
 
 interface FormFieldProps {
   field: FieldConfig;
@@ -47,7 +65,8 @@ export const FormField: React.FC<FormFieldProps> = ({
     return null;
   }
 
-  const error = errors[field.name]?.message as string | undefined;
+  // 使用 getNestedError 支持嵌套路径的错误获取（如 address.city）
+  const error = getNestedError(errors, field.name);
 
   // 计算 layout 的优先级：字段级 > 父级 > 全局级
   const effectiveLayout = field.schema?.ui?.layout ?? layout;
@@ -58,7 +77,7 @@ export const FormField: React.FC<FormFieldProps> = ({
   // 构建 FormGroup 的样式，需要覆盖 Blueprint 的默认样式
   const formGroupStyle: React.CSSProperties = {};
   if (effectiveLayout === 'horizontal') {
-    formGroupStyle.flexDirection = 'row';  // 覆盖 Blueprint 的 column
+    formGroupStyle.flexDirection = 'row'; // 覆盖 Blueprint 的 column
     formGroupStyle.alignItems = 'flex-start';
   } else if (effectiveLayout === 'inline') {
     formGroupStyle.display = 'inline-flex';
@@ -68,7 +87,8 @@ export const FormField: React.FC<FormFieldProps> = ({
   // 构建 label 的样式
   const labelStyle: React.CSSProperties = {};
   if (effectiveLayout === 'horizontal' && effectiveLabelWidth) {
-    labelStyle.width = typeof effectiveLabelWidth === 'number' ? `${effectiveLabelWidth}px` : effectiveLabelWidth;
+    labelStyle.width =
+      typeof effectiveLabelWidth === 'number' ? `${effectiveLabelWidth}px` : effectiveLabelWidth;
     labelStyle.flexShrink = 0;
     labelStyle.marginRight = '12px';
   }

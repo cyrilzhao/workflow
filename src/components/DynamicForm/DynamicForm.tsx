@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { useForm, FormProvider } from 'react-hook-form';
+import { useForm, FormProvider, useFormContext } from 'react-hook-form';
 import { Button } from '@blueprintjs/core';
 import { SchemaParser } from './core/SchemaParser';
 import { FormField } from './layout/FormField';
@@ -43,6 +43,7 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
   className,
   style,
   pathPrefix = '',
+  asNestedForm = false,
 }) => {
   // 使用稳定的空对象引用，避免每次渲染创建新对象导致 useEffect 重复触发
   const stableLinkageFunctions = linkageFunctions || EMPTY_LINKAGE_FUNCTIONS;
@@ -53,12 +54,22 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
   const useFlattenPath = useMemo(() => SchemaParser.hasFlattenPath(schema), [schema]);
 
   // 设置自定义格式验证器并解析字段
+  // 当 asNestedForm 为 true 时，需要为字段名添加 pathPrefix 前缀
   const fields = useMemo(() => {
     if (stableCustomFormats && Object.keys(stableCustomFormats).length > 0) {
       SchemaParser.setCustomFormats(stableCustomFormats);
     }
-    return SchemaParser.parse(schema);
-  }, [schema, stableCustomFormats]);
+    const parsedFields = SchemaParser.parse(schema);
+
+    // 如果是嵌套表单模式且有路径前缀，为字段名添加前缀
+    if (asNestedForm && pathPrefix) {
+      return parsedFields.map(field => ({
+        ...field,
+        name: `${pathPrefix}.${field.name}`,
+      }));
+    }
+    return parsedFields;
+  }, [schema, stableCustomFormats, asNestedForm, pathPrefix]);
 
   // 处理 defaultValues：包装基本类型数组 + 路径扁平化
   const processedDefaultValues = useMemo(() => {
@@ -72,10 +83,19 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
     return PathTransformer.nestedToFlat(wrappedData);
   }, [defaultValues, useFlattenPath, schema]);
 
-  const methods = useForm({
+  // 尝试获取父表单的 FormContext（用于嵌套表单模式）
+  // 注意：useFormContext 在没有 FormProvider 时返回 null（react-hook-form 7.x）
+  const parentFormContext = useFormContext();
+
+  // 只有非嵌套表单模式才创建新的 useForm 实例
+  const ownMethods = useForm({
     defaultValues: processedDefaultValues,
     mode: validateMode,
   });
+
+  // 根据模式选择使用哪个 form methods
+  // 嵌套表单模式下复用父表单的 FormContext，否则使用自己的
+  const methods = asNestedForm && parentFormContext ? parentFormContext : ownMethods;
 
   // 解析 schema 中的联动配置
   const { linkages } = useMemo(() => parseSchemaLinkages(schema), [schema]);
@@ -87,7 +107,11 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
     linkageFunctions: stableLinkageFunctions,
   });
 
-  const { handleSubmit, watch, formState: { errors } } = methods;
+  const {
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = methods;
 
   // 获取嵌套 schema 注册表（可选，因为可能不在 Provider 内部）
   const nestedSchemaRegistry = useNestedSchemaRegistryOptional();
@@ -167,25 +191,34 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
 
   const formClassName = `dynamic-form dynamic-form--${layout} ${className || ''}`;
 
-  return (
-    <FormProvider {...methods}>
-      <PathPrefixProvider prefix={pathPrefix}>
-        {renderAsForm ? (
-          <form onSubmit={handleSubmit(onSubmitHandler)} className={formClassName} style={style}>
-            {showErrorList && Object.keys(errors).length > 0 && <ErrorList errors={errors} />}
-            {renderFields()}
-            {renderSubmitButton()}
-          </form>
-        ) : (
-          <div className={formClassName} style={style}>
-            {showErrorList && Object.keys(errors).length > 0 && <ErrorList errors={errors} />}
-            {renderFields()}
-            {renderSubmitButton()}
-          </div>
-        )}
-      </PathPrefixProvider>
-    </FormProvider>
+  // 渲染表单内容（不包含 FormProvider）
+  // 注意：在 asNestedForm 模式下，字段名已经通过 pathPrefix 参数添加了前缀，
+  // 所以不应该再通过 PathPrefixProvider 提供前缀，否则会导致路径重复
+  const renderFormContent = () => (
+    <PathPrefixProvider prefix={asNestedForm ? '' : pathPrefix}>
+      {renderAsForm ? (
+        <form onSubmit={handleSubmit(onSubmitHandler)} className={formClassName} style={style}>
+          {showErrorList && Object.keys(errors).length > 0 && <ErrorList errors={errors} />}
+          {renderFields()}
+          {renderSubmitButton()}
+        </form>
+      ) : (
+        <div className={formClassName} style={style}>
+          {showErrorList && Object.keys(errors).length > 0 && <ErrorList errors={errors} />}
+          {renderFields()}
+          {renderSubmitButton()}
+        </div>
+      )}
+    </PathPrefixProvider>
   );
+
+  // 嵌套表单模式下不需要再包裹 FormProvider，因为已经复用了父表单的 context
+  if (asNestedForm && parentFormContext) {
+    return renderFormContent();
+  }
+
+  // 非嵌套表单模式，需要提供 FormProvider
+  return <FormProvider {...methods}>{renderFormContent()}</FormProvider>;
 };
 
 // 外层组件：提供 NestedSchemaProvider

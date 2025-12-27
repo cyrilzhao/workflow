@@ -49,6 +49,12 @@ export function wrapPrimitiveArrays(data: any, schema: ExtendedJSONSchema): any 
   // 处理数组
   if (schema.type === 'array' && schema.items) {
     const itemsSchema = schema.items as ExtendedJSONSchema;
+
+    // 确保 data 是数组
+    if (!Array.isArray(data)) {
+      return data;
+    }
+
     const arrayData = data as any[];
 
     // 如果是基本类型数组，包装成对象数组
@@ -58,6 +64,11 @@ export function wrapPrimitiveArrays(data: any, schema: ExtendedJSONSchema): any 
 
     // 如果是对象数组，递归处理每个元素
     if (itemsSchema.type === 'object') {
+      return arrayData.map(item => wrapPrimitiveArrays(item, itemsSchema));
+    }
+
+    // 如果是嵌套数组（数组的数组），递归处理
+    if (itemsSchema.type === 'array') {
       return arrayData.map(item => wrapPrimitiveArrays(item, itemsSchema));
     }
 
@@ -90,6 +101,12 @@ export function unwrapPrimitiveArrays(data: any, schema: ExtendedJSONSchema): an
   // 处理数组
   if (schema.type === 'array' && schema.items) {
     const itemsSchema = schema.items as ExtendedJSONSchema;
+
+    // 确保 data 是数组
+    if (!Array.isArray(data)) {
+      return data;
+    }
+
     const arrayData = data as any[];
 
     // 如果是基本类型数组，解包回基本类型
@@ -99,6 +116,11 @@ export function unwrapPrimitiveArrays(data: any, schema: ExtendedJSONSchema): an
 
     // 如果是对象数组，递归处理每个元素
     if (itemsSchema.type === 'object') {
+      return arrayData.map(item => unwrapPrimitiveArrays(item, itemsSchema));
+    }
+
+    // 如果是嵌套数组（数组的数组），递归处理
+    if (itemsSchema.type === 'array') {
       return arrayData.map(item => unwrapPrimitiveArrays(item, itemsSchema));
     }
 

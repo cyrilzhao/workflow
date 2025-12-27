@@ -1,13 +1,12 @@
-import React, { forwardRef, useState, useEffect, useRef, useMemo } from 'react';
-import { useFormContext, Controller } from 'react-hook-form';
+import React, { forwardRef, useState, useEffect, useRef } from 'react';
+import { useFormContext } from 'react-hook-form';
 import { Card } from '@blueprintjs/core';
 import { DynamicForm } from '../DynamicForm';
 import type { FieldWidgetProps } from '../types';
-import type { ExtendedJSONSchema, ValidationRules } from '@/types/schema';
+import type { ExtendedJSONSchema } from '@/types/schema';
 import { PathResolver } from '@/utils/pathResolver';
 import { useNestedSchemaRegistry } from '../context/NestedSchemaContext';
 import { usePathPrefix, joinPath, removePrefix } from '../context/PathPrefixContext';
-import { SchemaParser } from '../core/SchemaParser';
 
 export interface NestedFormWidgetProps extends FieldWidgetProps {
   // 当前字段的 schema（包含 properties）
@@ -41,9 +40,9 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
   ({ name, value = {}, schema, disabled, readonly, layout, labelWidth }, ref) => {
     const [currentSchema, setCurrentSchema] = useState(schema);
     const [loading, setLoading] = useState(false);
-    // 保存外层表单的 context，避免被内部嵌套表单覆盖
+    // 保存外层表单的 context
     const parentFormContext = useFormContext();
-    const { control, watch, getValues, setValue } = parentFormContext;
+    const { watch, getValues } = parentFormContext;
 
     // 获取父级路径前缀
     const parentPathPrefix = usePathPrefix();
@@ -205,33 +204,26 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
     }
 
     return (
-      <Controller
-        name={name}
-        control={control}
-        render={({ field }) => (
-          <Card
-            ref={ref}
-            className="nested-form-widget"
-            data-name={name}
-            elevation={1}
-            style={{ padding: '15px' }}
-          >
-            <DynamicForm
-              schema={currentSchema}
-              defaultValues={field.value || {}}
-              onChange={field.onChange}
-              disabled={disabled}
-              readonly={readonly}
-              layout={layout}
-              labelWidth={labelWidth}
-              showSubmitButton={false}
-              renderAsForm={false}
-              onSubmit={() => {}}
-              pathPrefix={fullPath}
-            />
-          </Card>
-        )}
-      />
+      <Card
+        ref={ref}
+        className="nested-form-widget"
+        data-name={name}
+        elevation={1}
+        style={{ padding: '15px' }}
+      >
+        <DynamicForm
+          schema={currentSchema}
+          disabled={disabled}
+          readonly={readonly}
+          layout={layout}
+          labelWidth={labelWidth}
+          showSubmitButton={false}
+          renderAsForm={false}
+          onSubmit={() => {}}
+          pathPrefix={fullPath}
+          asNestedForm={true}
+        />
+      </Card>
     );
   }
 );

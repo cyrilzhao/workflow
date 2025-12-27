@@ -159,7 +159,6 @@ function getDefaultValue(itemsSchema: ExtendedJSONSchema): any {
 export const ArrayFieldWidget = forwardRef<HTMLDivElement, ArrayFieldWidgetProps>(
   ({ name, schema, disabled, readonly, layout, labelWidth }, ref) => {
     const { control, formState } = useFormContext();
-    console.info('cyril formState: ', formState);
     const { fields, append, remove, move } = useFieldArray({
       control,
       name,
@@ -393,21 +392,15 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
           )}
         </div>
 
-        <Controller
+        {/* 直接渲染 NestedFormWidget，不再使用 Controller 包裹 */}
+        {/* NestedFormWidget 内部使用 asNestedForm 模式，子字段会直接注册到父表单 */}
+        <WidgetComponent
           name={name}
-          control={control}
-          render={({ field: controllerField }) => (
-            <WidgetComponent
-              name={name}
-              schema={schema}
-              value={controllerField.value}
-              onChange={controllerField.onChange}
-              disabled={disabled}
-              readonly={readonly}
-              layout={layout}
-              labelWidth={labelWidth}
-            />
-          )}
+          schema={schema}
+          disabled={disabled}
+          readonly={readonly}
+          layout={layout}
+          labelWidth={labelWidth}
         />
       </Card>
     );

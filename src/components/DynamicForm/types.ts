@@ -26,6 +26,12 @@ export interface DynamicFormProps {
   disabled?: boolean;
   readonly?: boolean;
   pathPrefix?: string; // 嵌套表单的路径前缀，用于拼接完整字段路径
+  /**
+   * 是否作为嵌套表单运行
+   * - true: 复用父表单的 FormContext，不创建新的 useForm，字段直接注册到父表单
+   * - false: 创建独立的 useForm 实例（默认）
+   */
+  asNestedForm?: boolean;
 }
 
 /**
