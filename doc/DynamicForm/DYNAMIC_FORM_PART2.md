@@ -231,47 +231,127 @@
 
 #### 5.3.1 通用 UI 属性
 
+UI 配置通过 `ui` 字段扩展，支持以下属性：
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `widget` | `string` | 组件类型（text、select、radio 等） |
+| `placeholder` | `string` | 占位符文本 |
+| `disabled` | `boolean` | 是否禁用 |
+| `readonly` | `boolean` | 是否只读 |
+| `hidden` | `boolean` | 是否隐藏 |
+| `help` | `string` | 帮助文本 |
+| `className` | `string` | CSS 类名 |
+| `style` | `React.CSSProperties` | 内联样式 |
+| `order` | `string[]` | 字段顺序 |
+| `errorMessages` | `ErrorMessages` | 自定义错误信息 |
+| `linkage` | `LinkageConfig` | UI 联动配置（详见 [UI_LINKAGE_DESIGN.md](./UI_LINKAGE_DESIGN.md)） |
+| `layout` | `'vertical' \| 'horizontal' \| 'inline'` | 布局方式（优先级高于全局配置，层级越深优先级越高） |
+| `labelWidth` | `number \| string` | 标签宽度（仅在 horizontal layout 下生效） |
+| `flattenPath` | `boolean` | 路径透明化：是否跳过该对象层级（详见 [FIELD_PATH_FLATTENING.md](./FIELD_PATH_FLATTENING.md)） |
+| `flattenPrefix` | `boolean` | 路径透明化：是否添加当前字段 title 作为前缀 |
+| `schemaKey` | `string` | 动态嵌套表单：依赖字段（详见 [NESTED_FORM.md](./NESTED_FORM.md)） |
+| `schemas` | `Record<string, {...}>` | 动态嵌套表单：多个子表单 schema 片段 |
+| `schemaLoader` | `Function` | 动态嵌套表单：异步加载 schema |
+
+> **完整类型定义**：详见 [PART3 - 组件架构设计](./DYNAMIC_FORM_PART3.md#核心类型定义)
+
+**ErrorMessages 错误信息配置**：
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `required` | `string` | 必填错误信息 |
+| `minLength` | `string` | 最小长度错误信息 |
+| `maxLength` | `string` | 最大长度错误信息 |
+| `min` | `string` | 最小值错误信息 |
+| `max` | `string` | 最大值错误信息 |
+| `pattern` | `string` | 格式错误信息 |
+
+#### 5.3.2 布局方式配置 (layout)
+
+`layout` 用于控制表单字段的布局方式，支持层级继承。
+
+**配置方式**：
+
+1. **全局配置**（通过 DynamicForm 组件属性）：
 ```typescript
-interface UIConfig {
-  widget?: string; // 组件类型
-  placeholder?: string; // 占位符
-  disabled?: boolean; // 是否禁用
-  readonly?: boolean; // 是否只读
-  hidden?: boolean; // 是否隐藏
-  help?: string; // 帮助文本
-  className?: string; // CSS 类名
-  style?: React.CSSProperties; // 内联样式
-  order?: string[]; // 字段顺序
-  errorMessages?: ErrorMessages; // 自定义错误信息
-  linkage?: LinkageConfig; // UI 联动配置（详见 UI_LINKAGE_DESIGN.md）
+<DynamicForm
+  schema={schema}
+  layout="horizontal"  // 全局默认布局
+/>
+```
 
-  // 路径透明化配置（详见 FIELD_PATH_FLATTENING.md）
-  flattenPath?: boolean; // 是否跳过该对象层级
-  flattenPrefix?: boolean; // 是否添加当前字段 title 作为前缀
-
-  // 动态嵌套表单配置（详见 NESTED_FORM.md）
-  schemaKey?: string; // 动态 schema 的依赖字段
-  schemas?: Record<string, { properties?; required?[] }>; // 多个子表单 schema 片段
-  schemaLoader?: (value: any) => Promise<ExtendedJSONSchema>; // 异步加载 schema
-
-  [key: string]: any; // 其他自定义属性
-}
-
-/**
- * 错误信息配置
- */
-interface ErrorMessages {
-  required?: string; // 必填错误信息
-  minLength?: string; // 最小长度错误信息
-  maxLength?: string; // 最大长度错误信息
-  min?: string; // 最小值错误信息
-  max?: string; // 最大值错误信息
-  pattern?: string; // 格式错误信息
-  [key: string]: string; // 其他自定义错误信息
+2. **字段级配置**（通过 ui.layout）：
+```json
+{
+  "type": "object",
+  "ui": {
+    "layout": "horizontal"
+  },
+  "properties": {
+    "username": {
+      "type": "string",
+      "title": "用户名"
+    }
+  }
 }
 ```
 
-#### 5.3.2 字段级 UI 配置
+**优先级规则**：层级越深优先级越高
+- 当前字段的 `ui.layout`（最高优先级）
+- 父级字段的 `ui.layout`
+- 全局 `DynamicFormProps.layout`（最低优先级）
+
+**支持的值**：
+- `vertical`：垂直布局（标签在上，输入框在下）
+- `horizontal`：水平布局（标签在左，输入框在右）
+- `inline`：内联布局
+
+#### 5.3.3 标签宽度配置 (labelWidth)
+
+`labelWidth` 用于控制表单标签的宽度，仅在 `layout="horizontal"` 时生效。
+
+**配置方式**：
+
+1. **全局配置**（通过 DynamicForm 组件属性）：
+```typescript
+<DynamicForm
+  schema={schema}
+  layout="horizontal"
+  labelWidth={120}  // 全局默认标签宽度
+/>
+```
+
+2. **字段级配置**（通过 ui.labelWidth）：
+```json
+{
+  "type": "object",
+  "properties": {
+    "username": {
+      "type": "string",
+      "title": "用户名",
+      "ui": {
+        "labelWidth": 100
+      }
+    },
+    "email": {
+      "type": "string",
+      "title": "电子邮箱地址",
+      "ui": {
+        "labelWidth": 150
+      }
+    }
+  }
+}
+```
+
+**优先级**：字段级 `ui.labelWidth` > 全局 `labelWidth`
+
+**支持的值类型**：
+- 数字：如 `120`（表示 120px）
+- 字符串：如 `"120px"`、`"10rem"`、`"20%"`
+
+#### 5.3.4 字段级 UI 配置
 
 ```json
 {
@@ -290,7 +370,7 @@ interface ErrorMessages {
 }
 ```
 
-#### 5.3.3 自定义错误信息
+#### 5.3.5 自定义错误信息
 
 ```json
 {
@@ -329,7 +409,7 @@ interface ErrorMessages {
 }
 ```
 
-#### 5.3.3 支持的 Widget 类型
+#### 5.3.5 支持的 Widget 类型
 
 | Widget 类型    | 适用字段类型   | 说明                                       |
 | -------------- | -------------- | ------------------------------------------ |
@@ -355,7 +435,7 @@ interface ErrorMessages {
 > **注意**：
 > - `nested-form` widget 用于渲染嵌套对象，支持静态和动态 schema
 
-#### 5.3.4 字段路径透明化（Field Path Flattening）
+#### 5.3.6 字段路径透明化（Field Path Flattening）
 
 > **详细文档**：完整的设计和实现请参考 [字段路径透明化设计文档](./FIELD_PATH_FLATTENING.md)
 

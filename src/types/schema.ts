@@ -55,6 +55,12 @@ export interface UIConfig {
   order?: string[];
   errorMessages?: ErrorMessages;
   linkage?: LinkageConfig;
+  labelWidth?: number | string; // 标签宽度（仅在 horizontal layout 下生效）
+  layout?: 'vertical' | 'horizontal' | 'inline'; // 布局方式（优先级高于全局配置）
+
+  // 字段透明化渲染配置
+  flattenPath?: boolean; // 是否将嵌套对象的子字段提升到当前层级渲染
+  flattenPrefix?: boolean; // 是否在字段标签前添加父级标题作为前缀
 
   // 嵌套表单配置（用于动态场景）
   schemaKey?: string; // 动态 schema 的依赖字段

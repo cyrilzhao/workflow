@@ -31,6 +31,7 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
   linkageFunctions,
   customFormats,
   layout = 'vertical',
+  labelWidth,
   showErrorList = false,
   showSubmitButton = true,
   renderAsForm = true,
@@ -130,6 +131,8 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
             readonly={readonly || field.readonly || linkageState?.readonly}
             widgets={stableWidgets}
             linkageState={linkageState}
+            layout={layout}
+            labelWidth={labelWidth}
           />
         );
       })}

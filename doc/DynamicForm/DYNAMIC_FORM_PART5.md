@@ -140,7 +140,101 @@ const complexSchema = {
 };
 ```
 
-#### 8.2.3 条件显示字段
+#### 8.2.3 布局方式与层级继承
+
+```typescript
+// 全局配置布局方式
+const layoutExample = () => {
+  return (
+    <DynamicForm
+      schema={schema}
+      layout="vertical"  // 全局默认垂直布局
+      onSubmit={handleSubmit}
+    />
+  );
+};
+
+// 字段级配置布局方式（层级继承）
+const nestedLayoutSchema = {
+  type: 'object',
+  ui: {
+    layout: 'horizontal'  // 该对象下的字段使用水平布局
+  },
+  properties: {
+    username: {
+      type: 'string',
+      title: '用户名'
+      // 继承父级的 horizontal 布局
+    },
+    address: {
+      type: 'object',
+      title: '地址信息',
+      ui: {
+        layout: 'vertical'  // 覆盖父级，该对象下的字段使用垂直布局
+      },
+      properties: {
+        city: {
+          type: 'string',
+          title: '城市'
+          // 继承 address 的 vertical 布局
+        },
+        street: {
+          type: 'string',
+          title: '街道'
+          // 继承 address 的 vertical 布局
+        }
+      }
+    }
+  }
+};
+```
+
+#### 8.2.4 水平布局与标签宽度
+
+```typescript
+// 全局配置标签宽度
+const horizontalFormExample = () => {
+  return (
+    <DynamicForm
+      schema={schema}
+      layout="horizontal"
+      labelWidth={120}  // 全局标签宽度 120px
+      onSubmit={handleSubmit}
+    />
+  );
+};
+
+// 字段级配置标签宽度
+const customLabelWidthSchema = {
+  type: 'object',
+  properties: {
+    username: {
+      type: 'string',
+      title: '用户名',
+      ui: {
+        labelWidth: 100  // 该字段标签宽度 100px
+      }
+    },
+    email: {
+      type: 'string',
+      title: '电子邮箱地址',
+      ui: {
+        labelWidth: 150  // 该字段标签宽度 150px
+      }
+    },
+    description: {
+      type: 'string',
+      title: '描述',
+      ui: {
+        widget: 'textarea'
+        // 不设置 labelWidth，使用全局配置
+      }
+    }
+  }
+};
+```
+
+#### 8.2.4 条件显示字段
 
 ```typescript
 const conditionalSchema = {

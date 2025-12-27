@@ -32,10 +32,12 @@ export interface NestedFormWidgetProps extends FieldWidgetProps {
   // 其他配置
   disabled?: boolean;
   readonly?: boolean;
+  layout?: 'vertical' | 'horizontal' | 'inline';  // 布局方式
+  labelWidth?: number | string;  // 标签宽度
 }
 
 export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps>(
-  ({ name, value = {}, schema, disabled, readonly }, ref) => {
+  ({ name, value = {}, schema, disabled, readonly, layout, labelWidth }, ref) => {
     const [currentSchema, setCurrentSchema] = useState(schema);
     const [loading, setLoading] = useState(false);
     // 保存外层表单的 context，避免被内部嵌套表单覆盖
@@ -219,6 +221,8 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
               onChange={field.onChange}
               disabled={disabled}
               readonly={readonly}
+              layout={layout}
+              labelWidth={labelWidth}
               showSubmitButton={false}
               renderAsForm={false}
               onSubmit={() => {}}

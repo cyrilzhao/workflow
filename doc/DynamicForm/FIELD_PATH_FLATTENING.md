@@ -835,6 +835,108 @@ const schema = {
 
 **说明**：当 `enableAuth` 为 `true` 时，显示 `认证 - 用户名` 和 `认证 - 密码` 字段。
 
+### 8.3 与布局配置（layout 和 labelWidth）配合
+
+**重要特性**：当使用路径透明化时，父级对象的 `layout` 和 `labelWidth` 配置会自动继承到被扁平化的子字段上。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "address": {
+      "type": "object",
+      "title": "地址信息",
+      "ui": {
+        "flattenPath": true,
+        "flattenPrefix": true,
+        "layout": "horizontal",
+        "labelWidth": 120
+      },
+      "properties": {
+        "details": {
+          "type": "object",
+          "ui": {
+            "flattenPath": true
+          },
+          "properties": {
+            "province": {
+              "type": "string",
+              "title": "省份"
+            },
+            "city": {
+              "type": "string",
+              "title": "城市"
+            },
+            "street": {
+              "type": "string",
+              "title": "街道",
+              "ui": {
+                "labelWidth": 80  // 子字段可以覆盖继承的配置
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**渲染效果**：
+- `地址信息 - 省份`：使用 horizontal 布局，标签宽度 120px
+- `地址信息 - 城市`：使用 horizontal 布局，标签宽度 120px
+- `地址信息 - 街道`：使用 horizontal 布局，标签宽度 80px（覆盖了父级的 120px）
+
+**配置继承规则**：
+1. 设置了 `flattenPath: true` 的对象字段的 `layout` 和 `labelWidth` 配置会传递给其子字段
+2. 多层嵌套时，配置会逐层传递和合并
+3. 子字段可以通过自己的 `ui.layout` 或 `ui.labelWidth` 覆盖继承的配置
+4. 优先级：子字段配置 > 父级配置 > 全局配置
+
+**实现原理**：
+
+SchemaParser 在解析时会将父级的 UI 配置传递给子字段：
+
+```typescript
+// 当检测到 flattenPath: true 时
+if (fieldSchema.type === 'object' && fieldSchema.ui?.flattenPath) {
+  // 准备要继承的 UI 配置
+  const inheritedUI = {
+    layout: fieldSchema.ui.layout ?? parentInheritedUI?.layout,
+    labelWidth: fieldSchema.ui.labelWidth ?? parentInheritedUI?.labelWidth,
+  };
+
+  // 递归解析子字段，传递 UI 配置
+  const nestedFields = this.parse(fieldSchema, {
+    parentPath: currentPath,
+    prefixLabel: newPrefixLabel,
+    inheritedUI,
+  });
+}
+```
+
+在 `parseField` 方法中，继承的配置会合并到字段的 schema 中：
+
+```typescript
+// 如果有继承的 UI 配置，合并到 schema 中
+if (inheritedUI && (inheritedUI.layout || inheritedUI.labelWidth)) {
+  finalSchema = {
+    ...schema,
+    ui: {
+      ...ui,
+      // 只有当字段自己没有配置时，才使用继承的配置
+      layout: ui.layout ?? inheritedUI.layout,
+      labelWidth: ui.labelWidth ?? inheritedUI.labelWidth,
+    },
+  };
+}
+```
+
+**使用场景**：
+- 需要对一组扁平化的字段统一设置布局样式
+- 避免在每个子字段上重复配置相同的 layout 和 labelWidth
+- 保持代码简洁，同时保留子字段覆盖配置的灵活性
+
 ---
 
 ## 9. 最佳实践

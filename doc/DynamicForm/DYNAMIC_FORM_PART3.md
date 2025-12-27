@@ -40,16 +40,25 @@ export interface UIConfig {
   style?: React.CSSProperties;
   order?: string[];
   errorMessages?: ErrorMessages;
-  linkage?: LinkageConfig;  // UI 联动配置（详见 UI_LINKAGE_DESIGN.md）
+  linkage?: LinkageConfig; // UI 联动配置（详见 UI_LINKAGE_DESIGN.md）
+  labelWidth?: number | string; // 标签宽度（仅在 horizontal layout 下生效）
+  layout?: 'vertical' | 'horizontal' | 'inline'; // 布局方式（优先级高于全局配置）
 
   // 路径透明化配置（详见 FIELD_PATH_FLATTENING.md）
-  flattenPath?: boolean;  // 是否跳过该对象层级
-  flattenPrefix?: boolean;  // 是否添加当前字段 title 作为前缀
+  flattenPath?: boolean; // 是否跳过该对象层级
+  flattenPrefix?: boolean; // 是否添加当前字段 title 作为前缀
 
   // 动态嵌套表单配置（详见 NESTED_FORM.md）
-  schemaKey?: string;  // 动态 schema 的依赖字段
-  schemas?: Record<string, { properties?; required?[] }>;  // 多个子表单 schema 片段
-  schemaLoader?: (value: any) => Promise<ExtendedJSONSchema>;  // 异步加载 schema
+  schemaKey?: string; // 动态 schema 的依赖字段
+  schemas?: Record<
+    string,
+    {
+      // 多个子表单 schema 片段
+      properties?: Record<string, ExtendedJSONSchema>;
+      required?: string[];
+    }
+  >;
+  schemaLoader?: (value: any) => Promise<ExtendedJSONSchema>; // 异步加载 schema
 
   [key: string]: any; // 支持其他自定义属性
 }
@@ -100,7 +109,7 @@ export type WidgetType =
   | 'range'
   | 'color'
   | 'file'
-  | 'nested-form';  // 嵌套表单组件
+  | 'nested-form'; // 嵌套表单组件
 
 /**
  * 字段配置
@@ -119,8 +128,8 @@ export interface FieldConfig {
   hidden?: boolean;
   validation?: ValidationRules;
   options?: FieldOption[];
-  dependencies?: any;  // JSON Schema dependencies（保留原始格式）
-  schema?: ExtendedJSONSchema;  // 用于嵌套表单
+  dependencies?: any; // JSON Schema dependencies（保留原始格式）
+  schema?: ExtendedJSONSchema; // 用于嵌套表单
 }
 
 /**
@@ -168,13 +177,14 @@ export interface DynamicFormProps {
 
   // 自定义配置
   widgets?: Record<string, React.ComponentType<any>>;
-  linkageFunctions?: Record<string, LinkageFunction>;  // 联动函数（详见 UI_LINKAGE_DESIGN.md）
-  customFormats?: Record<string, (value: string) => boolean>;  // 自定义格式验证器
+  linkageFunctions?: Record<string, LinkageFunction>; // 联动函数（详见 UI_LINKAGE_DESIGN.md）
+  customFormats?: Record<string, (value: string) => boolean>; // 自定义格式验证器
 
   // UI 配置
   layout?: 'vertical' | 'horizontal' | 'inline';
-  showSubmitButton?: boolean;  // 是否显示提交按钮
-  renderAsForm?: boolean;  // 是否渲染为 <form> 标签（默认 true）
+  labelWidth?: number | string; // 全局标签宽度（仅 horizontal layout 下生效）
+  showSubmitButton?: boolean; // 是否显示提交按钮
+  renderAsForm?: boolean; // 是否渲染为 <form> 标签（默认 true）
 
   // 表单行为
   validateMode?: 'onSubmit' | 'onBlur' | 'onChange' | 'all';
@@ -187,7 +197,7 @@ export interface DynamicFormProps {
   loading?: boolean;
   disabled?: boolean;
   readonly?: boolean;
-  pathPrefix?: string;  // 路径前缀（用于嵌套表单）
+  pathPrefix?: string; // 路径前缀（用于嵌套表单）
 }
 
 /**
@@ -273,6 +283,18 @@ src/
 
 import { ExtendedJSONSchema, FieldConfig } from '@/types/schema';
 
+/**
+ * Schema 解析配置
+ */
+interface ParseOptions {
+  parentPath?: string;
+  prefixLabel?: string;
+  inheritedUI?: {
+    layout?: 'vertical' | 'horizontal' | 'inline';
+    labelWidth?: number | string;
+  };
+}
+
 export class SchemaParser {
   /**
    * 设置自定义格式验证器
@@ -289,13 +311,10 @@ export class SchemaParser {
   }
 
   /**
-   * 解析 Schema 生成字段配置（支持路径扁平化）
+   * 解析 Schema 生成字段配置（支持路径扁平化和 UI 配置继承）
    */
-  static parse(
-    schema: ExtendedJSONSchema,
-    parentPath: string = '',
-    prefixLabel: string = ''
-  ): FieldConfig[] {
+  static parse(schema: ExtendedJSONSchema, options: ParseOptions = {}): FieldConfig[] {
+    const { parentPath = '', prefixLabel = '', inheritedUI } = options;
     const fields: FieldConfig[] = [];
 
     if (schema.type !== 'object' || !schema.properties) {
@@ -320,8 +339,18 @@ export class SchemaParser {
           ? (prefixLabel ? `${prefixLabel} - ${fieldSchema.title}` : fieldSchema.title)
           : prefixLabel;
 
-        // 递归解析子字段，跳过当前层级
-        const nestedFields = this.parse(fieldSchema, currentPath, newPrefixLabel);
+        // 准备要继承的 UI 配置（父级配置 + 当前层级配置）
+        const newInheritedUI = {
+          layout: fieldSchema.ui.layout ?? inheritedUI?.layout,
+          labelWidth: fieldSchema.ui.labelWidth ?? inheritedUI?.labelWidth,
+        };
+
+        // 递归解析子字段，跳过当前层级，但传递 UI 配置
+        const nestedFields = this.parse(fieldSchema, {
+          parentPath: currentPath,
+          prefixLabel: newPrefixLabel,
+          inheritedUI: newInheritedUI,
+        });
         fields.push(...nestedFields);
       } else {
         // 正常解析字段
@@ -329,7 +358,8 @@ export class SchemaParser {
           currentPath,
           fieldSchema,
           required.includes(key),
-          prefixLabel
+          prefixLabel,
+          inheritedUI
         );
 
         if (!fieldConfig.hidden) {
@@ -342,23 +372,36 @@ export class SchemaParser {
   }
 
   /**
-   * 解析单个字段（支持嵌套路径和标签前缀）
+   * 解析单个字段（支持嵌套路径、标签前缀和 UI 配置继承）
    */
   private static parseField(
     path: string,
     schema: ExtendedJSONSchema,
     required: boolean,
-    prefixLabel: string = ''
+    prefixLabel: string = '',
+    inheritedUI?: ParseOptions['inheritedUI']
   ): FieldConfig {
     const ui = schema.ui || {};
 
     // 如果有前缀标签，添加到字段标签前
-    const label = prefixLabel && schema.title
-      ? `${prefixLabel} - ${schema.title}`
-      : schema.title;
+    const label = prefixLabel && schema.title ? `${prefixLabel} - ${schema.title}` : schema.title;
+
+    // 如果有继承的 UI 配置，需要合并到 schema 中
+    let finalSchema = schema;
+    if (inheritedUI && (inheritedUI.layout || inheritedUI.labelWidth)) {
+      finalSchema = {
+        ...schema,
+        ui: {
+          ...ui,
+          // 只有当字段自己没有配置时，才使用继承的配置
+          layout: ui.layout ?? inheritedUI.layout,
+          labelWidth: ui.labelWidth ?? inheritedUI.labelWidth,
+        },
+      };
+    }
 
     return {
-      name: path,  // 使用完整路径作为字段名
+      name: path, // 使用完整路径作为字段名
       type: schema.type as string,
       widget: this.getWidget(schema),
       label,
@@ -371,7 +414,7 @@ export class SchemaParser {
       hidden: ui.hidden,
       validation: this.getValidationRules(schema, required),
       options: this.getOptions(schema),
-      schema: schema.type === 'object' ? schema : undefined,
+      schema: finalSchema, // 保留完整的 schema（包含 ui 配置和继承的配置）
     };
   }
 
@@ -413,7 +456,7 @@ export class SchemaParser {
     }
 
     if (type === 'object') {
-      return 'nested-form';  // 嵌套表单组件
+      return 'nested-form'; // 嵌套表单组件
     }
 
     return 'text';
@@ -517,16 +560,18 @@ export interface FieldConfig {
   hidden?: boolean;
   validation?: ValidationRules;
   options?: FieldOption[];
-  dependencies?: any;  // JSON Schema dependencies（保留原始格式）
-  schema?: ExtendedJSONSchema;  // 用于嵌套表单
+  dependencies?: any; // JSON Schema dependencies（保留原始格式）
+  schema?: ExtendedJSONSchema; // 保留完整的 schema（包含 ui 配置），用于嵌套表单和布局配置
 }
 ```
 
 > **注意**：
+>
+> - `schema` 字段保留了完整的 ExtendedJSONSchema，包括 `ui` 配置（如 layout、labelWidth 等）
+> - 这使得 FormField 组件可以访问字段级别的布局配置，实现布局优先级覆盖
 > - UI 联动配置（如 linkage）在 schema 的 `ui` 字段中定义，不在 FieldConfig 中
 > - JSON Schema 的条件验证（if/then/else、allOf/anyOf/oneOf）由 react-hook-form 和 JSON Schema 验证器处理
 > - 完整的 UI 联动设计和实现请参考：[UI 联动设计文档](./UI_LINKAGE_DESIGN.md)
-
 
 ---
 

@@ -6,6 +6,18 @@ import type {
   FieldOption,
 } from '@/types/schema';
 
+/**
+ * Schema 解析配置
+ */
+interface ParseOptions {
+  parentPath?: string;
+  prefixLabel?: string;
+  inheritedUI?: {
+    layout?: 'vertical' | 'horizontal' | 'inline';
+    labelWidth?: number | string;
+  };
+}
+
 export class SchemaParser {
   private static customFormats: Record<string, (value: string) => boolean> = {};
 
@@ -49,11 +61,8 @@ export class SchemaParser {
   /**
    * 解析 Schema 生成字段配置（支持路径扁平化）
    */
-  static parse(
-    schema: ExtendedJSONSchema,
-    parentPath: string = '',
-    prefixLabel: string = ''
-  ): FieldConfig[] {
+  static parse(schema: ExtendedJSONSchema, options: ParseOptions = {}): FieldConfig[] {
+    const { parentPath = '', prefixLabel = '', inheritedUI } = options;
     const fields: FieldConfig[] = [];
 
     if (schema.type !== 'object' || !schema.properties) {
@@ -78,8 +87,18 @@ export class SchemaParser {
           ? (prefixLabel ? `${prefixLabel} - ${fieldSchema.title}` : fieldSchema.title)
           : prefixLabel;
 
-        // 递归解析子字段，跳过当前层级
-        const nestedFields = this.parse(fieldSchema, currentPath, newPrefixLabel);
+        // 准备要继承的 UI 配置（父级配置 + 当前层级配置）
+        const newInheritedUI = {
+          layout: fieldSchema.ui.layout ?? inheritedUI?.layout,
+          labelWidth: fieldSchema.ui.labelWidth ?? inheritedUI?.labelWidth,
+        };
+
+        // 递归解析子字段，跳过当前层级，但传递 UI 配置
+        const nestedFields = this.parse(fieldSchema, {
+          parentPath: currentPath,
+          prefixLabel: newPrefixLabel,
+          inheritedUI: newInheritedUI,
+        });
         fields.push(...nestedFields);
       } else {
         // 正常解析字段
@@ -87,7 +106,8 @@ export class SchemaParser {
           currentPath,
           fieldSchema,
           required.includes(key),
-          prefixLabel
+          prefixLabel,
+          inheritedUI
         );
 
         if (!fieldConfig.hidden) {
@@ -106,7 +126,8 @@ export class SchemaParser {
     path: string,
     schema: ExtendedJSONSchema,
     required: boolean,
-    prefixLabel: string = ''
+    prefixLabel: string = '',
+    inheritedUI?: ParseOptions['inheritedUI']
   ): FieldConfig {
     const ui = schema.ui || {};
 
@@ -114,6 +135,20 @@ export class SchemaParser {
     const label = prefixLabel && schema.title
       ? `${prefixLabel} - ${schema.title}`
       : schema.title;
+
+    // 如果有继承的 UI 配置，需要合并到 schema 中
+    let finalSchema = schema;
+    if (inheritedUI && (inheritedUI.layout || inheritedUI.labelWidth)) {
+      finalSchema = {
+        ...schema,
+        ui: {
+          ...ui,
+          // 只有当字段自己没有配置时，才使用继承的配置
+          layout: ui.layout ?? inheritedUI.layout,
+          labelWidth: ui.labelWidth ?? inheritedUI.labelWidth,
+        },
+      };
+    }
 
     return {
       name: path,  // 使用完整路径作为字段名
@@ -129,7 +164,7 @@ export class SchemaParser {
       hidden: ui.hidden,
       validation: this.getValidationRules(schema, required),
       options: this.getOptions(schema),
-      schema: schema.type === 'object' ? schema : undefined,
+      schema: finalSchema,  // 保留完整的 schema（包含 ui 配置和继承的配置）
     };
   }
 

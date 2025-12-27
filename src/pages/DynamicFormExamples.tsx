@@ -20,6 +20,14 @@ import { MultiLevelPrefixExample } from './examples/FlattenPath/MultiLevelPrefix
 import { MixedFlattenExample } from './examples/FlattenPath/MixedFlattenExample';
 import { NestedWithFlattenExample } from './examples/FlattenPath/NestedWithFlattenExample';
 
+// 布局示例
+import { VerticalLayoutExample } from './examples/LayoutExamples/VerticalLayoutExample';
+import { HorizontalLayoutExample } from './examples/LayoutExamples/HorizontalLayoutExample';
+import { InlineLayoutExample } from './examples/LayoutExamples/InlineLayoutExample';
+import { LayoutPriorityExample } from './examples/LayoutExamples/LayoutPriorityExample';
+import { LabelWidthPriorityExample } from './examples/LayoutExamples/LabelWidthPriorityExample';
+import { ComprehensiveExample } from './examples/LayoutExamples/ComprehensiveExample';
+
 // 复杂场景
 import { ComplexFormPanel } from './examples/ComplexForm/ComplexFormPanel';
 
@@ -34,6 +42,7 @@ export const DynamicFormExamples: React.FC = () => {
         <Tab id="conditional" title="条件渲染" panel={<ConditionalFormPanel />} />
         <Tab id="nested" title="嵌套表单" panel={<NestedFormPanel />} />
         <Tab id="flatten" title="路径透明化" panel={<FlattenPathPanel />} />
+        <Tab id="layout" title="布局示例" panel={<LayoutPanel />} />
         <Tab id="complex" title="复杂场景" panel={<ComplexFormPanel />} />
       </Tabs>
     </div>
@@ -65,6 +74,23 @@ const FlattenPathPanel: React.FC = () => {
         <Tab id="multiLevel" title="多层前缀" panel={<MultiLevelPrefixExample />} />
         <Tab id="mixed" title="混合使用" panel={<MixedFlattenExample />} />
         <Tab id="nestedWithFlatten" title="嵌套表单+透明化" panel={<NestedWithFlattenExample />} />
+      </Tabs>
+    </div>
+  );
+};
+
+const LayoutPanel: React.FC = () => {
+  const [selectedExample, setSelectedExample] = useState('vertical');
+
+  return (
+    <div style={{ marginTop: '20px' }}>
+      <Tabs selectedTabId={selectedExample} onChange={id => setSelectedExample(id as string)}>
+        <Tab id="vertical" title="垂直布局" panel={<VerticalLayoutExample />} />
+        <Tab id="horizontal" title="水平布局" panel={<HorizontalLayoutExample />} />
+        <Tab id="inline" title="内联布局" panel={<InlineLayoutExample />} />
+        <Tab id="layoutPriority" title="布局优先级" panel={<LayoutPriorityExample />} />
+        <Tab id="labelWidthPriority" title="标签宽度优先级" panel={<LabelWidthPriorityExample />} />
+        <Tab id="comprehensive" title="综合示例" panel={<ComprehensiveExample />} />
       </Tabs>
     </div>
   );

@@ -33,7 +33,9 @@
   - [ ] 5.5.3 跨字段验证里为什么 schema 中还需要定义 "dependencies": ["password"]
   - [ ] 自定义格式和自定义关键字验证代码示例中的 Ajv 起到什么作用
 - [ ] 支持 API Node 的场景方案
-- [ ] type 为 object 类型的字段需要支持在 ui 字段中配置表单的 layout 是 vertical 还是 horizontal
+- [x] 添加 ui.labelWidth，ui.layout 字段并在文档中补充相关使用说明
+- [x] 为已经设置了路径透明化的字段添加 layout 设置时，该设置不生效也无法被子字段继承
+- [ ] 支持基于 CodeMirror 功能的表达式输入组件
 - [ ] 确认 NestedForm 除了 object 之外是否支持 array 类型字段的渲染
 - [ ] FormField 组件中有从传入的 widgets 和 FieldRegistry 两个来源获取 widget 的方法，这两种方法有何异同，是否只需要保留 FieldRegistry
 - [ ] 添加自定义 nested form widget 的代码示例
