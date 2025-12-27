@@ -198,15 +198,8 @@ export class SchemaParser {
     }
 
     if (type === 'array') {
-      if (schema.items && typeof schema.items === 'object') {
-        const items = schema.items as ExtendedJSONSchema;
-        // 特殊情况：枚举数组 → 直接使用 checkboxes（多选框组）
-        // 注意：只有在没有显式指定 arrayMode 时才使用 checkboxes
-        if (items.enum && items.enum.length > 0 && !schema.ui?.arrayMode) {
-          return 'checkboxes';
-        }
-      }
-      // 默认使用 ArrayFieldWidget 处理所有数组类型
+      // 所有数组类型统一使用 ArrayFieldWidget 处理
+      // ArrayFieldWidget 内部会根据 items.enum 自动判断渲染模式（static/dynamic）
       return 'array';
     }
 

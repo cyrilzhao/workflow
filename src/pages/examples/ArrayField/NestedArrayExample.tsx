@@ -12,6 +12,7 @@ export const NestedArrayExample: React.FC = () => {
         title: '部门列表',
         items: {
           type: 'object',
+          title: '部门',
           properties: {
             name: {
               type: 'string',
@@ -19,15 +20,17 @@ export const NestedArrayExample: React.FC = () => {
             },
             employees: {
               type: 'array',
-              title: '员工',
+              title: '员工列表',
               items: {
                 type: 'object',
+                title: '员工',
                 properties: {
                   name: { type: 'string', title: '姓名' },
                   position: { type: 'string', title: '职位' },
                 },
               },
               ui: {
+                flattenPath: true,
                 arrayMode: 'dynamic',
                 addButtonText: '添加员工',
               },

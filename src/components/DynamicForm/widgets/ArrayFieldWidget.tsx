@@ -1,6 +1,6 @@
 import React, { forwardRef, useMemo } from 'react';
 import { useFormContext, useFieldArray, Controller } from 'react-hook-form';
-import { Button, Card, Tooltip } from '@blueprintjs/core';
+import { Button, Card, Tooltip, Checkbox } from '@blueprintjs/core';
 import type { FieldWidgetProps } from '../types';
 import type { ExtendedJSONSchema, WidgetType } from '@/types/schema';
 import { FieldRegistry } from '../core/FieldRegistry';
@@ -212,6 +212,57 @@ export const ArrayFieldWidget = forwardRef<HTMLDivElement, ArrayFieldWidgetProps
       }
     };
 
+    // 如果是 static 模式（枚举数组），渲染为多选框组
+    if (arrayMode === 'static' && itemSchema.enum) {
+      return (
+        <div ref={ref} className="array-field-widget array-field-widget--static">
+          <Controller
+            name={name}
+            control={control}
+            render={({ field }) => {
+              const currentValue = field.value || [];
+              const enumValues = itemSchema.enum || [];
+              const enumNames = itemSchema.enumNames || enumValues;
+
+              return (
+                <div className="checkbox-group">
+                  {enumValues.map((enumValue, index) => {
+                    const isChecked = currentValue.includes(enumValue);
+                    const label = String(enumNames[index]);
+
+                    return (
+                      <Checkbox
+                        key={String(enumValue)}
+                        label={label}
+                        checked={isChecked}
+                        disabled={disabled || readonly}
+                        onChange={e => {
+                          const checked = e.currentTarget.checked;
+                          let newValue: any[];
+
+                          if (checked) {
+                            // 添加选项
+                            newValue = [...currentValue, enumValue];
+                          } else {
+                            // 移除选项
+                            newValue = currentValue.filter((v: any) => v !== enumValue);
+                          }
+
+                          field.onChange(newValue);
+                        }}
+                        style={{ marginBottom: '8px' }}
+                      />
+                    );
+                  })}
+                </div>
+              );
+            }}
+          />
+        </div>
+      );
+    }
+
+    // dynamic 模式：可增删的列表
     return (
       <div ref={ref} className="array-field-widget">
         {/* 数组项列表 */}
@@ -317,6 +368,7 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
   // 根据 schema 获取对应的 Widget
   const itemWidget = useMemo(() => determineItemWidget(schema), [schema]);
   const WidgetComponent = FieldRegistry.getWidget(itemWidget);
+  console.info('cyril schema: ', schema);
 
   if (!WidgetComponent) {
     console.error(`Widget "${itemWidget}" not found in registry`);
@@ -339,7 +391,9 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
             marginBottom: '10px',
           }}
         >
-          <span style={{ fontWeight: 'bold' }}>项 {index + 1}</span>
+          <span style={{ fontWeight: 'bold' }}>
+            {schema.title || 'Item'} {index + 1}
+          </span>
           {(onMoveUp || onMoveDown || onRemove) && (
             <div className="array-item-actions" style={{ display: 'flex', gap: '5px' }}>
               {onMoveUp && (

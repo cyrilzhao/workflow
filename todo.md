@@ -54,8 +54,8 @@
     - [x] 没有使用到 minItems 字段
     - [x] 基础类型数组的 ArrayItem 验证条件没有生效
     - [x] 对象数组的 ArrayItem 中字段的验证条件没有生效
-    - [ ] 添加空数组项时没有触发 minLength 校验
-    - [ ] 枚举数组没有正确显示
+    - [x] 添加空数组项时没有触发 minLength 校验
+    - [x] 枚举数组没有正确显示
 - [ ] FormField 组件中有从传入的 widgets 和 FieldRegistry 两个来源获取 widget 的方法，这两种方法有何异同，是否只需要保留 FieldRegistry
 - [ ] 添加自定义 nested form widget 的代码示例
 - [ ] 关于字段联动，是不是可能存在更复杂的拓扑结构，当前架构是否能覆盖
