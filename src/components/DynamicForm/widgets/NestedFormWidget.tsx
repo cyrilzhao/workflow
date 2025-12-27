@@ -1,12 +1,13 @@
-import React, { forwardRef, useState, useEffect, useRef } from 'react';
+import React, { forwardRef, useState, useEffect, useRef, useMemo } from 'react';
 import { useFormContext, Controller } from 'react-hook-form';
 import { Card } from '@blueprintjs/core';
 import { DynamicForm } from '../DynamicForm';
 import type { FieldWidgetProps } from '../types';
-import type { ExtendedJSONSchema } from '@/types/schema';
+import type { ExtendedJSONSchema, ValidationRules } from '@/types/schema';
 import { PathResolver } from '@/utils/pathResolver';
 import { useNestedSchemaRegistry } from '../context/NestedSchemaContext';
 import { usePathPrefix, joinPath, removePrefix } from '../context/PathPrefixContext';
+import { SchemaParser } from '../core/SchemaParser';
 
 export interface NestedFormWidgetProps extends FieldWidgetProps {
   // 当前字段的 schema（包含 properties）

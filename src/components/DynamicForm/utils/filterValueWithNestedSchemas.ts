@@ -1,5 +1,4 @@
 import type { ExtendedJSONSchema } from '@/types/schema';
-import { filterValueBySchema } from './filterValueBySchema';
 
 /**
  * 使用嵌套 schema 注册表过滤数据

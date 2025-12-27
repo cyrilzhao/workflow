@@ -4,6 +4,7 @@ import { Button, Card, Tooltip } from '@blueprintjs/core';
 import type { FieldWidgetProps } from '../types';
 import type { ExtendedJSONSchema, WidgetType } from '@/types/schema';
 import { FieldRegistry } from '../core/FieldRegistry';
+import { SchemaParser } from '../core/SchemaParser';
 
 export interface ArrayFieldWidgetProps extends FieldWidgetProps {
   schema: ExtendedJSONSchema & {
@@ -157,7 +158,8 @@ function getDefaultValue(itemsSchema: ExtendedJSONSchema): any {
 
 export const ArrayFieldWidget = forwardRef<HTMLDivElement, ArrayFieldWidgetProps>(
   ({ name, schema, disabled, readonly, layout, labelWidth }, ref) => {
-    const { control } = useFormContext();
+    const { control, formState } = useFormContext();
+    console.info('cyril formState: ', formState);
     const { fields, append, remove, move } = useFieldArray({
       control,
       name,
@@ -308,7 +310,10 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
   layout,
   labelWidth,
 }) => {
-  const { control } = useFormContext();
+  const {
+    control,
+    formState: { errors },
+  } = useFormContext();
 
   // 根据 schema 获取对应的 Widget
   const itemWidget = useMemo(() => determineItemWidget(schema), [schema]);
@@ -409,10 +414,28 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
   }
 
   // 基本类型：渲染为简单的输入框 + 操作按钮
+  // 为基础类型生成校验规则
+  const validationRules = useMemo(() => SchemaParser.getValidationRules(schema, false), [schema]);
+
+  // 获取错误信息（需要从嵌套的 errors 对象中提取）
+  const getFieldError = (fieldPath: string): string | undefined => {
+    const pathParts = fieldPath.split('.');
+    let errorObj: any = errors;
+
+    for (const part of pathParts) {
+      if (!errorObj) return undefined;
+      errorObj = errorObj[part];
+    }
+
+    return errorObj?.message as string | undefined;
+  };
+
+  const fieldError = getFieldError(`${name}.value`);
+
   return (
     <div
       className="array-item array-item-simple"
-      style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}
+      style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '10px' }}
     >
       {/* 索引标签 */}
       <div className="array-item-index" style={{ minWidth: '30px', color: '#999' }}>
@@ -424,22 +447,33 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
         <Controller
           name={`${name}.value`}
           control={control}
+          rules={validationRules}
           render={({ field: controllerField }) => (
-            <WidgetComponent
-              name={`${name}.value`}
-              schema={schema}
-              value={controllerField.value}
-              onChange={controllerField.onChange}
-              disabled={disabled}
-              readonly={readonly}
-            />
+            <>
+              <WidgetComponent
+                name={`${name}.value`}
+                schema={schema}
+                value={controllerField.value}
+                onChange={controllerField.onChange}
+                disabled={disabled}
+                readonly={readonly}
+              />
+              {fieldError && (
+                <div style={{ color: '#DB3737', fontSize: '12px', marginTop: '5px' }}>
+                  {fieldError}
+                </div>
+              )}
+            </>
           )}
         />
       </div>
 
       {/* 操作按钮 */}
       {(onMoveUp || onMoveDown || onRemove) && (
-        <div className="array-item-actions" style={{ display: 'flex', gap: '5px' }}>
+        <div
+          className="array-item-actions"
+          style={{ display: 'flex', height: '30px', gap: '5px', alignItems: 'center' }}
+        >
           {onMoveUp && (
             <Tooltip
               content={statusMap?.isFirstItem ? '已是第一项' : ''}

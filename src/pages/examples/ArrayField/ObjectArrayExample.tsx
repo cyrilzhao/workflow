@@ -16,7 +16,7 @@ export const ObjectArrayExample: React.FC = () => {
             name: {
               type: 'string',
               title: '姓名',
-              minLength: 1,
+              minLength: 3,
             },
             phone: {
               type: 'string',

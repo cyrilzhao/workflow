@@ -1,5 +1,4 @@
 import React from 'react';
-import { FormGroup } from '@blueprintjs/core';
 
 interface FieldLabelProps {
   htmlFor: string;

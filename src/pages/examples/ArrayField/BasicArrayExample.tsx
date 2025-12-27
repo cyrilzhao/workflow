@@ -27,7 +27,7 @@ export const BasicArrayExample: React.FC = () => {
         title: '分数列表',
         items: {
           type: 'number',
-          minimum: 0,
+          minimum: 1,
           maximum: 100,
         },
         ui: {

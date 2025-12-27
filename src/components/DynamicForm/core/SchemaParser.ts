@@ -219,9 +219,9 @@ export class SchemaParser {
   /**
    * 获取验证规则
    */
-  private static getValidationRules(
+  static getValidationRules(
     schema: ExtendedJSONSchema,
-    required: boolean
+    required: boolean = false
   ): ValidationRules {
     const rules: ValidationRules = {};
     const errorMessages = schema.ui?.errorMessages || {};
