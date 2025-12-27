@@ -231,17 +231,18 @@ export interface NestedFormWidgetProps extends FieldWidgetProps {
   >;
   schemaLoader?: (value: any) => Promise<ExtendedJSONSchema>;
 
-  // 当前字段值（对象）
-  value?: Record<string, any>;
-
-  // 值变化回调
-  onChange?: (value: Record<string, any>) => void;
-
   // 其他配置
   disabled?: boolean;
   readonly?: boolean;
+  layout?: 'vertical' | 'horizontal' | 'inline';  // 布局方式
+  labelWidth?: number | string;  // 标签宽度
 }
 ```
+
+**重要说明**：
+- NestedFormWidget 使用 `asNestedForm` 模式，不需要 `value` 和 `onChange` props
+- 数据通过父表单的 FormContext 自动管理
+- 字段名通过 `pathPrefix` 参数自动添加前缀
 
 ---
 
@@ -253,7 +254,7 @@ export interface NestedFormWidgetProps extends FieldWidgetProps {
 // src/components/DynamicForm/widgets/NestedFormWidget.tsx
 
 import React, { forwardRef, useState, useEffect, useRef } from 'react';
-import { useFormContext, Controller } from 'react-hook-form';
+import { useFormContext } from 'react-hook-form';
 import { Card } from '@blueprintjs/core';
 import { DynamicForm } from '../DynamicForm';
 import type { FieldWidgetProps } from '../types';
@@ -263,13 +264,13 @@ import { useNestedSchemaRegistry } from '../context/NestedSchemaContext';
 import { usePathPrefix, joinPath, removePrefix } from '../context/PathPrefixContext';
 
 export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps>(
-  ({ name, value = {}, schema, disabled, readonly }, ref) => {
+  ({ name, value = {}, schema, disabled, readonly, layout, labelWidth }, ref) => {
     const [currentSchema, setCurrentSchema] = useState(schema);
     const [loading, setLoading] = useState(false);
 
     // 保存外层表单的 context
     const parentFormContext = useFormContext();
-    const { control, watch, getValues } = parentFormContext;
+    const { watch, getValues } = parentFormContext;
 
     // 获取父级路径前缀和嵌套 schema 注册表
     const parentPathPrefix = usePathPrefix();
@@ -380,31 +381,40 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
     }
 
     return (
-      <Controller
-        name={name}
-        control={control}
-        render={({ field }) => (
-          <Card ref={ref} className="nested-form-widget" elevation={1} style={{ padding: '15px' }}>
-            <DynamicForm
-              schema={currentSchema}
-              defaultValues={field.value || {}}
-              onChange={field.onChange}
-              disabled={disabled}
-              readonly={readonly}
-              showSubmitButton={false}
-              renderAsForm={false}
-              onSubmit={() => {}}
-              pathPrefix={fullPath}
-            />
-          </Card>
-        )}
-      />
+      <Card
+        ref={ref}
+        className="nested-form-widget"
+        data-name={name}
+        elevation={1}
+        style={{ padding: '15px' }}
+      >
+        <DynamicForm
+          schema={currentSchema}
+          disabled={disabled}
+          readonly={readonly}
+          layout={layout}
+          labelWidth={labelWidth}
+          showSubmitButton={false}
+          renderAsForm={false}
+          onSubmit={() => {}}
+          pathPrefix={fullPath}
+          asNestedForm={true}
+        />
+      </Card>
     );
   }
 );
 
 NestedFormWidget.displayName = 'NestedFormWidget';
 ```
+
+**关键变化说明**：
+
+1. **移除了 Controller 组件**：不再使用 `react-hook-form` 的 `Controller` 包裹
+2. **使用 asNestedForm 模式**：通过 `asNestedForm={true}` 让内层 DynamicForm 复用父表单的 FormContext
+3. **移除了 defaultValues 和 onChange**：数据通过父表单的 FormContext 自动管理
+4. **添加了 layout 和 labelWidth**：支持布局配置的传递
+5. **使用 pathPrefix**：字段名会自动添加完整路径前缀（如 `company.details.name`）
 
 ### 5.2 关键实现要点
 
@@ -436,6 +446,42 @@ const fullPath = joinPath(parentPathPrefix, name);
 - 支持多层嵌套表单的路径计算
 - 例如：`company.details` 表示 `company` 字段下的 `details` 嵌套表单
 
+#### 5.2.3 嵌套表单模式（asNestedForm）
+
+NestedFormWidget 使用 `asNestedForm={true}` 参数让内层 DynamicForm 复用父表单的 FormContext：
+
+```typescript
+<DynamicForm
+  schema={currentSchema}
+  pathPrefix={fullPath}
+  asNestedForm={true}
+  // ...其他配置
+/>
+```
+
+**工作原理**：
+
+1. **FormContext 复用**：
+   - 内层 DynamicForm 检测到 `asNestedForm={true}` 时，不会创建新的 `useForm` 实例
+   - 而是通过 `useFormContext()` 获取并复用父表单的 FormContext
+   - 所有字段直接注册到父表单中
+
+2. **字段路径前缀**：
+   - 通过 `pathPrefix={fullPath}` 参数传递完整路径（如 `company.details`）
+   - 内层表单的字段名会自动添加前缀（如 `name` → `company.details.name`）
+   - 这样可以避免字段名冲突，并保持正确的数据结构
+
+3. **数据自动管理**：
+   - 不需要手动传递 `defaultValues` 和 `onChange`
+   - 字段值通过父表单的 FormContext 自动读取和更新
+   - 验证规则也会自动注册到父表单中
+
+**优势**：
+- ✅ 简化了数据传递逻辑，无需手动同步值
+- ✅ 避免了 Controller 的额外包裹层
+- ✅ 统一的验证和提交流程
+- ✅ 更好的性能，减少了不必要的重渲染
+
 ---
 
 ## 6. 使用示例
@@ -453,17 +499,14 @@ const schema = {
     address: {
       type: 'object',
       title: 'Address',
+      properties: {
+        street: { type: 'string', title: 'Street' },
+        city: { type: 'string', title: 'City' },
+        zipCode: { type: 'string', title: 'Zip Code' }
+      },
+      required: ['city'],
       ui: {
-        widget: 'nested-form',
-        schema: {
-          type: 'object',
-          properties: {
-            street: { type: 'string', title: 'Street' },
-            city: { type: 'string', title: 'City' },
-            zipCode: { type: 'string', title: 'Zip Code' }
-          },
-          required: ['city']
-        }
+        widget: 'nested-form'
       }
     }
   }
@@ -481,6 +524,11 @@ const schema = {
     zipCode: '10001'
   }
 }
+
+// 说明：
+// - address 字段会自动渲染为 NestedFormWidget（因为 type: 'object' 且 widget: 'nested-form'）
+// - 内层字段（street, city, zipCode）会自动添加路径前缀（address.street, address.city, address.zipCode）
+// - 数据通过父表单的 FormContext 自动管理，无需手动传递 value 和 onChange
 ```
 
 ### 6.2 示例 2: 动态嵌套表单（根据字段值切换）
@@ -1064,46 +1112,33 @@ const schema = {
 
 ## 9. 最佳实践
 
-### 9.1 值同步策略
+### 9.1 数据管理策略
+
+**使用 asNestedForm 模式（推荐）**：
+
+NestedFormWidget 使用 `asNestedForm={true}` 模式，数据通过父表单的 FormContext 自动管理：
 
 ```typescript
-import { useState, useEffect, useRef } from 'react';
-import isEqual from 'lodash/isEqual'; // 或使用其他深度比较库
-
-// 使用 useEffect 确保值同步，并避免死循环
-const NestedFormWidget = ({ value, onChange }) => {
-  const [internalValue, setInternalValue] = useState(value);
-  const internalValueRef = useRef(value);
-
-  // 监听外部 value 变化
-  useEffect(() => {
-    // 只有外部传入的 value 与当前 internalValue 不同时才更新
-    if (!isEqual(value, internalValueRef.current)) {
-      setInternalValue(value);
-      internalValueRef.current = value;
-    }
-  }, [value]);
-
-  const handleChange = (newValue) => {
-    // 只有新值与当前值不同时才触发更新
-    if (!isEqual(newValue, internalValueRef.current)) {
-      setInternalValue(newValue);
-      internalValueRef.current = newValue;
-      onChange?.(newValue);
-    }
-  };
-
-  return <DynamicForm defaultValues={internalValue} onChange={handleChange} />;
-};
+// NestedFormWidget 内部实现
+<DynamicForm
+  schema={currentSchema}
+  pathPrefix={fullPath}
+  asNestedForm={true}
+  // 不需要 defaultValues 和 onChange
+/>
 ```
 
-**说明**：
+**优势**：
+- ✅ 无需手动同步值，避免了复杂的值同步逻辑
+- ✅ 避免了父子组件之间的值同步死循环问题
+- ✅ 统一的数据管理，所有字段都在父表单的 FormContext 中
+- ✅ 更好的性能，减少了不必要的重渲染
 
-- 使用 `internalValueRef` 保存 `internalValue` 的最新值
-- 在更新 state 的同时立即同步更新 ref，无需额外的 `useEffect`
-- 在 `useEffect` 和 `handleChange` 中都直接与 `internalValueRef.current` 对比
-- 使用 `isEqual` 进行深度比较，避免对象引用变化导致的误判
-- 这样可以有效避免父子组件之间的值同步死循环，且代码更简洁
+**工作原理**：
+1. 内层 DynamicForm 通过 `useFormContext()` 获取父表单的 FormContext
+2. 字段名通过 `pathPrefix` 自动添加前缀（如 `company.details.name`）
+3. 字段值直接从父表单的 FormContext 中读取和更新
+4. 验证规则也自动注册到父表单中
 
 ### 9.2 验证处理
 
@@ -1154,61 +1189,7 @@ const dynamicSchema = useMemo(
 );
 ```
 
-#### 9.3.2 使用 useCallback 缓存回调函数
-
-```typescript
-const NestedFormWidget = ({ value, onChange }) => {
-  const [internalValue, setInternalValue] = useState(value);
-  const internalValueRef = useRef(value);
-
-  // 缓存 onChange 回调，避免子组件不必要的重渲染
-  const handleChange = useCallback((newValue) => {
-    if (!isEqual(newValue, internalValueRef.current)) {
-      setInternalValue(newValue);
-      internalValueRef.current = newValue;
-      onChange?.(newValue);
-    }
-  }, [onChange]);
-
-  return <DynamicForm defaultValues={internalValue} onChange={handleChange} />;
-};
-```
-
-#### 9.3.3 防抖处理频繁变化
-
-```typescript
-import { useMemo } from 'react';
-import debounce from 'lodash/debounce';
-
-const NestedFormWidget = ({ value, onChange }) => {
-  // 对频繁的 onChange 调用进行防抖
-  const debouncedOnChange = useMemo(
-    () => debounce((newValue) => {
-      onChange?.(newValue);
-    }, 300),
-    [onChange]
-  );
-
-  const handleChange = (newValue) => {
-    if (!isEqual(newValue, internalValueRef.current)) {
-      setInternalValue(newValue);
-      internalValueRef.current = newValue;
-      debouncedOnChange(newValue);
-    }
-  };
-
-  // 清理防抖函数
-  useEffect(() => {
-    return () => {
-      debouncedOnChange.cancel();
-    };
-  }, [debouncedOnChange]);
-
-  return <DynamicForm defaultValues={internalValue} onChange={handleChange} />;
-};
-```
-
-#### 9.3.4 使用 React.memo 避免不必要的重渲染
+#### 9.3.2 使用 React.memo 避免不必要的重渲染
 
 ```typescript
 import React, { memo } from 'react';
@@ -1216,99 +1197,40 @@ import React, { memo } from 'react';
 // 使用 React.memo 包裹嵌套表单组件
 export const NestedFormWidget = memo(
   forwardRef<HTMLDivElement, NestedFormWidgetProps>(
-    ({ name, value, onChange, schema, ...props }, ref) => {
+    ({ name, schema, disabled, readonly, layout, labelWidth }, ref) => {
       // ... 组件实现
       return (
-        <div ref={ref} className="nested-form-widget" {...props}>
+        <Card ref={ref} className="nested-form-widget">
           <DynamicForm
-            schema={schema}
-            defaultValues={value}
-            onChange={onChange}
+            schema={currentSchema}
+            pathPrefix={fullPath}
+            asNestedForm={true}
+            disabled={disabled}
+            readonly={readonly}
+            layout={layout}
+            labelWidth={labelWidth}
           />
-        </div>
+        </Card>
       );
     }
   ),
   // 自定义比较函数，只在关键 props 变化时重渲染
   (prevProps, nextProps) => {
     return (
-      isEqual(prevProps.value, nextProps.value) &&
       isEqual(prevProps.schema, nextProps.schema) &&
-      prevProps.onChange === nextProps.onChange &&
       prevProps.disabled === nextProps.disabled &&
-      prevProps.readonly === nextProps.readonly
+      prevProps.readonly === nextProps.readonly &&
+      prevProps.layout === nextProps.layout &&
+      prevProps.labelWidth === nextProps.labelWidth
     );
   }
 );
 ```
 
-#### 9.3.5 组件拆分优化
-
-```typescript
-// 不好的做法：所有逻辑都在一个大组件中
-const BadNestedForm = ({ schema, value, onChange }) => {
-  // 大量的状态和逻辑
-  const [field1, setField1] = useState();
-  const [field2, setField2] = useState();
-  // ... 更多状态
-
-  return (
-    <div>
-      {/* 大量的 JSX */}
-    </div>
-  );
-};
-```
-
-**推荐做法：拆分为更小的子组件**
-
-```typescript
-// 拆分字段组件
-const NestedFormField = memo(({ field, value, onChange }) => {
-  return (
-    <div className="nested-form-field">
-      <FieldWidget
-        name={field.name}
-        value={value}
-        onChange={onChange}
-        schema={field.schema}
-      />
-    </div>
-  );
-});
-
-// 主组件只负责协调
-const NestedFormWidget = ({ schema, value, onChange }) => {
-  const fields = useMemo(() => Object.entries(schema.properties), [schema]);
-
-  // 为每个字段创建稳定的 onChange 回调
-  const handleFieldChange = useCallback(
-    (fieldName: string) => (newValue: any) => {
-      onChange({ ...value, [fieldName]: newValue });
-    },
-    [value, onChange]
-  );
-
-  return (
-    <div className="nested-form-widget">
-      {fields.map(([name, fieldSchema]) => (
-        <NestedFormField
-          key={name}
-          field={{ name, schema: fieldSchema }}
-          value={value?.[name]}
-          onChange={handleFieldChange(name)}
-        />
-      ))}
-    </div>
-  );
-};
-```
-
 **说明**：
-- `fields` 使用 `useMemo` 缓存字段定义列表，只在 `schema` 变化时重新计算
-- `handleFieldChange` 使用 `useCallback` 创建稳定的回调函数
-- 当 `value` 变化时，`value?.[name]` 会变化，触发对应的 `NestedFormField` 重渲染
-- 配合 `memo` 使用，只有相关字段的值变化时才重渲染该字段组件
+- 使用 `asNestedForm` 模式后，不需要比较 `value` 和 `onChange`
+- 只需要比较 schema 和配置相关的 props
+- 减少了不必要的重渲染，提升性能
 
 ---
 
@@ -1322,5 +1244,13 @@ const NestedFormWidget = ({ schema, value, onChange }) => {
 ---
 
 **创建日期**: 2025-12-24
-**版本**: 1.0
-**文档状态**: 已完成
+**最后更新**: 2025-12-27
+**版本**: 2.0
+**文档状态**: 已更新
+
+**更新内容**：
+- 移除了 Controller 组件的使用，改为 asNestedForm 模式
+- 更新了 NestedFormWidgetProps 接口，移除 value 和 onChange
+- 补充了 asNestedForm 模式的详细说明
+- 更新了使用示例，说明数据自动管理机制
+- 简化了性能优化部分，移除了过时的值同步策略

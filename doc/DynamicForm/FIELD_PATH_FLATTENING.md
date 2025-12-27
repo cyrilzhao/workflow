@@ -477,12 +477,17 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
   // 解析字段配置（支持路径扁平化）
   const fields = useMemo(() => SchemaParser.parse(schema), [schema]);
 
-  // 将嵌套的 defaultValues 转换为扁平格式（如果使用了路径扁平化）
+  // 处理 defaultValues：包装基本类型数组 + 路径扁平化
   const processedDefaultValues = useMemo(() => {
     if (!defaultValues) return undefined;
-    if (!useFlattenPath) return defaultValues;
-    return PathTransformer.nestedToFlat(defaultValues);
-  }, [defaultValues, useFlattenPath]);
+
+    // 第一步：包装基本类型数组
+    const wrappedData = wrapPrimitiveArrays(defaultValues, schema);
+
+    // 第二步：如果使用了路径扁平化，转换为扁平格式
+    if (!useFlattenPath) return wrappedData;
+    return PathTransformer.nestedToFlat(wrappedData);
+  }, [defaultValues, useFlattenPath, schema]);
 
   const methods = useForm({
     defaultValues: processedDefaultValues,
@@ -493,20 +498,33 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
   React.useEffect(() => {
     if (onChange) {
       const subscription = watch(data => {
-        // 如果使用了路径扁平化，将扁平数据转换回嵌套结构
-        const processedData = useFlattenPath ? PathTransformer.flatToNested(data) : data;
+        // 第一步：如果使用了路径扁平化，将扁平数据转换回嵌套结构
+        let processedData = useFlattenPath ? PathTransformer.flatToNested(data) : data;
+
+        // 第二步：解包基本类型数组
+        processedData = unwrapPrimitiveArrays(processedData, schema);
+
         onChange(processedData);
       });
       return () => subscription.unsubscribe();
     }
-  }, [watch, onChange, useFlattenPath]);
+  }, [watch, onChange, useFlattenPath, schema]);
 
   // 处理表单提交
   const onSubmitHandler = async (data: Record<string, any>) => {
     if (onSubmit) {
-      // 如果使用了路径扁平化，将扁平数据转换回嵌套结构
-      const processedData = useFlattenPath ? PathTransformer.flatToNested(data) : data;
-      await onSubmit(processedData);
+      // 第一步：如果使用了路径扁平化，将扁平数据转换回嵌套结构
+      let processedData = useFlattenPath ? PathTransformer.flatToNested(data) : data;
+
+      // 第二步：解包基本类型数组（将对象数组转换回基本类型数组）
+      processedData = unwrapPrimitiveArrays(processedData, schema);
+
+      // 第三步：根据当前 schema 过滤数据，只保留 schema 中定义的字段
+      const filteredData = nestedSchemaRegistry
+        ? filterValueWithNestedSchemas(processedData, schema, nestedSchemaRegistry.getAllSchemas())
+        : filterValueWithNestedSchemas(processedData, schema, new Map());
+
+      await onSubmit(filteredData);
     }
   };
 
@@ -517,6 +535,8 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
 **关键点**：
 - 使用 `hasFlattenPath()` 检查是否需要路径转换
 - 初始化时将嵌套的 `defaultValues` 转换为扁平格式
+- 同时处理基本类型数组的包装/解包（`wrapPrimitiveArrays` / `unwrapPrimitiveArrays`）
+- 提交时使用 `filterValueWithNestedSchemas` 过滤数据
 - 在 `onChange` 和 `onSubmit` 时将扁平数据转换回嵌套结构
 - 对于没有使用 `flattenPath` 的表单，不进行任何转换，保持向后兼容
 
@@ -1106,11 +1126,15 @@ if (inheritedUI && (inheritedUI.layout || inheritedUI.labelWidth)) {
 ---
 
 **创建日期**: 2025-12-26
-**版本**: 2.0
+**最后更新**: 2025-12-27
+**版本**: 2.1
 **文档状态**: 已更新
+
 **更新内容**:
 - 更新了实现方案，明确了路径透明化不会渲染 Card 和 NestedFormWidget
 - 添加了 SchemaParser.hasFlattenPath() 方法说明
 - 更新了 DynamicForm 组件集成方式，支持自动检测和数据转换
+- 补充了基本类型数组的包装/解包处理说明
+- 补充了数据过滤机制（filterValueWithNestedSchemas）的说明
 - 添加了嵌套表单和路径透明化混合使用的示例
 - 补充了 Card 渲染行为的说明
