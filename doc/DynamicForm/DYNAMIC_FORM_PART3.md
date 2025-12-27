@@ -60,6 +60,17 @@ export interface UIConfig {
   >;
   schemaLoader?: (value: any) => Promise<ExtendedJSONSchema>; // 异步加载 schema
 
+  // 数组特有配置（详见 ARRAY_FIELD_WIDGET.md）
+  arrayMode?: 'dynamic' | 'static'; // 数组渲染模式：dynamic 可增删，static 不可增删
+  showAddButton?: boolean; // 是否显示添加按钮
+  showRemoveButton?: boolean; // 是否显示删除按钮
+  showMoveButtons?: boolean; // 是否显示移动按钮
+  enableDragSort?: boolean; // 是否启用拖拽排序
+  addButtonText?: string; // 添加按钮文本
+  removeButtonText?: string; // 删除按钮文本
+  emptyText?: string; // 空数组提示文本
+  itemLayout?: 'vertical' | 'horizontal' | 'inline'; // 数组项布局
+
   [key: string]: any; // 支持其他自定义属性
 }
 

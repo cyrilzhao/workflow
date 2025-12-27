@@ -99,6 +99,34 @@
 
 #### 5.1.4 数组类型 (array)
 
+**支持的验证规则**:
+
+- `minItems`: 最小项数
+- `maxItems`: 最大项数
+- `uniqueItems`: 是否要求唯一值
+- `items`: 数组项的 schema 定义
+
+**渲染逻辑**:
+
+数组字段的渲染方式由 `items` 的配置决定：
+
+1. **简单数组（items.enum 存在）** → 渲染为 **checkboxes** widget（多选框组）
+2. **简单数组（无 enum）** → 渲染为 **select** widget（下拉选择，默认行为）
+3. **对象数组（items.type === 'object'）** → 需要显式指定 `items.ui.widget: 'nested-form'`
+
+> **核心规则**（位于 `SchemaParser.ts`）:
+> ```typescript
+> if (type === 'array') {
+>   if (schema.items && typeof schema.items === 'object') {
+>     const items = schema.items as ExtendedJSONSchema;
+>     if (items.enum) return 'checkboxes';
+>   }
+>   return 'select';  // 默认渲染为 select
+> }
+> ```
+
+**示例 1: 简单字符串数组（默认渲染为 select）**:
+
 ```json
 {
   "type": "array",
@@ -112,7 +140,29 @@
 }
 ```
 
-**对象数组示例**:
+> **注意**: 此配置会渲染为 HTML `<select>` 下拉菜单，但由于 items 没有定义可选值（enum），实际使用时可能需要补充 enum 或使用其他 widget。
+
+**示例 2: 枚举数组（渲染为 checkboxes）**:
+
+```json
+{
+  "type": "array",
+  "title": "兴趣爱好",
+  "items": {
+    "type": "string",
+    "enum": ["reading", "sports", "music", "travel"],
+    "enumNames": ["阅读", "运动", "音乐", "旅行"]
+  },
+  "uniqueItems": true,
+  "ui": {
+    "widget": "checkboxes"
+  }
+}
+```
+
+> **说明**: 当 `items.enum` 存在时，系统会自动推断使用 checkboxes widget，也可以显式指定。
+
+**示例 3: 对象数组（需要显式指定 nested-form）**:
 
 ```json
 {
@@ -122,12 +172,102 @@
     "type": "object",
     "properties": {
       "name": { "type": "string", "title": "姓名" },
-      "phone": { "type": "string", "title": "电话" }
+      "phone": { "type": "string", "title": "电话" },
+      "email": { "type": "string", "title": "邮箱" }
     },
-    "required": ["name"]
+    "required": ["name", "phone"],
+    "ui": {
+      "widget": "nested-form"
+    }
+  },
+  "minItems": 1,
+  "ui": {
+    "addButtonText": "添加联系人"
   }
 }
 ```
+
+> **重要**: 对象数组必须在 `items.ui.widget` 中显式指定 `"nested-form"`，否则会使用默认的 select widget 导致渲染错误。
+
+**数组特定的 UI 配置**:
+
+| 属性 | 类型 | 说明 | 适用场景 |
+|------|------|------|---------|
+| `addButtonText` | `string` | 添加按钮的文本 | 对象数组（nested-form） |
+| `widget` | `string` | 强制指定 widget 类型 | 覆盖默认推断逻辑 |
+
+**完整的对象数组示例**:
+
+```json
+{
+  "type": "array",
+  "title": "联系人列表",
+  "items": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "title": "姓名",
+        "ui": {
+          "placeholder": "请输入姓名"
+        }
+      },
+      "phone": {
+        "type": "string",
+        "title": "电话",
+        "ui": {
+          "placeholder": "请输入电话号码"
+        }
+      },
+      "email": {
+        "type": "string",
+        "title": "邮箱",
+        "format": "email",
+        "ui": {
+          "placeholder": "请输入邮箱地址"
+        }
+      },
+      "address": {
+        "type": "object",
+        "title": "地址",
+        "properties": {
+          "city": {
+            "type": "string",
+            "title": "城市",
+            "ui": {
+              "placeholder": "请输入城市"
+            }
+          },
+          "street": {
+            "type": "string",
+            "title": "街道",
+            "ui": {
+              "placeholder": "请输入街道地址"
+            }
+          }
+        },
+        "required": ["city"]
+      }
+    },
+    "required": ["name", "phone"],
+    "ui": {
+      "widget": "nested-form"
+    }
+  },
+  "minItems": 1,
+  "ui": {
+    "addButtonText": "添加联系人"
+  }
+}
+```
+
+**渲染效果**:
+- 每个联系人都是一个独立的嵌套表单卡片
+- 支持动态添加/删除联系人
+- 每个联系人的地址信息也是嵌套对象
+- 支持独立的验证规则（姓名和电话为必填项）
+
+> **参考示例**: 完整的对象数组示例请查看 `/src/pages/examples/NestedForm/ArrayNestedExample.tsx`
 
 #### 5.1.5 对象类型 (object)
 
@@ -267,7 +407,67 @@ UI 配置通过 `ui` 字段扩展，支持以下属性：
 | `max` | `string` | 最大值错误信息 |
 | `pattern` | `string` | 格式错误信息 |
 
-#### 5.3.2 布局方式配置 (layout)
+#### 5.3.2 Readonly vs Disabled 详解
+
+`readonly` 和 `disabled` 是两个容易混淆但有重要区别的属性：
+
+**核心区别对比表**：
+
+| 特性 | Readonly | Disabled |
+|------|----------|----------|
+| **值是否可修改** | ❌ 不可修改 | ❌ 不可修改 |
+| **表单提交时是否包含** | ✅ 包含在表单数据中 | ❌ 不包含在表单数据中 |
+| **是否可聚焦** | ✅ 可以聚焦（可选中、复制） | ❌ 不可聚焦 |
+| **是否可交互** | ✅ 部分交互（如滚动、选择文本） | ❌ 完全不可交互 |
+| **视觉样式** | 正常样式（可能有只读标识） | 灰色/禁用样式 |
+| **Tab 键导航** | ✅ 可以通过 Tab 键访问 | ❌ 跳过该字段 |
+| **语义含义** | 数据只读，但有效 | 字段不可用/不适用 |
+
+**使用场景**：
+
+**使用 Readonly 的场景**：
+1. **显示已确认的数据**：订单已提交，显示订单详情但不允许修改
+2. **权限限制**：用户只有查看权限，没有编辑权限
+3. **审核/审批流程**：审核人员查看申请内容，但不能修改
+4. **历史记录查看**：查看历史版本，不允许修改
+
+**使用 Disabled 的场景**：
+1. **条件性禁用**：依赖其他字段的值，某些字段暂时不可用
+2. **加载状态**：数据加载中，禁用表单
+3. **表单提交中**：提交中，防止重复提交
+4. **不适用的字段**：根据用户类型，某些字段不适用
+
+**示例**：
+
+```typescript
+// Readonly 示例：查看已提交的订单
+<DynamicForm
+  schema={orderSchema}
+  defaultValues={submittedOrder}
+  readonly={true}  // 只读模式，数据会包含在表单中
+/>
+
+// Disabled 示例：表单提交中
+const [isSubmitting, setIsSubmitting] = useState(false);
+
+<DynamicForm
+  schema={schema}
+  disabled={isSubmitting}  // 禁用模式，防止重复提交
+  onSubmit={async (data) => {
+    setIsSubmitting(true);
+    await submitData(data);
+    setIsSubmitting(false);
+  }}
+/>
+```
+
+**最佳实践**：
+- ✅ 根据实际场景选择合适的属性
+- ✅ 需要提交数据时使用 `readonly`
+- ✅ 字段不适用或临时禁用时使用 `disabled`
+- ❌ 避免同时使用两者（语义重复）
+
+#### 5.3.3 布局方式配置 (layout)
 
 `layout` 用于控制表单字段的布局方式，支持层级继承。
 
@@ -307,7 +507,7 @@ UI 配置通过 `ui` 字段扩展，支持以下属性：
 - `horizontal`：水平布局（标签在左，输入框在右）
 - `inline`：内联布局
 
-#### 5.3.3 标签宽度配置 (labelWidth)
+#### 5.3.4 标签宽度配置 (labelWidth)
 
 `labelWidth` 用于控制表单标签的宽度，仅在 `layout="horizontal"` 时生效。
 
@@ -351,7 +551,7 @@ UI 配置通过 `ui` 字段扩展，支持以下属性：
 - 数字：如 `120`（表示 120px）
 - 字符串：如 `"120px"`、`"10rem"`、`"20%"`
 
-#### 5.3.4 字段级 UI 配置
+#### 5.3.5 字段级 UI 配置
 
 ```json
 {
@@ -370,7 +570,7 @@ UI 配置通过 `ui` 字段扩展，支持以下属性：
 }
 ```
 
-#### 5.3.5 自定义错误信息
+#### 5.3.6 自定义错误信息
 
 ```json
 {
@@ -409,7 +609,7 @@ UI 配置通过 `ui` 字段扩展，支持以下属性：
 }
 ```
 
-#### 5.3.5 支持的 Widget 类型
+#### 5.3.7 支持的 Widget 类型
 
 | Widget 类型    | 适用字段类型   | 说明                                       |
 | -------------- | -------------- | ------------------------------------------ |
@@ -420,9 +620,9 @@ UI 配置通过 `ui` 字段扩展，支持以下属性：
 | `url`          | string         | URL 输入                                   |
 | `number`       | number/integer | 数字输入                                   |
 | `range`        | number/integer | 滑块                                       |
-| `select`       | string/number  | 下拉选择                                   |
+| `select`       | string/number/array | 下拉选择（array 类型的默认 widget）   |
 | `radio`        | string/number  | 单选按钮                                   |
-| `checkboxes`   | array          | 多选框组                                   |
+| `checkboxes`   | array          | 多选框组（当 items.enum 存在时自动使用）   |
 | `checkbox`     | boolean        | 单个复选框                                 |
 | `switch`       | boolean        | 开关                                       |
 | `date`         | string         | 日期选择                                   |
@@ -430,12 +630,17 @@ UI 配置通过 `ui` 字段扩展，支持以下属性：
 | `time`         | string         | 时间选择                                   |
 | `color`        | string         | 颜色选择                                   |
 | `file`         | string         | 文件上传                                   |
-| `nested-form`  | object         | 嵌套表单（详见 NESTED_FORM.md）            |
+| `nested-form`  | object/array   | 嵌套表单（详见 NESTED_FORM.md）            |
 
 > **注意**：
-> - `nested-form` widget 用于渲染嵌套对象，支持静态和动态 schema
+> - **array 类型字段的 widget 选择规则**：
+>   - 如果 `items.enum` 存在 → 自动使用 `checkboxes`（多选框组）
+>   - 如果 `items.type === 'object'` → 必须显式指定 `items.ui.widget: 'nested-form'`
+>   - 其他情况 → 默认使用 `select`（下拉选择）
+> - `nested-form` widget 用于渲染嵌套对象和对象数组，支持静态和动态 schema
+> - 对象数组使用 `nested-form` 时，每个数组项都会渲染为独立的嵌套表单卡片
 
-#### 5.3.6 字段路径透明化（Field Path Flattening）
+#### 5.3.8 字段路径透明化（Field Path Flattening）
 
 > **详细文档**：完整的设计和实现请参考 [字段路径透明化设计文档](./FIELD_PATH_FLATTENING.md)
 

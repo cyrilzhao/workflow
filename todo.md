@@ -27,7 +27,7 @@
 - [x] NestForm 文档补充 filterValueWithNestedSchemas 的相关逻辑
 - [x] 当 flattenPath: true 时，中间层级不会渲染成 NestedFormWidget 和 Card，只有真正需要分组的字段才会显示 Card 边框
 - [ ] 完善 DYNAMIC_FORM_PART2 文档中表单校验 JSON Schema 的内容
-  - [ ] 5.4.6, 5.4.7 下方需要补充含义说明
+  - [x] 5.4.6, 5.4.7 下方需要补充含义说明
   - [ ] 5.4.1 提到的 dependencies 是不是只能用于必填校验
   - [ ] if-else 分支判断和 anyOf/allOf/oneOf 判断中都只提到 required 校验，能否支持其他的校验方式（如 minLength, pattern 等）
   - [ ] 5.5.3 跨字段验证里为什么 schema 中还需要定义 "dependencies": ["password"]
@@ -36,8 +36,22 @@
 - [x] 添加 ui.labelWidth，ui.layout 字段并在文档中补充相关使用说明
 - [x] 为已经设置了路径透明化的字段添加 layout 设置时，该设置不生效也无法被子字段继承
 - [ ] 支持基于 CodeMirror 功能的表达式输入组件
-- [ ] 确认 NestedForm 除了 object 之外是否支持 array 类型字段的渲染
+- [x] 补充 NestedForm 文档中提到的 “数组中的嵌套表单” 场景的代码示例
+- [ ] NestedFormWidget 字段不支持渲染 array 类型的字段，需要新增一个 ArrayFieldWidget 组件，专门用于 array 类型字段的默认渲染
+- [ ] 补充使用 schemaLoader 的代码示例
+- [ ] array 类型字段对现有特性的兼容性支持
+  - [ ] 嵌套表单
+  - [ ] 嵌套数组 - 数组中的对象的某个字段也是数组
+  - [ ] 路径透明化
+  - [ ] 联动
+  - [ ] layout
+  - [ ] labelWidth
+  - [ ] array 字段问题修复
+    - [ ] array 字段 mode 为 dynamic 时，新增 item 后如果未填写则无法继续添加 - 将基本类型数组转为对象数组进行处理
+    - [x] 没有使用到 minItems 字段
+    - [ ] ArrayItem 中的字段验证条件没有生效
 - [ ] FormField 组件中有从传入的 widgets 和 FieldRegistry 两个来源获取 widget 的方法，这两种方法有何异同，是否只需要保留 FieldRegistry
 - [ ] 添加自定义 nested form widget 的代码示例
+- [ ] 关于字段联动，是不是可能存在更复杂的拓扑结构，当前架构是否能覆盖
 - [ ] 大规模表单性能
 - [ ] 文档与代码实现对齐

@@ -14,6 +14,7 @@ import {
 } from './context/NestedSchemaContext';
 import { PathPrefixProvider } from './context/PathPrefixContext';
 import { PathTransformer } from '@/utils/pathTransformer';
+import { wrapPrimitiveArrays, unwrapPrimitiveArrays } from './utils/arrayTransformer';
 import '@blueprintjs/core/lib/css/blueprint.css';
 
 // 空对象常量，避免每次渲染创建新对象
@@ -59,12 +60,17 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
     return SchemaParser.parse(schema);
   }, [schema, stableCustomFormats]);
 
-  // 将嵌套的 defaultValues 转换为扁平格式（如果使用了路径扁平化）
+  // 处理 defaultValues：包装基本类型数组 + 路径扁平化
   const processedDefaultValues = useMemo(() => {
     if (!defaultValues) return undefined;
-    if (!useFlattenPath) return defaultValues;
-    return PathTransformer.nestedToFlat(defaultValues);
-  }, [defaultValues, useFlattenPath]);
+
+    // 第一步：包装基本类型数组
+    const wrappedData = wrapPrimitiveArrays(defaultValues, schema);
+
+    // 第二步：如果使用了路径扁平化，转换为扁平格式
+    if (!useFlattenPath) return wrappedData;
+    return PathTransformer.nestedToFlat(wrappedData);
+  }, [defaultValues, useFlattenPath, schema]);
 
   const methods = useForm({
     defaultValues: processedDefaultValues,
@@ -89,20 +95,27 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
   React.useEffect(() => {
     if (onChange) {
       const subscription = watch(data => {
-        // 如果使用了路径扁平化，将扁平数据转换回嵌套结构
-        const processedData = useFlattenPath ? PathTransformer.flatToNested(data) : data;
+        // 第一步：如果使用了路径扁平化，将扁平数据转换回嵌套结构
+        let processedData = useFlattenPath ? PathTransformer.flatToNested(data) : data;
+
+        // 第二步：解包基本类型数组
+        processedData = unwrapPrimitiveArrays(processedData, schema);
+
         onChange(processedData);
       });
       return () => subscription.unsubscribe();
     }
-  }, [watch, onChange, useFlattenPath]);
+  }, [watch, onChange, useFlattenPath, schema]);
 
   const onSubmitHandler = async (data: Record<string, any>) => {
     if (onSubmit) {
-      // 如果使用了路径扁平化，将扁平数据转换回嵌套结构
-      const processedData = useFlattenPath ? PathTransformer.flatToNested(data) : data;
+      // 第一步：如果使用了路径扁平化，将扁平数据转换回嵌套结构
+      let processedData = useFlattenPath ? PathTransformer.flatToNested(data) : data;
 
-      // 根据当前 schema 过滤数据，只保留 schema 中定义的字段
+      // 第二步：解包基本类型数组（将对象数组转换回基本类型数组）
+      processedData = unwrapPrimitiveArrays(processedData, schema);
+
+      // 第三步：根据当前 schema 过滤数据，只保留 schema 中定义的字段
       // 如果有嵌套 schema 注册表，使用它来正确过滤动态嵌套表单的数据
       const filteredData = nestedSchemaRegistry
         ? filterValueWithNestedSchemas(processedData, schema, nestedSchemaRegistry.getAllSchemas())

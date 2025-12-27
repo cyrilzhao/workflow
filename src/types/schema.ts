@@ -25,7 +25,8 @@ export type WidgetType =
   | 'range'
   | 'color'
   | 'file'
-  | 'nested-form';
+  | 'nested-form'
+  | 'array';
 
 /**
  * 错误信息配置
@@ -74,6 +75,19 @@ export interface UIConfig {
   >;
   schemaLoader?: (value: any) => Promise<ExtendedJSONSchema>; // 异步加载 schema
 
+  // 数组特有配置
+  arrayMode?: 'dynamic' | 'static'; // 渲染模式：dynamic 可增删，static 不可增删
+  showAddButton?: boolean; // 是否显示添加按钮
+  showRemoveButton?: boolean; // 是否显示删除按钮
+  showMoveButtons?: boolean; // 是否显示移动按钮
+  enableDragSort?: boolean; // 是否启用拖拽排序
+  addButtonText?: string; // 添加按钮文本
+  removeButtonText?: string; // 删除按钮文本
+  emptyText?: string; // 空数组提示文本
+  itemLayout?: 'vertical' | 'horizontal' | 'inline'; // 数组项布局
+  itemClassName?: string; // 数组项自定义类名
+  itemStyle?: React.CSSProperties; // 数组项自定义样式
+
   [key: string]: any;
 }
 
@@ -85,6 +99,7 @@ export interface ExtendedJSONSchema extends JSONSchema7 {
   enumNames?: string[];
   dependencies?: Record<string, any>;
   properties?: Record<string, ExtendedJSONSchema>;
+  items?: ExtendedJSONSchema | ExtendedJSONSchema[];
 }
 
 /**
@@ -129,3 +144,71 @@ export interface FieldConfig {
   dependencies?: any;
   schema?: ExtendedJSONSchema;
 }
+
+const schema: ExtendedJSONSchema = {
+  type: 'object',
+  properties: {
+    group: {
+      title: '地区',
+      type: 'object',
+      ui: {
+        flattenPath: true,
+        flattenPrefix: true,
+      },
+      properties: {
+        category: {
+          type: 'object',
+          title: '市场',
+          ui: {
+            flattenPath: true,
+          },
+          properties: {
+            contacts: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  category: {
+                    type: 'object',
+                    title: '分类',
+                    ui: {
+                      flattenPath: true,
+                      flattenPrefix: true,
+                    },
+                    properties: {
+                      group: {
+                        type: 'object',
+                        title: '分组',
+                        ui: {
+                          flattenPath: true,
+                          flattenPrefix: true,
+                        },
+                        properties: {
+                          name: {
+                            title: '名称',
+                            type: 'string',
+                          },
+                          phone: {
+                            title: '手机号',
+                            type: 'string',
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+};
+
+// 渲染效果
+// 地区 - 市场
+// ┌─────────────────────────────┐
+// │ 分类-分组-名称: [________]    │
+// │ 分类-分组-手机号: [________]  │
+// └─────────────────────────────┘

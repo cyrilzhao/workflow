@@ -1,0 +1,493 @@
+import React, { forwardRef, useMemo } from 'react';
+import { useFormContext, useFieldArray, Controller } from 'react-hook-form';
+import { Button, Card, Tooltip } from '@blueprintjs/core';
+import type { FieldWidgetProps } from '../types';
+import type { ExtendedJSONSchema, WidgetType } from '@/types/schema';
+import { FieldRegistry } from '../core/FieldRegistry';
+
+export interface ArrayFieldWidgetProps extends FieldWidgetProps {
+  schema: ExtendedJSONSchema & {
+    type: 'array';
+    items: ExtendedJSONSchema;
+    minItems?: number;
+    maxItems?: number;
+    uniqueItems?: boolean;
+  };
+  value?: any[];
+  onChange?: (value: any[]) => void;
+  disabled?: boolean;
+  readonly?: boolean;
+  layout?: 'vertical' | 'horizontal' | 'inline';
+  labelWidth?: number | string;
+}
+
+/**
+ * 根据 items schema 决定使用什么 widget 渲染数组元素
+ */
+function determineItemWidget(itemsSchema: ExtendedJSONSchema): WidgetType {
+  // 优先级 1: 显式指定了 widget
+  if (itemsSchema.ui?.widget) {
+    return itemsSchema.ui.widget;
+  }
+
+  // 优先级 2: 对象类型 → 嵌套表单
+  if (itemsSchema.type === 'object') {
+    return 'nested-form';
+  }
+
+  // 优先级 3: 基本类型 → 对应的基础 widget
+  switch (itemsSchema.type) {
+    case 'string':
+      // 根据 format 进一步判断
+      if (itemsSchema.format === 'email') return 'email';
+      if (itemsSchema.format === 'uri') return 'url';
+      if (itemsSchema.format === 'date') return 'date';
+      if (itemsSchema.format === 'date-time') return 'datetime';
+      if (itemsSchema.format === 'time') return 'time';
+      return 'text';
+
+    case 'number':
+    case 'integer':
+      return 'number';
+
+    case 'boolean':
+      return 'checkbox';
+
+    default:
+      return 'text';
+  }
+}
+
+/**
+ * 判断应该使用哪种渲染模式
+ */
+function determineArrayMode(schema: ExtendedJSONSchema): 'static' | 'dynamic' {
+  // 1. 显式指定了 arrayMode
+  if (schema.ui?.arrayMode) {
+    return schema.ui.arrayMode;
+  }
+
+  // 2. 如果 items 有 enum，默认使用 static 模式（多选框组，不可增删）
+  if (schema.items && typeof schema.items === 'object') {
+    const items = schema.items as ExtendedJSONSchema;
+    if (items.enum && items.enum.length > 0) {
+      return 'static';
+    }
+  }
+
+  // 3. 默认使用 dynamic 模式（可增删的列表）
+  return 'dynamic';
+}
+
+/**
+ * 判断是否为基本类型（需要包装的类型）
+ */
+function isPrimitiveType(schema: ExtendedJSONSchema): boolean {
+  const type = schema.type;
+  return type === 'string' || type === 'number' || type === 'integer' || type === 'boolean';
+}
+
+/**
+ * 获取基本类型的默认值
+ */
+function getDefaultPrimitiveValue(schema: ExtendedJSONSchema): any {
+  switch (schema.type) {
+    case 'string':
+      return '';
+    case 'number':
+    case 'integer':
+      return 0;
+    case 'boolean':
+      return false;
+    default:
+      return null;
+  }
+}
+
+/**
+ * 获取数组元素的默认值
+ * 对于基本类型，包装成 { value: xxx } 以避免被 useFieldArray 过滤
+ */
+function getDefaultValue(itemsSchema: ExtendedJSONSchema): any {
+  // 如果是基本类型，包装成对象
+  if (isPrimitiveType(itemsSchema)) {
+    const defaultVal =
+      itemsSchema.default !== undefined
+        ? itemsSchema.default
+        : getDefaultPrimitiveValue(itemsSchema);
+    return { value: defaultVal };
+  }
+
+  // 对象类型，正常处理
+  if (itemsSchema.default !== undefined) {
+    return itemsSchema.default;
+  }
+
+  if (itemsSchema.type === 'object') {
+    // 为对象类型生成默认值
+    if (itemsSchema.properties) {
+      const defaultObj: any = {};
+      Object.entries(itemsSchema.properties).forEach(([key, propSchema]) => {
+        const prop = propSchema as ExtendedJSONSchema;
+        if (prop.default !== undefined) {
+          defaultObj[key] = prop.default;
+        } else if (prop.type === 'string') {
+          defaultObj[key] = '';
+        } else if (prop.type === 'number' || prop.type === 'integer') {
+          defaultObj[key] = 0;
+        } else if (prop.type === 'boolean') {
+          defaultObj[key] = false;
+        } else if (prop.type === 'array') {
+          defaultObj[key] = [];
+        } else if (prop.type === 'object') {
+          defaultObj[key] = {};
+        }
+      });
+      return defaultObj;
+    }
+    return {};
+  }
+
+  if (itemsSchema.type === 'array') {
+    return [];
+  }
+
+  return null;
+}
+
+export const ArrayFieldWidget = forwardRef<HTMLDivElement, ArrayFieldWidgetProps>(
+  ({ name, schema, disabled, readonly, layout, labelWidth }, ref) => {
+    const { control } = useFormContext();
+    const { fields, append, remove, move } = useFieldArray({
+      control,
+      name,
+    });
+
+    // 获取数组项的 schema
+    const itemSchema = schema.items as ExtendedJSONSchema;
+
+    if (!itemSchema || typeof itemSchema !== 'object') {
+      console.warn(`ArrayFieldWidget: schema.items is required for array field "${name}"`);
+      return null;
+    }
+
+    // 判断渲染模式
+    const arrayMode = useMemo(() => determineArrayMode(schema), [schema]);
+
+    // 从 schema.ui 中获取配置
+    const addButtonText = schema.ui?.addButtonText || '添加';
+    const emptyText = schema.ui?.emptyText;
+    const minItems = schema.minItems || 0;
+    const maxItems = schema.maxItems;
+
+    // 判断是否可以增删
+    const canAddRemove = !disabled && !readonly && arrayMode === 'dynamic';
+
+    // 添加新项
+    const handleAdd = () => {
+      const defaultValue = getDefaultValue(itemSchema);
+      append(defaultValue);
+    };
+
+    // 删除项
+    const handleRemove = (index: number) => {
+      // 删除项时不触发验证
+      remove(index);
+    };
+
+    // 上移
+    const handleMoveUp = (index: number) => {
+      if (index > 0) {
+        // 移动项时不触发验证
+        move(index, index - 1);
+      }
+    };
+
+    // 下移
+    const handleMoveDown = (index: number) => {
+      if (index < fields.length - 1) {
+        // 移动项时不触发验证
+        move(index, index + 1);
+      }
+    };
+
+    return (
+      <div ref={ref} className="array-field-widget">
+        {/* 数组项列表 */}
+        {fields.map((field, index) => (
+          <ArrayItem
+            key={field.id}
+            name={`${name}.${index}`}
+            index={index}
+            schema={itemSchema}
+            onRemove={canAddRemove ? () => handleRemove(index) : undefined}
+            onMoveUp={canAddRemove ? () => handleMoveUp(index) : undefined}
+            onMoveDown={canAddRemove ? () => handleMoveDown(index) : undefined}
+            statusMap={{
+              isAtMinLimit: fields.length <= minItems,
+              isFirstItem: index === 0,
+              isLastItem: index === fields.length - 1,
+            }}
+            disabled={disabled}
+            readonly={readonly}
+            layout={layout}
+            labelWidth={labelWidth}
+          />
+        ))}
+
+        {/* 空状态提示 */}
+        {fields.length === 0 && emptyText && (
+          <div
+            className="array-empty-text"
+            style={{ color: '#999', padding: '10px', textAlign: 'center' }}
+          >
+            {emptyText}
+          </div>
+        )}
+
+        {/* 添加按钮 */}
+        {canAddRemove && (
+          <Tooltip
+            content={maxItems && fields.length >= maxItems ? '已达到最大数量限制' : ''}
+            disabled={!maxItems || fields.length < maxItems}
+          >
+            <Button
+              icon="add"
+              intent="primary"
+              onClick={handleAdd}
+              disabled={maxItems !== undefined && fields.length >= maxItems}
+              style={{ marginTop: fields.length > 0 ? '10px' : '0' }}
+            >
+              {addButtonText}
+            </Button>
+          </Tooltip>
+        )}
+      </div>
+    );
+  }
+);
+
+ArrayFieldWidget.displayName = 'ArrayFieldWidget';
+
+/**
+ * ArrayItem 状态映射
+ */
+interface ArrayItemStatusMap {
+  isAtMinLimit?: boolean; // 是否达到最小数量限制
+  isFirstItem?: boolean; // 是否是第一项
+  isLastItem?: boolean; // 是否是最后一项
+}
+
+/**
+ * ArrayItem 子组件
+ */
+interface ArrayItemProps {
+  name: string;
+  index: number;
+  schema: ExtendedJSONSchema;
+  onRemove?: () => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  statusMap?: ArrayItemStatusMap;
+  disabled?: boolean;
+  readonly?: boolean;
+  layout?: 'vertical' | 'horizontal' | 'inline';
+  labelWidth?: number | string;
+}
+
+const ArrayItem: React.FC<ArrayItemProps> = ({
+  name,
+  index,
+  schema,
+  onRemove,
+  onMoveUp,
+  onMoveDown,
+  statusMap,
+  disabled,
+  readonly,
+  layout,
+  labelWidth,
+}) => {
+  const { control } = useFormContext();
+
+  // 根据 schema 获取对应的 Widget
+  const itemWidget = useMemo(() => determineItemWidget(schema), [schema]);
+  const WidgetComponent = FieldRegistry.getWidget(itemWidget);
+
+  if (!WidgetComponent) {
+    console.error(`Widget "${itemWidget}" not found in registry`);
+    return null;
+  }
+
+  // 如果是对象类型，使用特殊渲染
+  if (schema.type === 'object') {
+    return (
+      <Card
+        className="array-item array-item-object"
+        elevation={1}
+        style={{ marginBottom: '15px', padding: '15px' }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '10px',
+          }}
+        >
+          <span style={{ fontWeight: 'bold' }}>项 {index + 1}</span>
+          {(onMoveUp || onMoveDown || onRemove) && (
+            <div className="array-item-actions" style={{ display: 'flex', gap: '5px' }}>
+              {onMoveUp && (
+                <Tooltip
+                  content={statusMap?.isFirstItem ? '已是第一项' : ''}
+                  disabled={!statusMap?.isFirstItem}
+                >
+                  <Button
+                    icon="arrow-up"
+                    minimal
+                    small
+                    onClick={onMoveUp}
+                    disabled={disabled || statusMap?.isFirstItem}
+                    title="上移"
+                  />
+                </Tooltip>
+              )}
+              {onMoveDown && (
+                <Tooltip
+                  content={statusMap?.isLastItem ? '已是最后一项' : ''}
+                  disabled={!statusMap?.isLastItem}
+                >
+                  <Button
+                    icon="arrow-down"
+                    minimal
+                    small
+                    onClick={onMoveDown}
+                    disabled={disabled || statusMap?.isLastItem}
+                    title="下移"
+                  />
+                </Tooltip>
+              )}
+              {onRemove && (
+                <Tooltip
+                  content={statusMap?.isAtMinLimit ? '已达到最小数量限制' : ''}
+                  disabled={!statusMap?.isAtMinLimit}
+                >
+                  <Button
+                    icon="trash"
+                    minimal
+                    small
+                    intent="danger"
+                    onClick={onRemove}
+                    disabled={disabled || statusMap?.isAtMinLimit}
+                    title="删除"
+                  />
+                </Tooltip>
+              )}
+            </div>
+          )}
+        </div>
+
+        <Controller
+          name={name}
+          control={control}
+          render={({ field: controllerField }) => (
+            <WidgetComponent
+              name={name}
+              schema={schema}
+              value={controllerField.value}
+              onChange={controllerField.onChange}
+              disabled={disabled}
+              readonly={readonly}
+              layout={layout}
+              labelWidth={labelWidth}
+            />
+          )}
+        />
+      </Card>
+    );
+  }
+
+  // 基本类型：渲染为简单的输入框 + 操作按钮
+  return (
+    <div
+      className="array-item array-item-simple"
+      style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}
+    >
+      {/* 索引标签 */}
+      <div className="array-item-index" style={{ minWidth: '30px', color: '#999' }}>
+        #{index + 1}
+      </div>
+
+      {/* 字段内容 */}
+      <div className="array-item-field" style={{ flex: 1 }}>
+        <Controller
+          name={`${name}.value`}
+          control={control}
+          render={({ field: controllerField }) => (
+            <WidgetComponent
+              name={`${name}.value`}
+              schema={schema}
+              value={controllerField.value}
+              onChange={controllerField.onChange}
+              disabled={disabled}
+              readonly={readonly}
+            />
+          )}
+        />
+      </div>
+
+      {/* 操作按钮 */}
+      {(onMoveUp || onMoveDown || onRemove) && (
+        <div className="array-item-actions" style={{ display: 'flex', gap: '5px' }}>
+          {onMoveUp && (
+            <Tooltip
+              content={statusMap?.isFirstItem ? '已是第一项' : ''}
+              disabled={!statusMap?.isFirstItem}
+            >
+              <Button
+                icon="arrow-up"
+                minimal
+                small
+                onClick={onMoveUp}
+                disabled={disabled || statusMap?.isFirstItem}
+                title="上移"
+              />
+            </Tooltip>
+          )}
+          {onMoveDown && (
+            <Tooltip
+              content={statusMap?.isLastItem ? '已是最后一项' : ''}
+              disabled={!statusMap?.isLastItem}
+            >
+              <Button
+                icon="arrow-down"
+                minimal
+                small
+                onClick={onMoveDown}
+                disabled={disabled || statusMap?.isLastItem}
+                title="下移"
+              />
+            </Tooltip>
+          )}
+          {onRemove && (
+            <Tooltip
+              content={statusMap?.isAtMinLimit ? '已达到最小数量限制' : ''}
+              disabled={!statusMap?.isAtMinLimit}
+            >
+              <Button
+                icon="trash"
+                minimal
+                small
+                intent="danger"
+                onClick={onRemove}
+                disabled={disabled || statusMap?.isAtMinLimit}
+                title="删除"
+              />
+            </Tooltip>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};

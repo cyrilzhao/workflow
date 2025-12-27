@@ -10,6 +10,7 @@ import {
   SwitchWidget,
   NestedFormWidget,
   UrlWidget,
+  ArrayFieldWidget,
 } from '../widgets';
 
 export class FieldRegistry {
@@ -25,6 +26,7 @@ export class FieldRegistry {
     ['checkbox', CheckboxWidget],
     ['switch', SwitchWidget],
     ['nested-form', NestedFormWidget],
+    ['array', ArrayFieldWidget],
   ]);
 
   static register(type: WidgetType, component: React.ComponentType<any>) {

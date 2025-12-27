@@ -12,6 +12,13 @@ import { ConditionalFormPanel } from './examples/ConditionalForm/ConditionalForm
 import { StaticNestedExample } from './examples/NestedForm/StaticNestedExample';
 import { DynamicNestedExample } from './examples/NestedForm/DynamicNestedExample';
 import { JsonPointerNestedExample } from './examples/NestedForm/JsonPointerNestedExample';
+import { ArrayNestedExample } from './examples/NestedForm/ArrayNestedExample';
+
+// 数组字段
+import { BasicArrayExample } from './examples/ArrayField/BasicArrayExample';
+import { EnumArrayExample } from './examples/ArrayField/EnumArrayExample';
+import { ObjectArrayExample } from './examples/ArrayField/ObjectArrayExample';
+import { NestedArrayExample as ArrayNestedArrayExample } from './examples/ArrayField/NestedArrayExample';
 
 // 路径透明化
 import { BasicFlattenExample } from './examples/FlattenPath/BasicFlattenExample';
@@ -41,9 +48,25 @@ export const DynamicFormExamples: React.FC = () => {
         <Tab id="basic" title="基础表单" panel={<BasicFormPanel />} />
         <Tab id="conditional" title="条件渲染" panel={<ConditionalFormPanel />} />
         <Tab id="nested" title="嵌套表单" panel={<NestedFormPanel />} />
+        <Tab id="array" title="数组字段" panel={<ArrayFieldPanel />} />
         <Tab id="flatten" title="路径透明化" panel={<FlattenPathPanel />} />
         <Tab id="layout" title="布局示例" panel={<LayoutPanel />} />
         <Tab id="complex" title="复杂场景" panel={<ComplexFormPanel />} />
+      </Tabs>
+    </div>
+  );
+};
+
+const ArrayFieldPanel: React.FC = () => {
+  const [selectedExample, setSelectedExample] = useState('basic');
+
+  return (
+    <div style={{ marginTop: '20px' }}>
+      <Tabs selectedTabId={selectedExample} onChange={id => setSelectedExample(id as string)}>
+        <Tab id="basic" title="基本类型数组" panel={<BasicArrayExample />} />
+        <Tab id="enum" title="枚举数组" panel={<EnumArrayExample />} />
+        <Tab id="object" title="对象数组" panel={<ObjectArrayExample />} />
+        <Tab id="nested" title="嵌套数组" panel={<ArrayNestedArrayExample />} />
       </Tabs>
     </div>
   );
@@ -58,6 +81,7 @@ const NestedFormPanel: React.FC = () => {
         <Tab id="static" title="静态嵌套" panel={<StaticNestedExample />} />
         <Tab id="dynamic" title="动态嵌套" panel={<DynamicNestedExample />} />
         <Tab id="jsonPointer" title="JSON Pointer 跨层级" panel={<JsonPointerNestedExample />} />
+        <Tab id="arrayNested" title="数组嵌套" panel={<ArrayNestedExample />} />
       </Tabs>
     </div>
   );
