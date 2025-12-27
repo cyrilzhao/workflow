@@ -9,6 +9,7 @@ import {
   CheckboxWidget,
   SwitchWidget,
   NestedFormWidget,
+  UrlWidget,
 } from '../widgets';
 
 export class FieldRegistry {
@@ -17,6 +18,7 @@ export class FieldRegistry {
     ['textarea', TextareaWidget],
     ['password', PasswordWidget],
     ['email', TextWidget],
+    ['url', UrlWidget],
     ['number', NumberWidget],
     ['select', SelectWidget],
     ['radio', RadioWidget],

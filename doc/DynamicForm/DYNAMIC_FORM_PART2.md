@@ -337,6 +337,7 @@ interface ErrorMessages {
 | `textarea`     | string         | 多行文本输入                               |
 | `password`     | string         | 密码输入                                   |
 | `email`        | string         | 邮箱输入                                   |
+| `url`          | string         | URL 输入                                   |
 | `number`       | number/integer | 数字输入                                   |
 | `range`        | number/integer | 滑块                                       |
 | `select`       | string/number  | 下拉选择                                   |
@@ -352,7 +353,6 @@ interface ErrorMessages {
 | `nested-form`  | object         | 嵌套表单（详见 NESTED_FORM.md）            |
 
 > **注意**：
-> - `url` widget 计划中，当前未实现
 > - `nested-form` widget 用于渲染嵌套对象，支持静态和动态 schema
 
 #### 5.3.4 字段路径透明化（Field Path Flattening）

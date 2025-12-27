@@ -3,6 +3,7 @@ import { useForm, FormProvider } from 'react-hook-form';
 import { Button } from '@blueprintjs/core';
 import { SchemaParser } from './core/SchemaParser';
 import { FormField } from './layout/FormField';
+import { ErrorList } from './components/ErrorList';
 import type { DynamicFormProps } from './types';
 import { parseSchemaLinkages } from '@/utils/schemaLinkageParser';
 import { useLinkageManager } from '@/hooks/useLinkageManager';
@@ -30,6 +31,7 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
   linkageFunctions,
   customFormats,
   layout = 'vertical',
+  showErrorList = false,
   showSubmitButton = true,
   renderAsForm = true,
   validateMode = 'onSubmit',
@@ -78,7 +80,7 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
     linkageFunctions: stableLinkageFunctions,
   });
 
-  const { handleSubmit, watch } = methods;
+  const { handleSubmit, watch, formState: { errors } } = methods;
 
   // 获取嵌套 schema 注册表（可选，因为可能不在 Provider 内部）
   const nestedSchemaRegistry = useNestedSchemaRegistryOptional();
@@ -154,11 +156,13 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
       <PathPrefixProvider prefix={pathPrefix}>
         {renderAsForm ? (
           <form onSubmit={handleSubmit(onSubmitHandler)} className={formClassName} style={style}>
+            {showErrorList && Object.keys(errors).length > 0 && <ErrorList errors={errors} />}
             {renderFields()}
             {renderSubmitButton()}
           </form>
         ) : (
           <div className={formClassName} style={style}>
+            {showErrorList && Object.keys(errors).length > 0 && <ErrorList errors={errors} />}
             {renderFields()}
             {renderSubmitButton()}
           </div>

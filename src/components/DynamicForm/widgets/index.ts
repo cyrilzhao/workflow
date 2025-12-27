@@ -7,3 +7,4 @@ export { CheckboxWidget } from './CheckboxWidget';
 export { SwitchWidget } from './SwitchWidget';
 export { RadioWidget } from './RadioWidget';
 export { NestedFormWidget } from './NestedFormWidget';
+export { UrlWidget } from './UrlWidget';

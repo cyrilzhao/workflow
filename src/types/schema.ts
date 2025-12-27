@@ -12,6 +12,7 @@ export type WidgetType =
   | 'textarea'
   | 'password'
   | 'email'
+  | 'url'
   | 'number'
   | 'select'
   | 'radio'

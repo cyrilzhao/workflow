@@ -24,6 +24,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   linkageFunctions = {},
   customFormats = {},
   layout = 'vertical',
+  showErrorList = false,
   showSubmitButton = true,
   renderAsForm = true,
   validateMode = 'onSubmit',
@@ -81,6 +82,11 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         className={`dynamic-form dynamic-form--${layout} ${className || ''}`}
         style={style}
       >
+        {/* 错误列表 */}
+        {showErrorList && Object.keys(errors).length > 0 && (
+          <ErrorList errors={errors} />
+        )}
+
         {/* 表单字段 */}
         <div className="dynamic-form__fields">
           {fields.map((field) => (
