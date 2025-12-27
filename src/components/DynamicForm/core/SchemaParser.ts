@@ -83,9 +83,12 @@ export class SchemaParser {
       // 检查是否需要路径扁平化
       if (fieldSchema.type === 'object' && fieldSchema.ui?.flattenPath) {
         // 确定是否需要添加前缀
-        const newPrefixLabel = fieldSchema.ui.flattenPrefix && fieldSchema.title
-          ? (prefixLabel ? `${prefixLabel} - ${fieldSchema.title}` : fieldSchema.title)
-          : prefixLabel;
+        const newPrefixLabel =
+          fieldSchema.ui.flattenPrefix && fieldSchema.title
+            ? prefixLabel
+              ? `${prefixLabel} - ${fieldSchema.title}`
+              : fieldSchema.title
+            : prefixLabel;
 
         // 准备要继承的 UI 配置（父级配置 + 当前层级配置）
         const newInheritedUI = {
@@ -132,9 +135,7 @@ export class SchemaParser {
     const ui = schema.ui || {};
 
     // 如果有前缀标签，添加到字段标签前
-    const label = prefixLabel && schema.title
-      ? `${prefixLabel} - ${schema.title}`
-      : schema.title;
+    const label = prefixLabel && schema.title ? `${prefixLabel} - ${schema.title}` : schema.title;
 
     // 如果有继承的 UI 配置，需要合并到 schema 中
     let finalSchema = schema;
@@ -151,7 +152,7 @@ export class SchemaParser {
     }
 
     return {
-      name: path,  // 使用完整路径作为字段名
+      name: path, // 使用完整路径作为字段名
       type: schema.type as string,
       widget: this.getWidget(schema),
       label,
@@ -164,7 +165,7 @@ export class SchemaParser {
       hidden: ui.hidden,
       validation: this.getValidationRules(schema, required),
       options: this.getOptions(schema),
-      schema: finalSchema,  // 保留完整的 schema（包含 ui 配置和继承的配置）
+      schema: finalSchema, // 保留完整的 schema（包含 ui 配置和继承的配置）
     };
   }
 
@@ -231,9 +232,18 @@ export class SchemaParser {
     }
 
     if (schema.minLength) {
-      rules.minLength = {
-        value: schema.minLength,
-        message: errorMessages.minLength || `最小长度为 ${schema.minLength} 个字符`,
+      // react-hook-form 的 minLength 规则默认不会对空值进行校验，
+      // 这里使用自定义 validate 规则，确保空值也会触发 minLength 校验
+      rules.validate = rules.validate || {};
+      rules.validate.minLength = (value: any) => {
+        if (value === null || value === undefined) {
+          return errorMessages.minLength || `最小长度为 ${schema.minLength} 个字符`;
+        }
+        const strValue = String(value);
+        if (strValue.length < schema.minLength!) {
+          return errorMessages.minLength || `最小长度为 ${schema.minLength} 个字符`;
+        }
+        return true;
       };
     }
 
@@ -270,12 +280,11 @@ export class SchemaParser {
       // 优先使用自定义格式验证器
       if (this.customFormats[schema.format]) {
         const formatName = schema.format;
-        rules.validate = {
-          [formatName]: (value: string) => {
-            if (!value) return true; // 空值由 required 规则处理
-            const isValid = this.customFormats[formatName](value);
-            return isValid || errorMessages.format || `${formatName} 格式不正确`;
-          }
+        rules.validate = rules.validate || {};
+        rules.validate[formatName] = (value: string) => {
+          if (!value) return true; // 空值由 required 规则处理
+          const isValid = this.customFormats[formatName](value);
+          return isValid || errorMessages.format || `${formatName} 格式不正确`;
         };
       } else if (schema.format === 'email') {
         // 内置邮箱格式验证
