@@ -1047,7 +1047,7 @@ const schema = {
 
 const linkageFunctions = {
   // 异步函数：从 API 获取选项
-  fetchProvinceOptions: async (formData: any) => {
+  fetchProvinceOptions: async (formData: any, context?: LinkageFunctionContext) => {
     try {
       const response = await fetch(`/api/provinces?country=${formData.country}`);
       if (!response.ok) {
@@ -1099,7 +1099,7 @@ const schema = {
 
 const linkageFunctions = {
   // 异步函数：检查用户权限
-  checkAdminPermission: async (formData: any) => {
+  checkAdminPermission: async (formData: any, context?: LinkageFunctionContext) => {
     try {
       const response = await fetch(`/api/users/${formData.userId}/permissions`);
       const data = await response.json();
@@ -1182,13 +1182,13 @@ const schema = {
 
 const linkageFunctions = {
   // 同步函数：简单计算
-  calculateDiscount: (formData: any) => {
+  calculateDiscount: (formData: any, context?: LinkageFunctionContext) => {
     const subtotal = (formData.price || 0) * (formData.quantity || 0);
     return subtotal > 100 ? 10 : 0;
   },
 
   // 异步函数：调用 API 计算税费
-  calculateTax: async (formData: any) => {
+  calculateTax: async (formData: any, context?: LinkageFunctionContext) => {
     try {
       const response = await fetch('/api/calculate-tax', {
         method: 'POST',
@@ -1207,7 +1207,7 @@ const linkageFunctions = {
   },
 
   // 异步函数：计算最终总价
-  calculateTotal: async (formData: any) => {
+  calculateTotal: async (formData: any, context?: LinkageFunctionContext) => {
     const subtotal = (formData.price || 0) * (formData.quantity || 0);
     const discount = formData.discount || 0;
     const tax = formData.tax || 0;
@@ -1489,7 +1489,7 @@ const schema = {
 };
 
 const linkageFunctions = {
-  calculateTotal: (formData: any) => {
+  calculateTotal: (formData: any, context?: LinkageFunctionContext) => {
     return (formData.price || 0) * (formData.quantity || 0);
   }
 };
@@ -1530,7 +1530,7 @@ const schema = {
 };
 
 const linkageFunctions = {
-  getProvinceOptions: (formData: any) => {
+  getProvinceOptions: (formData: any, context?: LinkageFunctionContext) => {
     if (formData.country === 'china') {
       return [
         { label: '北京', value: 'beijing' },
