@@ -1810,6 +1810,166 @@ const handleSubmit = (data: any) => {
 }
 ```
 
+#### 3. 数组元素内部联动的实现方案
+
+数组元素内部的联动需要特殊处理，因为涉及到相对路径和动态索引。
+
+**详细设计请参考**：[数组字段联动设计方案](./ARRAY_FIELD_LINKAGE.md)
+
+该文档详细描述了：
+- 核心挑战（相对路径、动态索引、菱形依赖）
+- 解决方案架构（模板依赖图方案）
+- 基础场景（相对路径、绝对路径、菱形依赖）
+- 复杂场景（混合依赖、跨数组依赖、嵌套数组、聚合计算）
+- 完整的实现方案和最佳实践
+
+**快速参考**：
+
+**示例 1：相对路径依赖**
+
+```typescript
+{
+  contacts: {
+    type: 'array',
+    items: {
+      properties: {
+        type: { type: 'string', enum: ['personal', 'work'] },
+        companyName: {
+          type: 'string',
+          ui: {
+            linkage: {
+              type: 'visibility',
+              dependencies: ['./type'],  // 相对路径
+              when: { field: './type', operator: '==', value: 'work' }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**处理流程**：
+
+1. Schema 解析：识别 `contacts.companyName` 的联动配置
+2. 模板依赖：`contacts.companyName` → `contacts.type`
+3. 运行时实例化：
+   - `contacts.0.companyName` → `contacts.0.type`
+   - `contacts.1.companyName` → `contacts.1.type`
+
+**示例 2：绝对路径依赖（数组内依赖外部）**
+
+```typescript
+{
+  enableVip: { type: 'boolean' },
+  contacts: {
+    type: 'array',
+    items: {
+      properties: {
+        vipLevel: {
+          type: 'string',
+          ui: {
+            linkage: {
+              type: 'visibility',
+              dependencies: ['enableVip'],  // 绝对路径，指向外部
+              when: { field: 'enableVip', operator: '==', value: true }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**处理流程**：
+
+1. Schema 解析：识别 `contacts.vipLevel` 的联动配置
+2. 模板依赖：`contacts.vipLevel` → `enableVip`（外部字段）
+3. 运行时实例化：
+   - `contacts.0.vipLevel` → `enableVip`
+   - `contacts.1.vipLevel` → `enableVip`
+
+**示例 3：菱形依赖（复杂依赖关系）**
+
+```typescript
+{
+  contacts: {
+    type: 'array',
+    items: {
+      properties: {
+        type: { type: 'string', enum: ['personal', 'work'] },
+        showCompany: {
+          type: 'boolean',
+          ui: {
+            linkage: {
+              type: 'value',
+              dependencies: ['./type'],
+              fulfill: { function: 'calcShowCompany' }
+            }
+          }
+        },
+        showDepartment: {
+          type: 'boolean',
+          ui: {
+            linkage: {
+              type: 'value',
+              dependencies: ['./type'],
+              fulfill: { function: 'calcShowDepartment' }
+            }
+          }
+        },
+        workInfo: {
+          type: 'string',
+          ui: {
+            linkage: {
+              type: 'visibility',
+              dependencies: ['./showCompany', './showDepartment'],
+              when: {
+                and: [
+                  { field: './showCompany', operator: '==', value: true },
+                  { field: './showDepartment', operator: '==', value: true }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**依赖关系图**：
+
+```
+type (A)
+    /      \
+   /        \
+  ↓          ↓
+showCompany showDepartment
+  (B)        (C)
+   \        /
+    \      /
+     ↓    ↓
+   workInfo (D)
+```
+
+**处理流程**：
+
+1. **模板依赖图**：
+   - `contacts.showCompany` → `contacts.type`
+   - `contacts.showDepartment` → `contacts.type`
+   - `contacts.workInfo` → `contacts.showCompany`, `contacts.showDepartment`
+
+2. **拓扑排序**：`type` → `showCompany`, `showDepartment` → `workInfo`
+
+3. **运行时实例化**（假设有 2 个元素）：
+   - `contacts.0.type` 变化
+   - 并行计算 `contacts.0.showCompany` 和 `contacts.0.showDepartment`
+   - 计算 `contacts.0.workInfo`
+
 ---
 
 ### 12.5 常见问题
@@ -1896,6 +2056,7 @@ remove(index);
 
 ### 🔗 相关文档
 
+- [数组字段联动设计方案](./ARRAY_FIELD_LINKAGE.md) - 数组字段联动的详细设计
 - [嵌套表单设计](./NESTED_FORM.md)
 - [字段路径透明化](./FIELD_PATH_FLATTENING.md)
 - [UI 联动设计](./UI_LINKAGE_DESIGN.md)
@@ -1907,3 +2068,4 @@ remove(index);
 **创建日期**: 2025-12-27  
 **文档状态**: 已完成  
 **作者**: Claude Code
+

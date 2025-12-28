@@ -202,7 +202,7 @@ interface ConditionExpression {
 
 ```typescript
 const linkageFunctions = {
-  calculateTotal: (formData: any) => {
+  calculateTotal: (formData: any, context?: LinkageFunctionContext) => {
     return (formData.price || 0) * (formData.quantity || 0);
   }
 };
@@ -287,7 +287,7 @@ const linkageFunctions = {
 
 ```typescript
 const linkageFunctions = {
-  getProvinceOptions: (formData: any) => {
+  getProvinceOptions: (formData: any, context?: LinkageFunctionContext) => {
     if (formData.country === 'china') {
       return [
         { label: '北京', value: 'beijing' },
@@ -579,9 +579,24 @@ export interface LinkageResult {
 }
 
 /**
+ * 联动函数上下文信息
+ */
+export interface LinkageFunctionContext {
+  /** 当前字段的完整路径（如 'contacts.0.companyName'） */
+  fieldPath: string;
+  /** 当前字段在数组中的索引（如果是数组元素字段） */
+  arrayIndex?: number;
+  /** 当前字段所在的数组路径（如果是数组元素字段，如 'contacts'） */
+  arrayPath?: string;
+}
+
+/**
  * 联动函数签名（支持同步和异步函数）
  */
-export type LinkageFunction = (formData: Record<string, any>) => any | Promise<any>;
+export type LinkageFunction = (
+  formData: Record<string, any>,
+  context?: LinkageFunctionContext
+) => any | Promise<any>;
 ```
 
 ### 6.2 条件表达式求值器
@@ -773,7 +788,7 @@ export function useLinkageManager({
       const results = await Promise.allSettled(
         Object.entries(linkages).map(async ([fieldName, linkage]) => ({
           fieldName,
-          result: await evaluateLinkage(linkage, formData, linkageFunctions),
+          result: await evaluateLinkage(linkage, formData, linkageFunctions, fieldName),
         }))
       );
 
@@ -811,7 +826,7 @@ export function useLinkageManager({
             const linkage = linkages[fieldName];
             if (!linkage) return null;
 
-            const result = await evaluateLinkage(linkage, formData, linkageFunctions);
+            const result = await evaluateLinkage(linkage, formData, linkageFunctions, fieldName);
             return { fieldName, linkage, result };
           })
         );
@@ -858,7 +873,8 @@ export function useLinkageManager({
 async function evaluateLinkage(
   linkage: LinkageConfig,
   formData: Record<string, any>,
-  linkageFunctions: Record<string, LinkageFunction>
+  linkageFunctions: Record<string, LinkageFunction>,
+  fieldPath: string  // 新增：当前字段路径
 ): Promise<LinkageResult> {
   const result: LinkageResult = {};
 
@@ -880,8 +896,11 @@ async function evaluateLinkage(
   if (effect.function) {
     const fn = linkageFunctions[effect.function];
     if (fn) {
-      // 使用 await 支持异步函数
-      const fnResult = await fn(formData);
+      // 构建上下文信息
+      const context = buildLinkageContext(fieldPath);
+
+      // 使用 await 支持异步函数，传递 context 参数
+      const fnResult = await fn(formData, context);
 
       // 根据 linkage.type 决定将结果赋值给哪个字段
       switch (linkage.type) {
@@ -915,6 +934,44 @@ async function evaluateLinkage(
   }
 
   return result;
+}
+
+/**
+ * 构建联动函数上下文信息
+ */
+function buildLinkageContext(fieldPath: string): LinkageFunctionContext {
+  const context: LinkageFunctionContext = {
+    fieldPath,
+  };
+
+  // 检查是否是数组元素字段
+  const arrayInfo = extractArrayInfo(fieldPath);
+  if (arrayInfo) {
+    context.arrayIndex = arrayInfo.index;
+    context.arrayPath = arrayInfo.arrayPath;
+  }
+
+  return context;
+}
+
+/**
+ * 从字段路径中提取数组信息
+ */
+function extractArrayInfo(fieldPath: string): {
+  arrayPath: string;
+  index: number;
+} | null {
+  const parts = fieldPath.split('.');
+  const indexPos = parts.findIndex(part => /^\d+$/.test(part));
+
+  if (indexPos === -1) {
+    return null;
+  }
+
+  return {
+    arrayPath: parts.slice(0, indexPos).join('.'),
+    index: parseInt(parts[indexPos], 10),
+  };
 }
 
 /**
@@ -955,6 +1012,7 @@ async function evaluateCondition(
 - ✅ **状态管理**：使用 `useState` 而非 `useMemo`，支持在 `useEffect` 中异步更新状态
 - ✅ **自动值更新**：在 `useEffect` 中直接调用 `form.setValue` 更新 `computed` 和 `value` 类型的字段
 - ✅ **批量更新**：只更新受影响的字段，提高性能
+- ✅ **上下文支持**：联动函数可以通过可选的 `context` 参数获取当前字段路径、数组索引等信息
 
 #### 异步函数使用示例
 
@@ -2108,3 +2166,53 @@ function FormField({ fieldName, linkageStates }: FormFieldProps) {
   );
 }
 ```
+
+### 10.6 数组字段的联动支持
+
+数组字段的联动需要特殊处理，因为涉及到相对路径和动态索引。
+
+**详细设计请参考**：[数组字段联动设计方案](./ARRAY_FIELD_LINKAGE.md)
+
+该专门文档详细描述了：
+- **核心挑战**：相对路径依赖、动态索引、菱形依赖
+- **解决方案架构**：模板依赖图方案
+- **基础场景**：相对路径、绝对路径、菱形依赖
+- **复杂场景**：混合依赖、跨数组依赖（oneOf/anyOf/allOf）、嵌套数组联动、数组聚合计算
+- **完整实现方案**：工具函数、Schema 解析、运行时管理
+- **最佳实践**：路径引用规范、性能优化、调试技巧
+
+**快速示例**：
+
+```typescript
+// 相对路径依赖
+{
+  contacts: {
+    type: 'array',
+    items: {
+      properties: {
+        type: { type: 'string', enum: ['personal', 'work'] },
+        companyName: {
+          type: 'string',
+          ui: {
+            linkage: {
+              type: 'visibility',
+              dependencies: ['./type'],  // 相对路径
+              when: { field: './type', operator: '==', value: 'work' }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**处理流程**：
+1. Schema 解析：识别 `contacts.companyName` 的联动配置
+2. 模板依赖：`contacts.companyName` → `contacts.type`
+3. 运行时实例化：为每个数组元素生成绝对路径
+
+
+
+更多详细示例和实现细节请参考 [数组字段联动设计方案](./ARRAY_FIELD_LINKAGE.md)。
+
