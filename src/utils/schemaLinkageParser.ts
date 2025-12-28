@@ -43,14 +43,14 @@ export function parseSchemaLinkages(schema: ExtendedJSONSchema): ParsedLinkages 
     hasFlattenPath = hasFlattenPath || used;
   });
 
-  // console.log(
-  //   '[parseSchemaLinkages] 解析完成:',
-  //   JSON.stringify({
-  //     linkagesCount: Object.keys(linkages).length,
-  //     pathMappingsCount: pathMappings.length,
-  //     hasFlattenPath,
-  //   })
-  // );
+  console.log(
+    '[parseSchemaLinkages] 解析完成:',
+    JSON.stringify({
+      linkagesCount: Object.keys(linkages).length,
+      pathMappingsCount: pathMappings.length,
+      hasFlattenPath,
+    })
+  );
 
   return { linkages, pathMappings, hasFlattenPath };
 }
@@ -78,15 +78,15 @@ function parseSchemaRecursive(
     return;
   }
 
-  // console.log(
-  //   '[parseSchemaRecursive] 开始解析:',
-  //   JSON.stringify({
-  //     logicalParentPath,
-  //     physicalParentPath,
-  //     properties: Object.keys(schema.properties),
-  //     skippedSegments,
-  //   })
-  // );
+  console.log(
+    '[parseSchemaRecursive] 开始解析:',
+    JSON.stringify({
+      logicalParentPath,
+      physicalParentPath,
+      properties: Object.keys(schema.properties),
+      skippedSegments,
+    })
+  );
 
   // 遍历所有字段
   Object.entries(schema.properties).forEach(([fieldName, fieldSchema]) => {
@@ -118,17 +118,17 @@ function parseSchemaRecursive(
       currentSkippedSegments = [];
     }
 
-    // console.log(
-    //   '[parseSchemaRecursive] 处理字段:',
-    //   JSON.stringify({
-    //     fieldName,
-    //     type: typedSchema.type,
-    //     shouldSkipInPath,
-    //     logicalPath,
-    //     physicalPath,
-    //     hasLinkage: !!typedSchema.ui?.linkage,
-    //   })
-    // );
+    console.log(
+      '[parseSchemaRecursive] 处理字段:',
+      JSON.stringify({
+        fieldName,
+        type: typedSchema.type,
+        shouldSkipInPath,
+        logicalPath,
+        physicalPath,
+        hasLinkage: !!typedSchema.ui?.linkage,
+      })
+    );
 
     // 添加路径映射（如果逻辑路径和物理路径不同）
     if (logicalPath !== physicalPath) {
@@ -142,14 +142,14 @@ function parseSchemaRecursive(
 
     // 收集当前字段的联动配置（使用逻辑路径）
     if (typedSchema.ui?.linkage) {
-      // console.log(
-      //   '[parseSchemaRecursive] 找到联动配置:',
-      //   JSON.stringify({
-      //     logicalPath,
-      //     physicalPath,
-      //     linkage: typedSchema.ui.linkage,
-      //   })
-      // );
+      console.log(
+        '[parseSchemaRecursive] 找到联动配置:',
+        JSON.stringify({
+          logicalPath,
+          physicalPath,
+          linkage: typedSchema.ui.linkage,
+        })
+      );
       linkages[logicalPath] = typedSchema.ui.linkage;
     }
 
@@ -170,14 +170,14 @@ function parseSchemaRecursive(
     if (typedSchema.type === 'array' && typedSchema.items) {
       const itemsSchema = typedSchema.items as ExtendedJSONSchema;
       if (itemsSchema.type === 'object' && itemsSchema.properties) {
-        // console.log(
-        //   '[parseSchemaRecursive] 处理数组元素:',
-        //   JSON.stringify({
-        //     fieldName,
-        //     logicalPath,
-        //     physicalPath,
-        //   })
-        // );
+        console.log(
+          '[parseSchemaRecursive] 处理数组元素:',
+          JSON.stringify({
+            fieldName,
+            logicalPath,
+            physicalPath,
+          })
+        );
         parseSchemaRecursive(
           itemsSchema,
           logicalPath,

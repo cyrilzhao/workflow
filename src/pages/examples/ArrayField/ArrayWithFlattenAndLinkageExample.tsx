@@ -97,6 +97,7 @@ export const ArrayWithFlattenAndLinkageExample: React.FC = () => {
                               enum: ['gold', 'silver', 'bronze'],
                               enumNames: ['金卡', '银卡', '铜卡'],
                               ui: {
+                                placeholder: '请选择VIP等级',
                                 linkage: {
                                   type: 'visibility',
                                   dependencies: ['./type'],

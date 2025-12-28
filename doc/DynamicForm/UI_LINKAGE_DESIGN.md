@@ -1933,12 +1933,39 @@ quantity┘
 
 ```typescript
 /**
+ * 循环依赖错误
+ */
+export class CircularDependencyError extends Error {
+  constructor(
+    public readonly cycle: string[],
+    message?: string
+  ) {
+    super(message || `检测到循环依赖: ${cycle.join(' -> ')}`);
+    this.name = 'CircularDependencyError';
+  }
+}
+
+/**
+ * 依赖图检测结果
+ */
+export interface DependencyGraphValidation {
+  /** 是否有效（无循环依赖） */
+  isValid: boolean;
+  /** 循环依赖路径（如果存在） */
+  cycle: string[] | null;
+  /** 错误信息 */
+  error?: string;
+}
+
+/**
  * 依赖图（DAG）管理器
  * 用于优化联动字段的更新顺序和性能
  */
 export class DependencyGraph {
   // 依赖关系图：key 是源字段，value 是依赖该字段的目标字段集合
   private graph: Map<string, Set<string>> = new Map();
+  // 反向依赖图：key 是目标字段，value 是该字段依赖的源字段集合
+  private reverseGraph: Map<string, Set<string>> = new Map();
 
   /**
    * 添加依赖关系
@@ -1946,15 +1973,30 @@ export class DependencyGraph {
    * @param source - 源字段（被依赖的字段）
    */
   addDependency(target: string, source: string) {
+    // 正向依赖图：source -> target
     if (!this.graph.has(source)) {
       this.graph.set(source, new Set());
     }
     this.graph.get(source)!.add(target);
+
+    // 反向依赖图：target -> source（用于拓扑排序时计算入度）
+    if (!this.reverseGraph.has(target)) {
+      this.reverseGraph.set(target, new Set());
+    }
+    this.reverseGraph.get(target)!.add(source);
   }
 
   /**
-   * 获取受影响的字段（拓扑排序）
-   * 当某个字段变化时，返回所有需要更新的字段，按依赖顺序排列
+   * 获取字段的所有依赖（该字段依赖哪些字段）
+   */
+  getDependencies(field: string): string[] {
+    const deps = this.reverseGraph.get(field);
+    return deps ? Array.from(deps) : [];
+  }
+
+  /**
+   * 获取受影响的字段
+   * 当某个字段变化时，返回所有需要更新的字段
    */
   getAffectedFields(changedField: string): string[] {
     const affected: string[] = [];
@@ -1967,7 +2009,9 @@ export class DependencyGraph {
       const dependents = this.graph.get(field);
       if (dependents) {
         dependents.forEach(dependent => {
-          affected.push(dependent);
+          if (!visited.has(dependent)) {
+            affected.push(dependent);
+          }
           dfs(dependent);
         });
       }
@@ -1979,12 +2023,15 @@ export class DependencyGraph {
 
   /**
    * 检测循环依赖
+   * @param throwOnCycle - 是否在检测到循环时抛出错误
    * @returns 如果存在循环依赖，返回循环路径；否则返回 null
+   * @throws CircularDependencyError 如果 throwOnCycle 为 true 且存在循环依赖
    */
-  detectCycle(): string[] | null {
+  detectCycle(throwOnCycle: boolean = false): string[] | null {
     const visited = new Set<string>();
     const recStack = new Set<string>();
     const path: string[] = [];
+    let cycleStart: string | null = null;
 
     const dfs = (node: string): boolean => {
       visited.add(node);
@@ -1997,7 +2044,7 @@ export class DependencyGraph {
           if (!visited.has(neighbor)) {
             if (dfs(neighbor)) return true;
           } else if (recStack.has(neighbor)) {
-            // 找到循环
+            cycleStart = neighbor;
             return true;
           }
         }
@@ -2011,12 +2058,38 @@ export class DependencyGraph {
     for (const node of this.graph.keys()) {
       if (!visited.has(node)) {
         if (dfs(node)) {
-          return path;
+          // 提取完整的循环路径
+          const cycleStartIndex = path.indexOf(cycleStart!);
+          const cyclePath =
+            cycleStartIndex >= 0
+              ? [...path.slice(cycleStartIndex), cycleStart!]
+              : [...path, path[0]];
+
+          if (throwOnCycle) {
+            throw new CircularDependencyError(cyclePath);
+          }
+          return cyclePath;
         }
       }
     }
 
     return null;
+  }
+
+  /**
+   * 验证依赖图的有效性
+   * @returns 验证结果，包含是否有效、循环路径和错误信息
+   */
+  validate(): DependencyGraphValidation {
+    const cycle = this.detectCycle(false);
+    if (cycle) {
+      return {
+        isValid: false,
+        cycle,
+        error: `检测到循环依赖: ${cycle.join(' -> ')}`,
+      };
+    }
+    return { isValid: true, cycle: null };
   }
 
   /**
@@ -2035,24 +2108,98 @@ export class DependencyGraph {
   }
 
   /**
+   * 拓扑排序：返回按依赖顺序排列的字段列表（Kahn 算法）
+   * @param fields - 需要排序的字段列表
+   * @param options - 排序选项
+   * @returns 按拓扑顺序排列的字段列表
+   */
+  topologicalSort(
+    fields: string[],
+    options: {
+      throwOnCycle?: boolean;
+      onCycleDetected?: (cycle: string[]) => void;
+    } = {}
+  ): string[] {
+    const { throwOnCycle = false, onCycleDetected } = options;
+    const inDegree = new Map<string, number>();
+    const adjList = new Map<string, Set<string>>();
+
+    // 初始化入度和邻接表
+    const fieldSet = new Set(fields);
+    fields.forEach(field => {
+      inDegree.set(field, 0);
+      adjList.set(field, new Set());
+    });
+
+    // 构建邻接表和计算入度
+    fields.forEach(field => {
+      const dependents = this.graph.get(field);
+      if (dependents) {
+        dependents.forEach(dependent => {
+          if (fieldSet.has(dependent)) {
+            adjList.get(field)!.add(dependent);
+            inDegree.set(dependent, (inDegree.get(dependent) || 0) + 1);
+          }
+        });
+      }
+    });
+
+    // Kahn 算法进行拓扑排序
+    const queue: string[] = [];
+    const result: string[] = [];
+
+    inDegree.forEach((degree, field) => {
+      if (degree === 0) queue.push(field);
+    });
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      result.push(current);
+
+      const neighbors = adjList.get(current);
+      if (neighbors) {
+        neighbors.forEach(neighbor => {
+          const newDegree = (inDegree.get(neighbor) || 0) - 1;
+          inDegree.set(neighbor, newDegree);
+          if (newDegree === 0) queue.push(neighbor);
+        });
+      }
+    }
+
+    // 检测循环依赖
+    if (result.length < fields.length) {
+      const cycleNodes = fields.filter(f => !result.includes(f));
+      if (onCycleDetected) onCycleDetected(cycleNodes);
+      if (throwOnCycle) throw new CircularDependencyError(cycleNodes);
+      console.warn('拓扑排序检测到循环依赖:', cycleNodes.join(' -> '));
+      return [...result, ...cycleNodes];
+    }
+
+    return result;
+  }
+
+  /**
    * 清空依赖图
    */
   clear() {
     this.graph.clear();
+    this.reverseGraph.clear();
   }
 }
 ```
 
 **关键特性**：
 
-- ✅ **循环依赖检测**：`detectCycle()` 方法使用 DFS 算法检测循环依赖
-- ✅ **拓扑排序**：`getAffectedFields()` 按依赖顺序返回受影响的字段
+- ✅ **循环依赖错误类**：`CircularDependencyError` 提供结构化的错误信息
+- ✅ **依赖图验证**：`validate()` 方法返回详细的验证结果
+- ✅ **循环依赖检测**：`detectCycle()` 支持可选的抛出错误模式
+- ✅ **真正的拓扑排序**：`topologicalSort()` 使用 Kahn 算法确保正确的执行顺序
 - ✅ **性能优化**：只计算和更新真正受影响的字段，避免全量重新计算
 - ✅ **辅助方法**：提供 `getSources()`、`getDirectDependents()`、`clear()` 等实用方法
 
 #### 在联动管理器中使用
 
-在 `useLinkageManager` 中（第 694-712 行）：
+在 `useLinkageManager` 中构建依赖图并进行循环检测：
 
 ```typescript
 // src/hooks/useLinkageManager.ts
@@ -2063,7 +2210,6 @@ const dependencyGraph = useMemo(() => {
 
   Object.entries(linkages).forEach(([fieldName, linkage]) => {
     linkage.dependencies.forEach(dep => {
-      // 标准化路径并添加依赖关系
       const normalizedDep = PathResolver.toFieldPath(dep);
       graph.addDependency(fieldName, normalizedDep);
     });
@@ -2079,22 +2225,55 @@ const dependencyGraph = useMemo(() => {
 }, [linkages]);
 ```
 
-在 `useEffect` 中使用依赖图（第 725-768 行）：
+**按拓扑顺序执行联动**（关键改进）：
 
 ```typescript
 useEffect(() => {
   const subscription = watch((_, { name }) => {
     if (!name) return;
-    // 获取受影响的字段（使用依赖图精确计算）
+
+    // 获取受影响的字段
     const affectedFields = dependencyGraph.getAffectedFields(name);
     if (affectedFields.length === 0) return;
 
-    // 只重新计算受影响的字段...
+    (async () => {
+      const formData = { ...getValues() };
+
+      // 关键：对受影响的字段进行拓扑排序，确保按依赖顺序计算
+      const sortedFields = dependencyGraph.topologicalSort(affectedFields);
+
+      // 按拓扑顺序串行执行联动（而非并行）
+      for (const fieldName of sortedFields) {
+        const linkage = linkages[fieldName];
+        if (!linkage) continue;
+
+        const result = await evaluateLinkage(linkage, formData, linkageFunctions);
+
+        // 处理值联动：更新 formData 以供后续字段使用
+        if (linkage.type === 'value' && result.value !== undefined) {
+          formData[fieldName] = result.value;
+          form.setValue(fieldName, result.value, {
+            shouldValidate: false,
+            shouldDirty: false,
+          });
+        }
+
+        newStates[fieldName] = result;
+      }
+
+      setLinkageStates(prev => ({ ...prev, ...newStates }));
+    })();
   });
 
   return () => subscription.unsubscribe();
-}, [watch, form, getValues, linkages, linkageFunctions, dependencyGraph]);
+}, [watch, form, linkages, linkageFunctions, dependencyGraph]);
 ```
+
+**关键改进说明**：
+
+1. **拓扑排序**：使用 `topologicalSort()` 确保字段按依赖顺序计算
+2. **串行执行**：使用 `for...of` 循环串行执行，而非 `Promise.all` 并行执行
+3. **实时更新 formData**：每个字段计算后立即更新 `formData`，确保后续字段能获取最新值
 
 ### 10.5 readonly 状态支持
 

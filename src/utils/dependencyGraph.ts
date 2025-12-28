@@ -1,10 +1,37 @@
 /**
+ * 循环依赖错误
+ */
+export class CircularDependencyError extends Error {
+  constructor(
+    public readonly cycle: string[],
+    message?: string
+  ) {
+    super(message || `检测到循环依赖: ${cycle.join(' -> ')}`);
+    this.name = 'CircularDependencyError';
+  }
+}
+
+/**
+ * 依赖图检测结果
+ */
+export interface DependencyGraphValidation {
+  /** 是否有效（无循环依赖） */
+  isValid: boolean;
+  /** 循环依赖路径（如果存在） */
+  cycle: string[] | null;
+  /** 错误信息 */
+  error?: string;
+}
+
+/**
  * 依赖图（DAG）管理器
  * 用于优化联动字段的更新顺序和性能
  */
 export class DependencyGraph {
   // 依赖关系图：key 是源字段，value 是依赖该字段的目标字段集合
   private graph: Map<string, Set<string>> = new Map();
+  // 反向依赖图：key 是目标字段，value 是该字段依赖的源字段集合
+  private reverseGraph: Map<string, Set<string>> = new Map();
 
   /**
    * 添加依赖关系
@@ -16,10 +43,25 @@ export class DependencyGraph {
    * graph.addDependency('total', 'price')
    */
   addDependency(target: string, source: string) {
+    // 正向依赖图：source -> target
     if (!this.graph.has(source)) {
       this.graph.set(source, new Set());
     }
     this.graph.get(source)!.add(target);
+
+    // 反向依赖图：target -> source（用于拓扑排序时计算入度）
+    if (!this.reverseGraph.has(target)) {
+      this.reverseGraph.set(target, new Set());
+    }
+    this.reverseGraph.get(target)!.add(source);
+  }
+
+  /**
+   * 获取字段的所有依赖（该字段依赖哪些字段）
+   */
+  getDependencies(field: string): string[] {
+    const deps = this.reverseGraph.get(field);
+    return deps ? Array.from(deps) : [];
   }
 
   /**
@@ -59,12 +101,15 @@ export class DependencyGraph {
 
   /**
    * 检测循环依赖
+   * @param throwOnCycle - 是否在检测到循环时抛出错误
    * @returns 如果存在循环依赖，返回循环路径；否则返回 null
+   * @throws CircularDependencyError 如果 throwOnCycle 为 true 且存在循环依赖
    */
-  detectCycle(): string[] | null {
+  detectCycle(throwOnCycle: boolean = false): string[] | null {
     const visited = new Set<string>();
     const recStack = new Set<string>();
     const path: string[] = [];
+    let cycleStart: string | null = null;
 
     const dfs = (node: string): boolean => {
       visited.add(node);
@@ -77,7 +122,8 @@ export class DependencyGraph {
           if (!visited.has(neighbor)) {
             if (dfs(neighbor)) return true;
           } else if (recStack.has(neighbor)) {
-            // 找到循环
+            // 找到循环，记录循环起点
+            cycleStart = neighbor;
             return true;
           }
         }
@@ -91,12 +137,38 @@ export class DependencyGraph {
     for (const node of this.graph.keys()) {
       if (!visited.has(node)) {
         if (dfs(node)) {
-          return path;
+          // 提取完整的循环路径
+          const cycleStartIndex = path.indexOf(cycleStart!);
+          const cyclePath =
+            cycleStartIndex >= 0
+              ? [...path.slice(cycleStartIndex), cycleStart!]
+              : [...path, path[0]];
+
+          if (throwOnCycle) {
+            throw new CircularDependencyError(cyclePath);
+          }
+          return cyclePath;
         }
       }
     }
 
     return null;
+  }
+
+  /**
+   * 验证依赖图的有效性
+   * @returns 验证结果，包含是否有效、循环路径和错误信息
+   */
+  validate(): DependencyGraphValidation {
+    const cycle = this.detectCycle(false);
+    if (cycle) {
+      return {
+        isValid: false,
+        cycle,
+        error: `检测到循环依赖: ${cycle.join(' -> ')}`,
+      };
+    }
+    return { isValid: true, cycle: null };
   }
 
   /**
@@ -117,13 +189,23 @@ export class DependencyGraph {
   /**
    * 拓扑排序：返回按依赖顺序排列的字段列表
    * @param fields - 需要排序的字段列表
+   * @param options - 排序选项
+   * @param options.throwOnCycle - 是否在检测到循环时抛出错误（默认 false）
+   * @param options.onCycleDetected - 检测到循环时的回调函数
    * @returns 按拓扑顺序排列的字段列表
    *
    * @example
    * // A -> B -> C
    * graph.topologicalSort(['A', 'B', 'C']) // ['A', 'B', 'C']
    */
-  topologicalSort(fields: string[]): string[] {
+  topologicalSort(
+    fields: string[],
+    options: {
+      throwOnCycle?: boolean;
+      onCycleDetected?: (cycle: string[]) => void;
+    } = {}
+  ): string[] {
+    const { throwOnCycle = false, onCycleDetected } = options;
     const inDegree = new Map<string, number>();
     const adjList = new Map<string, Set<string>>();
 
@@ -176,7 +258,80 @@ export class DependencyGraph {
       }
     }
 
+    // 检测循环依赖：如果结果数量少于输入数量，说明存在循环
+    if (result.length < fields.length) {
+      // 找出循环中的节点
+      const cycleNodes = fields.filter(f => !result.includes(f));
+      const cyclePath = this.findCyclePath(cycleNodes, adjList);
+
+      if (onCycleDetected) {
+        onCycleDetected(cyclePath);
+      }
+
+      if (throwOnCycle) {
+        throw new CircularDependencyError(cyclePath);
+      }
+
+      // 返回已排序的节点，循环节点按原顺序追加到末尾
+      console.warn('拓扑排序检测到循环依赖:', cyclePath.join(' -> '));
+      return [...result, ...cycleNodes];
+    }
+
     return result;
+  }
+
+  /**
+   * 在给定节点集合中查找循环路径
+   */
+  private findCyclePath(
+    cycleNodes: string[],
+    adjList: Map<string, Set<string>>
+  ): string[] {
+    if (cycleNodes.length === 0) return [];
+
+    const visited = new Set<string>();
+    const recStack = new Set<string>();
+    const path: string[] = [];
+    let cycleStart: string | null = null;
+
+    const dfs = (node: string): boolean => {
+      if (!cycleNodes.includes(node)) return false;
+
+      visited.add(node);
+      recStack.add(node);
+      path.push(node);
+
+      const neighbors = adjList.get(node);
+      if (neighbors) {
+        for (const neighbor of neighbors) {
+          if (cycleNodes.includes(neighbor)) {
+            if (!visited.has(neighbor)) {
+              if (dfs(neighbor)) return true;
+            } else if (recStack.has(neighbor)) {
+              cycleStart = neighbor;
+              return true;
+            }
+          }
+        }
+      }
+
+      recStack.delete(node);
+      path.pop();
+      return false;
+    };
+
+    for (const node of cycleNodes) {
+      if (!visited.has(node)) {
+        if (dfs(node)) {
+          const startIdx = path.indexOf(cycleStart!);
+          return startIdx >= 0
+            ? [...path.slice(startIdx), cycleStart!]
+            : [...path, path[0]];
+        }
+      }
+    }
+
+    return cycleNodes;
   }
 
   /**
@@ -184,5 +339,6 @@ export class DependencyGraph {
    */
   clear() {
     this.graph.clear();
+    this.reverseGraph.clear();
   }
 }

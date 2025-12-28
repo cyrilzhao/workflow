@@ -1,6 +1,6 @@
 import { useMemo, useEffect, useState } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
-import type { LinkageConfig, LinkageFunction, ConditionExpression } from '@/types/linkage';
+import type { LinkageConfig, LinkageFunction, ConditionExpression, LinkageFunctionContext } from '@/types/linkage';
 import type { LinkageResult } from '@/types/linkage';
 import { ConditionEvaluator } from '@/utils/conditionEvaluator';
 import { DependencyGraph } from '@/utils/dependencyGraph';
@@ -37,6 +37,24 @@ function setNestedValue(obj: any, path: string, value: any): void {
     current = current[key];
   }
   current[keys[keys.length - 1]] = value;
+}
+
+/**
+ * 从字段路径中提取数组上下文信息
+ * 例如: 'contacts.0.showCompany' => { arrayPath: 'contacts', arrayIndex: 0 }
+ */
+function extractArrayContext(fieldPath: string): { arrayPath?: string; arrayIndex?: number } {
+  const parts = fieldPath.split('.');
+  for (let i = 0; i < parts.length; i++) {
+    const index = parseInt(parts[i], 10);
+    if (!isNaN(index) && i > 0) {
+      return {
+        arrayPath: parts.slice(0, i).join('.'),
+        arrayIndex: index,
+      };
+    }
+  }
+  return {};
 }
 
 interface LinkageManagerOptions {
@@ -118,7 +136,7 @@ export function useLinkageManager({
         if (!linkage) continue;
 
         try {
-          const result = await evaluateLinkage(linkage, formData, linkageFunctions);
+          const result = await evaluateLinkage(linkage, formData, linkageFunctions, fieldName);
           states[fieldName] = result;
 
           // 如果是值联动，更新 formData 以供后续字段使用
@@ -164,7 +182,7 @@ export function useLinkageManager({
           if (!linkage) continue;
 
           try {
-            const result = await evaluateLinkage(linkage, formData, linkageFunctions);
+            const result = await evaluateLinkage(linkage, formData, linkageFunctions, fieldName);
             newStates[fieldName] = result;
 
             // 处理值联动：自动更新表单字段值和 formData
@@ -207,13 +225,22 @@ export function useLinkageManager({
 async function evaluateLinkage(
   linkage: LinkageConfig,
   formData: Record<string, any>,
-  linkageFunctions: Record<string, LinkageFunction>
+  linkageFunctions: Record<string, LinkageFunction>,
+  fieldPath: string
 ): Promise<LinkageResult> {
   const result: LinkageResult = {};
 
+  // 构建联动函数上下文
+  const { arrayPath, arrayIndex } = extractArrayContext(fieldPath);
+  const context: LinkageFunctionContext = {
+    fieldPath,
+    arrayPath,
+    arrayIndex,
+  };
+
   // 如果没有 when 条件，默认使用 fulfill
   const shouldFulfill = linkage.when
-    ? await evaluateCondition(linkage.when, formData, linkageFunctions)
+    ? await evaluateCondition(linkage.when, formData, linkageFunctions, context)
     : true;
 
   const effect = shouldFulfill ? linkage.fulfill : linkage.otherwise;
@@ -229,8 +256,8 @@ async function evaluateLinkage(
   if (effect.function) {
     const fn = linkageFunctions[effect.function];
     if (fn) {
-      // 使用 await 支持异步函数
-      const fnResult = await fn(formData);
+      // 使用 await 支持异步函数，传递 context
+      const fnResult = await fn(formData, context);
 
       // 根据 linkage.type 决定将结果赋值给哪个字段
       switch (linkage.type) {
@@ -272,14 +299,15 @@ async function evaluateLinkage(
 async function evaluateCondition(
   when: ConditionExpression | string,
   formData: Record<string, any>,
-  linkageFunctions: Record<string, LinkageFunction>
+  linkageFunctions: Record<string, LinkageFunction>,
+  context: LinkageFunctionContext
 ): Promise<boolean> {
   // 如果是字符串，尝试作为函数名调用
   if (typeof when === 'string') {
     const fn = linkageFunctions[when];
     if (fn) {
-      // 使用 await 支持异步函数
-      const result = await fn(formData);
+      // 使用 await 支持异步函数，传递 context
+      const result = await fn(formData, context);
       return Boolean(result);
     }
     console.warn(`Linkage function "${when}" not found`);

@@ -1,7 +1,7 @@
 import React from 'react';
 import { DynamicForm } from '@/components/DynamicForm';
 import type { ExtendedJSONSchema } from '@/types/schema';
-import type { LinkageFunction } from '@/types/linkage';
+import type { LinkageFunction, LinkageFunctionContext } from '@/types/linkage';
 import { Card, H3 } from '@blueprintjs/core';
 
 /**
@@ -93,13 +93,23 @@ export const DiamondDependencyExample: React.FC = () => {
 
   // 联动函数
   const linkageFunctions: Record<string, LinkageFunction> = {
-    calcShowCompany: (formData: any) => {
-      // 简化逻辑：工作类型显示公司信息
-      return true;
+    calcShowCompany: (formData: any, context?: LinkageFunctionContext) => {
+      // 使用 context 获取当前数组元素的数据
+      if (context?.arrayPath && context.arrayIndex !== undefined) {
+        const arrayData = formData[context.arrayPath];
+        const elementData = arrayData?.[context.arrayIndex];
+        return elementData?.type === 'work';
+      }
+      return formData?.type === 'work';
     },
-    calcShowDepartment: (formData: any) => {
-      // 简化逻辑：工作类型显示部门信息
-      return true;
+    calcShowDepartment: (formData: any, context?: LinkageFunctionContext) => {
+      // 使用 context 获取当前数组元素的数据
+      if (context?.arrayPath && context.arrayIndex !== undefined) {
+        const arrayData = formData[context.arrayPath];
+        const elementData = arrayData?.[context.arrayIndex];
+        return elementData?.type === 'work';
+      }
+      return formData?.type === 'work';
     },
   };
 

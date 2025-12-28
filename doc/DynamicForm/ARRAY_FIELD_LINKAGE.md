@@ -1559,6 +1559,18 @@ function parseSchemaRecursive(
 **文件位置**：`src/hooks/useArrayLinkageManager.ts`
 
 ```typescript
+interface ArrayLinkageManagerOptions {
+  form: UseFormReturn<any>;
+  baseLinkages: Record<string, LinkageConfig>;
+  linkageFunctions?: Record<string, LinkageFunction>;
+  schema?: ExtendedJSONSchema;
+  pathMappings?: PathMapping[];
+  /** 检测到循环依赖时的回调 */
+  onCycleDetected?: (cycle: string[]) => void;
+  /** 是否在检测到循环依赖时抛出错误（默认 false） */
+  throwOnCycle?: boolean;
+}
+
 /**
  * 数组联动管理器 Hook
  * 扩展基础联动管理器，支持数组元素内部的相对路径联动
@@ -1568,23 +1580,51 @@ export function useArrayLinkageManager({
   baseLinkages,
   linkageFunctions = {},
   schema,
-  pathMappings = [],  // 路径映射表（用于路径透明化场景）
+  pathMappings = [],
+  onCycleDetected,
+  throwOnCycle = false,
 }: ArrayLinkageManagerOptions) {
   const { watch, getValues } = form;
 
   // 动态联动配置（包含运行时生成的数组元素联动）
   const [dynamicLinkages, setDynamicLinkages] = useState<Record<string, LinkageConfig>>({});
 
-  // 合并基础联动和动态联动
+  // 合并基础联动和动态联动，并进行循环依赖检测
   const allLinkages = useMemo(() => {
-    return { ...baseLinkages, ...dynamicLinkages };
-  }, [baseLinkages, dynamicLinkages]);
+    const merged = { ...baseLinkages, ...dynamicLinkages };
 
-  // 使用基础联动管理器
+    // 构建临时依赖图进行循环依赖检测
+    const tempGraph = new DependencyGraph();
+    Object.entries(merged).forEach(([fieldName, linkage]) => {
+      linkage.dependencies.forEach(dep => {
+        const normalizedDep = PathResolver.toFieldPath(dep);
+        tempGraph.addDependency(fieldName, normalizedDep);
+      });
+    });
+
+    // 检测循环依赖
+    const validation = tempGraph.validate();
+    if (!validation.isValid && validation.cycle) {
+      console.error('[useArrayLinkageManager] 检测到循环依赖:', validation.cycle.join(' -> '));
+
+      if (onCycleDetected) {
+        onCycleDetected(validation.cycle);
+      }
+
+      if (throwOnCycle) {
+        throw new Error(`循环依赖: ${validation.cycle.join(' -> ')}`);
+      }
+    }
+
+    return merged;
+  }, [baseLinkages, dynamicLinkages, onCycleDetected, throwOnCycle]);
+
+  // 使用基础联动管理器（传递路径映射）
   const linkageStates = useBaseLinkageManager({
     form,
     linkages: allLinkages,
     linkageFunctions,
+    pathMappings,
   });
 
   // 监听表单数据变化，动态注册数组元素的联动
@@ -1595,23 +1635,23 @@ export function useArrayLinkageManager({
 
       // 遍历基础联动配置，找出数组相关的联动
       Object.entries(baseLinkages).forEach(([fieldPath, linkage]) => {
-        // 检查是否是数组元素的联动配置（路径中不包含数字索引）
         if (!isArrayElementPath(fieldPath) && fieldPath.includes('.')) {
-          // 尝试从 formData 中找到对应的数组
           const parts = fieldPath.split('.');
 
-          // 查找可能的数组路径
           for (let i = 0; i < parts.length - 1; i++) {
             const possibleArrayPath = parts.slice(0, i + 1).join('.');
             const value = getNestedValue(formData, possibleArrayPath);
 
             if (Array.isArray(value)) {
-              // 找到数组，为每个元素生成联动配置
               const fieldPathInArray = parts.slice(i + 1).join('.');
 
               value.forEach((_, index) => {
                 const elementFieldPath = `${possibleArrayPath}.${index}.${fieldPathInArray}`;
-                const resolvedLinkage = resolveArrayElementLinkage(linkage, elementFieldPath);
+                const resolvedLinkage = resolveArrayElementLinkage(
+                  linkage,
+                  elementFieldPath,
+                  schema
+                );
                 newDynamicLinkages[elementFieldPath] = resolvedLinkage;
               });
 
@@ -1625,7 +1665,7 @@ export function useArrayLinkageManager({
     });
 
     return () => subscription.unsubscribe();
-  }, [watch, getValues, baseLinkages]);
+  }, [watch, getValues, baseLinkages, schema]);
 
   return linkageStates;
 }
@@ -1637,8 +1677,9 @@ export function useArrayLinkageManager({
 2. **识别数组字段**：遍历基础联动配置，找出数组相关的联动
 3. **实例化联动配置**：为每个数组元素生成具体的联动配置
 4. **解析相对路径**：将相对路径转换为绝对路径
-5. **合并联动配置**：将动态生成的联动配置与基础联动配置合并
-6. **执行联动逻辑**：使用基础联动管理器执行联动
+5. **循环依赖检测**：在合并联动配置时检测循环依赖
+6. **合并联动配置**：将动态生成的联动配置与基础联动配置合并
+7. **执行联动逻辑**：使用基础联动管理器按拓扑顺序执行联动
 
 ### 6.4 集成到 DynamicForm
 
@@ -1818,9 +1859,13 @@ console.log('动态联动配置:', dynamicLinkages);
 3. **模板依赖图**：Schema 解析时构建，运行时实例化
 4. **动态索引匹配**：自动匹配父子数组的索引关系
 5. **双向依赖支持**：支持父数组→子数组和子数组→父数组的双向依赖
-6. **拓扑排序**：处理复杂依赖关系
-7. **循环依赖检测**：识别并特殊处理双向依赖
-8. **按需计算**：只在组件渲染时才计算该层的联动，支持虚拟滚动和懒加载
+6. **真正的拓扑排序**：使用 Kahn 算法确保字段按依赖顺序计算，解决菱形依赖问题
+7. **循环依赖检测与处理**：
+   - 静态检测：构建依赖图时使用 DFS 检测循环
+   - 动态检测：合并联动配置时再次检测
+   - 可配置行为：支持警告、回调或抛出错误
+8. **串行执行联动**：按拓扑顺序串行执行，确保依赖字段先计算完成
+9. **按需计算**：只在组件渲染时才计算该层的联动，支持虚拟滚动和懒加载
 
 ### 8.2 适用场景
 
@@ -1845,6 +1890,30 @@ console.log('动态联动配置:', dynamicLinkages);
 ---
 
 ## 9. 变更历史
+
+### v2.2 (2025-12-28)
+
+**重大变更**：拓扑排序和循环依赖检测优化
+
+1. **拓扑排序优化**
+   - ✅ 使用 Kahn 算法实现真正的拓扑排序
+   - ✅ 解决菱形依赖场景下的执行顺序问题
+   - ✅ 串行执行联动，确保依赖字段先计算完成
+
+2. **循环依赖检测增强**
+   - ✅ 新增 `CircularDependencyError` 错误类
+   - ✅ 新增 `validate()` 方法返回详细验证结果
+   - ✅ `detectCycle()` 支持可选的抛出错误模式
+   - ✅ `topologicalSort()` 内置循环检测和回调支持
+
+3. **动态联动循环检测**
+   - ✅ `useArrayLinkageManager` 合并配置时检测循环依赖
+   - ✅ 支持 `onCycleDetected` 回调和 `throwOnCycle` 选项
+
+4. **文档更新**
+   - 更新 DependencyGraph 类的完整实现
+   - 更新联动管理器的执行逻辑说明
+   - 更新关键技术点列表
 
 ### v2.1 (2025-12-28)
 
@@ -1908,7 +1977,7 @@ console.log('动态联动配置:', dynamicLinkages);
 
 ---
 
-**文档版本**: 2.1
+**文档版本**: 2.2
 **最后更新**: 2025-12-28
 **文档状态**: 已完成
 **作者**: Claude Code

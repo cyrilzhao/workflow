@@ -1,6 +1,7 @@
 import React from 'react';
 import { DynamicForm } from '@/components/DynamicForm';
 import type { ExtendedJSONSchema } from '@/types/schema';
+import { Card, H3 } from '@blueprintjs/core';
 
 /**
  * 场景2：绝对路径依赖（数组内依赖外部）
@@ -37,6 +38,7 @@ export const AbsolutePathLinkageExample: React.FC = () => {
               enum: ['bronze', 'silver', 'gold', 'platinum'],
               enumNames: ['青铜', '白银', '黄金', '铂金'],
               ui: {
+                placeholder: '请选择 VIP 等级',
                 linkage: {
                   type: 'visibility',
                   dependencies: ['#/properties/enableVip'], // JSON Pointer 绝对路径
@@ -100,6 +102,13 @@ export const AbsolutePathLinkageExample: React.FC = () => {
       </ul>
 
       <DynamicForm schema={schema} defaultValues={defaultValues} onSubmit={handleSubmit} />
+
+      <Card style={{ marginTop: '20px' }}>
+        <H3>Schema 配置</H3>
+        <pre style={{ background: '#f5f5f5', padding: '10px', overflow: 'auto' }}>
+          {JSON.stringify(schema, null, 2)}
+        </pre>
+      </Card>
     </div>
   );
 };

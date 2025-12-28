@@ -161,6 +161,10 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
   // - 嵌套 DynamicForm：使用 useLinkageManager 计算自己范围内的联动
   const formToUse = linkageStateContext?.form || methods;
 
+  // 获取联动函数：优先使用自己的，否则从 Context 继承
+  const effectiveLinkageFunctions =
+    linkageFunctions || linkageStateContext?.linkageFunctions || EMPTY_LINKAGE_FUNCTIONS;
+
   // 顶层且有数组字段时使用 useArrayLinkageManager，否则使用 useLinkageManager
   // useArrayLinkageManager 会动态实例化数组元素的联动配置
   const ownLinkageStates =
@@ -168,14 +172,14 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
       ? useArrayLinkageManager({
           form: formToUse,
           baseLinkages: linkages,
-          linkageFunctions: stableLinkageFunctions,
+          linkageFunctions: effectiveLinkageFunctions,
           schema, // 传递 schema 用于 JSON Pointer 路径解析
           pathMappings, // 传递路径映射用于路径转换
         })
       : useLinkageManager({
           form: formToUse,
           linkages,
-          linkageFunctions: stableLinkageFunctions,
+          linkageFunctions: effectiveLinkageFunctions,
           pathMappings, // 传递路径映射用于路径转换
         });
 
@@ -252,16 +256,16 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
           const linkageState = linkageStates[field.name];
 
           // 调试日志：检查字段联动状态
-          // if (asNestedForm) {
-          //   console.log(
-          //     '[DynamicForm renderFields] 嵌套表单字段:',
-          //     JSON.stringify({
-          //       fieldName: field.name,
-          //       linkageState,
-          //       allLinkageStates: linkageStates,
-          //     })
-          //   );
-          // }
+          if (asNestedForm) {
+            console.log(
+              '[DynamicForm renderFields] 嵌套表单字段:',
+              JSON.stringify({
+                fieldName: field.name,
+                linkageState,
+                allLinkageStates: linkageStates,
+              })
+            );
+          }
 
           // 如果联动状态指定不可见，则不渲染该字段
           if (linkageState?.visible === false) {
@@ -293,6 +297,7 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
             form: methods,
             rootSchema: schema,
             pathPrefix: pathPrefix,
+            linkageFunctions: effectiveLinkageFunctions,
           }}
         >
           {fieldsContent}

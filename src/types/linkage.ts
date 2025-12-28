@@ -77,6 +77,21 @@ export interface LinkageResult {
 }
 
 /**
+ * 联动函数上下文
+ */
+export interface LinkageFunctionContext {
+  /** 当前字段的完整路径，如 'contacts.0.showCompany' */
+  fieldPath: string;
+  /** 如果字段在数组内，这是数组元素的索引 */
+  arrayIndex?: number;
+  /** 如果字段在数组内，这是数组的路径，如 'contacts' */
+  arrayPath?: string;
+}
+
+/**
  * 联动函数签名（支持同步和异步函数）
  */
-export type LinkageFunction = (formData: Record<string, any>) => any | Promise<any>;
+export type LinkageFunction = (
+  formData: Record<string, any>,
+  context?: LinkageFunctionContext
+) => any | Promise<any>;

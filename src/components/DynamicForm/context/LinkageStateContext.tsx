@@ -1,6 +1,6 @@
 import React, { createContext, useContext } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
-import type { LinkageResult } from '@/types/linkage';
+import type { LinkageResult, LinkageFunction } from '@/types/linkage';
 import type { ExtendedJSONSchema } from '@/types/schema';
 
 /**
@@ -15,6 +15,8 @@ export interface LinkageStateContextValue {
   rootSchema: ExtendedJSONSchema;
   /** 当前路径前缀（用于路径转换） */
   pathPrefix: string;
+  /** 联动函数（用于嵌套表单执行联动） */
+  linkageFunctions: Record<string, LinkageFunction>;
 }
 
 /**
