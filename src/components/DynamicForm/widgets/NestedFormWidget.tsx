@@ -34,10 +34,13 @@ export interface NestedFormWidgetProps extends FieldWidgetProps {
   readonly?: boolean;
   layout?: 'vertical' | 'horizontal' | 'inline';  // 布局方式
   labelWidth?: number | string;  // 标签宽度
+
+  // 是否不渲染 Card 容器（用于 ArrayFieldWidget 调用时避免双层 Card）
+  noCard?: boolean;
 }
 
 export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps>(
-  ({ name, value = {}, schema, disabled, readonly, layout, labelWidth }, ref) => {
+  ({ name, value = {}, schema, disabled, readonly, layout, labelWidth, noCard = false }, ref) => {
     const [currentSchema, setCurrentSchema] = useState(schema);
     const [loading, setLoading] = useState(false);
     // 保存外层表单的 context
@@ -203,6 +206,31 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
       return null;
     }
 
+    // 内部表单内容
+    const formContent = (
+      <DynamicForm
+        schema={currentSchema}
+        disabled={disabled}
+        readonly={readonly}
+        layout={layout}
+        labelWidth={labelWidth}
+        showSubmitButton={false}
+        renderAsForm={false}
+        onSubmit={() => {}}
+        pathPrefix={fullPath}
+        asNestedForm={true}
+      />
+    );
+
+    // 根据 noCard 参数决定是否渲染 Card 容器
+    if (noCard) {
+      return (
+        <div ref={ref} className="nested-form-widget nested-form-widget--no-card" data-name={name}>
+          {formContent}
+        </div>
+      );
+    }
+
     return (
       <Card
         ref={ref}
@@ -211,18 +239,7 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
         elevation={1}
         style={{ padding: '15px' }}
       >
-        <DynamicForm
-          schema={currentSchema}
-          disabled={disabled}
-          readonly={readonly}
-          layout={layout}
-          labelWidth={labelWidth}
-          showSubmitButton={false}
-          renderAsForm={false}
-          onSubmit={() => {}}
-          pathPrefix={fullPath}
-          asNestedForm={true}
-        />
+        {formContent}
       </Card>
     );
   }

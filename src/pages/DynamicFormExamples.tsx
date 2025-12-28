@@ -19,6 +19,18 @@ import { BasicArrayExample } from './examples/ArrayField/BasicArrayExample';
 import { EnumArrayExample } from './examples/ArrayField/EnumArrayExample';
 import { ObjectArrayExample } from './examples/ArrayField/ObjectArrayExample';
 import { NestedArrayExample as ArrayNestedArrayExample } from './examples/ArrayField/NestedArrayExample';
+import { ArrayWithFlattenExample } from './examples/ArrayField/ArrayWithFlattenExample';
+import { ArrayWithLinkageExample } from './examples/ArrayField/ArrayWithLinkageExample';
+import { ArrayWithFlattenAndLinkageExample } from './examples/ArrayField/ArrayWithFlattenAndLinkageExample';
+
+// 数组字段联动场景
+import { RelativePathLinkageExample } from './examples/ArrayField/RelativePathLinkageExample';
+import { AbsolutePathLinkageExample } from './examples/ArrayField/AbsolutePathLinkageExample';
+import { DiamondDependencyExample } from './examples/ArrayField/DiamondDependencyExample';
+import { MixedDependencyExample } from './examples/ArrayField/MixedDependencyExample';
+import { CrossArrayDependencyExample } from './examples/ArrayField/CrossArrayDependencyExample';
+import { NestedArrayLinkageExample } from './examples/ArrayField/NestedArrayLinkageExample';
+import { ArrayAggregationExample } from './examples/ArrayField/ArrayAggregationExample';
 
 // 路径透明化
 import { BasicFlattenExample } from './examples/FlattenPath/BasicFlattenExample';
@@ -67,6 +79,16 @@ const ArrayFieldPanel: React.FC = () => {
         <Tab id="enum" title="枚举数组" panel={<EnumArrayExample />} />
         <Tab id="object" title="对象数组" panel={<ObjectArrayExample />} />
         <Tab id="nested" title="嵌套数组" panel={<ArrayNestedArrayExample />} />
+        <Tab id="arrayWithFlatten" title="数组+路径透明化" panel={<ArrayWithFlattenExample />} />
+        <Tab id="arrayWithLinkage" title="数组+字段联动" panel={<ArrayWithLinkageExample />} />
+        <Tab id="arrayWithAll" title="数组+透明化+联动" panel={<ArrayWithFlattenAndLinkageExample />} />
+        <Tab id="relativePath" title="场景1：相对路径依赖" panel={<RelativePathLinkageExample />} />
+        <Tab id="absolutePath" title="场景2：绝对路径依赖" panel={<AbsolutePathLinkageExample />} />
+        <Tab id="diamond" title="场景3：菱形依赖" panel={<DiamondDependencyExample />} />
+        <Tab id="mixed" title="场景4：混合依赖" panel={<MixedDependencyExample />} />
+        <Tab id="crossArray" title="场景5：跨数组依赖" panel={<CrossArrayDependencyExample />} />
+        <Tab id="nestedLinkage" title="场景6：嵌套数组联动" panel={<NestedArrayLinkageExample />} />
+        <Tab id="aggregation" title="场景7：数组聚合计算" panel={<ArrayAggregationExample />} />
       </Tabs>
     </div>
   );

@@ -781,6 +781,7 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
   }
 
   // 如果是对象类型，使用特殊渲染（Card 容器）
+  // ⚠️ 重要：传递 noCard={true} 给 NestedFormWidget，避免双层 Card 嵌套
   if (schema.type === 'object') {
     return (
       <Card className="array-item array-item-object">
@@ -790,6 +791,7 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
           schema={schema}
           disabled={disabled}
           readonly={readonly}
+          noCard={true}  // 避免 NestedFormWidget 再渲染一层 Card
         />
       </Card>
     );
@@ -1197,7 +1199,9 @@ export class SchemaParser {
 
 ### 9.4 与 NestedFormWidget 的协作
 
-当数组元素是对象类型时，`ArrayFieldWidget` 会为每个元素创建 `NestedFormWidget` 实例：
+当数组元素是对象类型时，`ArrayFieldWidget` 会为每个元素创建 `NestedFormWidget` 实例。
+
+**重要**：为了避免双层 Card 嵌套（ArrayItem Card + NestedFormWidget Card），ArrayItem 在调用 NestedFormWidget 时会传递 `noCard={true}` 参数：
 
 ```typescript
 // ArrayFieldWidget 内部
@@ -1205,14 +1209,16 @@ export class SchemaParser {
   const itemSchema = schema.items as ExtendedJSONSchema;
 
   if (itemSchema.type === 'object') {
-    // 使用 NestedFormWidget 渲染对象
     return (
-      <NestedFormWidget
-        key={field.id}
-        name={`${name}.${index}`}
-        schema={itemSchema}
-        // ...
-      />
+      <Card className="array-item array-item-object">
+        {/* 使用 NestedFormWidget 渲染对象，传递 noCard 避免双层 Card */}
+        <NestedFormWidget
+          key={field.id}
+          name={`${name}.${index}`}
+          schema={itemSchema}
+          noCard={true}  // 避免双层 Card 嵌套
+        />
+      </Card>
     );
   }
 

@@ -145,69 +145,70 @@ export interface FieldConfig {
   schema?: ExtendedJSONSchema;
 }
 
-const schema: ExtendedJSONSchema = {
-  type: 'object',
-  properties: {
-    group: {
-      title: '地区',
-      type: 'object',
-      ui: {
-        flattenPath: true,
-        flattenPrefix: true,
-      },
-      properties: {
-        category: {
-          type: 'object',
-          title: '市场',
-          ui: {
-            flattenPath: true,
-          },
-          properties: {
-            contacts: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  category: {
-                    type: 'object',
-                    title: '分类',
-                    ui: {
-                      flattenPath: true,
-                      flattenPrefix: true,
-                    },
-                    properties: {
-                      group: {
-                        type: 'object',
-                        title: '分组',
-                        ui: {
-                          flattenPath: true,
-                          flattenPrefix: true,
-                        },
-                        properties: {
-                          name: {
-                            title: '名称',
-                            type: 'string',
-                          },
-                          phone: {
-                            title: '手机号',
-                            type: 'string',
-                          },
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-  },
-};
+// const schema: ExtendedJSONSchema = {
+//   type: 'object',
+//   properties: {
+//     group: {
+//       title: '地区',
+//       type: 'object',
+//       ui: {
+//         flattenPath: true,
+//         flattenPrefix: true,
+//       },
+//       properties: {
+//         category: {
+//           type: 'object',
+//           title: '市场',
+//           ui: {
+//             flattenPath: true,
+//           },
+//           properties: {
+//             contacts: {
+//               type: 'array',
+//               title: '联系人',
+//               items: {
+//                 type: 'object',
+//                 properties: {
+//                   category: {
+//                     type: 'object',
+//                     title: '分类',
+//                     ui: {
+//                       flattenPath: true,
+//                       flattenPrefix: true,
+//                     },
+//                     properties: {
+//                       group: {
+//                         type: 'object',
+//                         title: '分组',
+//                         ui: {
+//                           flattenPath: true,
+//                           flattenPrefix: true,
+//                         },
+//                         properties: {
+//                           name: {
+//                             title: '名称',
+//                             type: 'string',
+//                           },
+//                           phone: {
+//                             title: '手机号',
+//                             type: 'string',
+//                           },
+//                         },
+//                       },
+//                     },
+//                   },
+//                 },
+//               },
+//             },
+//           },
+//         },
+//       },
+//     },
+//   },
+// };
 
 // 渲染效果
-// 地区 - 市场
+// 地区-联系人
 // ┌─────────────────────────────┐
 // │ 分类-分组-名称: [________]    │
 // │ 分类-分组-手机号: [________]  │

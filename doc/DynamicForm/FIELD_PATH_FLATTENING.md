@@ -413,27 +413,65 @@ export class SchemaParser {
 
 ### 6.3 路径转换工具
 
-PathTransformer 工具类负责在扁平路径和嵌套对象之间进行转换：
+PathTransformer 工具类负责在扁平路径和嵌套对象之间进行转换。为了正确处理 `flattenPath` 配置，需要使用基于 Schema 的转换方法：
 
 ```typescript
 // src/utils/pathTransformer.ts
 
 export class PathTransformer {
   /**
+   * 基于 Schema 的路径映射转换（推荐）
+   * 将嵌套数据转换为表单期望的格式（考虑 flattenPath）
+   *
+   * @param nestedData - 原始嵌套数据（物理路径结构）
+   * @param schema - Schema 定义
+   * @returns 转换后的数据（逻辑路径作为 key）
+   *
+   * @example
+   * // Schema 中 group.category 设置了 flattenPath: true
+   * nestedToFlatWithSchema(
+   *   { group: { category: { contacts: [...] } } },
+   *   schema
+   * )
+   * // => { contacts: [...] }  // 跳过了 flattenPath 层级
+   */
+  static nestedToFlatWithSchema(
+    nestedData: Record<string, any>,
+    schema: ExtendedJSONSchema
+  ): Record<string, any>;
+
+  /**
+   * 基于 Schema 的反向路径映射转换（推荐）
+   * 将表单数据（逻辑路径）转换回原始嵌套结构（物理路径）
+   *
+   * @param flatData - 表单数据（逻辑路径作为 key）
+   * @param schema - Schema 定义
+   * @returns 转换后的数据（物理路径嵌套结构）
+   *
+   * @example
+   * // Schema 中 group.category 设置了 flattenPath: true
+   * flatToNestedWithSchema(
+   *   { contacts: [...] },
+   *   schema
+   * )
+   * // => { group: { category: { contacts: [...] } } }  // 恢复了物理路径结构
+   */
+  static flatToNestedWithSchema(
+    flatData: Record<string, any>,
+    schema: ExtendedJSONSchema
+  ): Record<string, any>;
+
+  /**
+   * 简单的扁平化转换（不推荐用于 flattenPath 场景）
    * 将扁平化的表单数据转换为嵌套结构
    * @example
    * flatToNested({ 'auth.content.key': 'value' })
    * // => { auth: { content: { key: 'value' } } }
    */
-  static flatToNested(flatData: Record<string, any>): Record<string, any> {
-    const result: Record<string, any> = {};
-    Object.entries(flatData).forEach(([path, value]) => {
-      this.setNestedValue(result, path, value);
-    });
-    return result;
-  }
+  static flatToNested(flatData: Record<string, any>): Record<string, any>;
 
   /**
+   * 简单的嵌套转换（不推荐用于 flattenPath 场景）
    * 将嵌套结构的数据转换为扁平化格式
    * @example
    * nestedToFlat({ auth: { content: { key: 'value' } } })
@@ -442,20 +480,15 @@ export class PathTransformer {
   static nestedToFlat(
     nestedData: Record<string, any>,
     prefix: string = ''
-  ): Record<string, any> {
-    const result: Record<string, any> = {};
-    Object.entries(nestedData).forEach(([key, value]) => {
-      const fullPath = prefix ? `${prefix}.${key}` : key;
-      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-        Object.assign(result, this.nestedToFlat(value, fullPath));
-      } else {
-        result[fullPath] = value;
-      }
-    });
-    return result;
-  }
+  ): Record<string, any>;
 }
 ```
+
+**重要说明**：
+
+- `nestedToFlatWithSchema` 和 `flatToNestedWithSchema` 是推荐使用的方法，它们会根据 Schema 中的 `flattenPath` 配置正确处理路径转换
+- 简单的 `nestedToFlat` 和 `flatToNested` 方法不理解 `flattenPath` 配置，可能导致数据转换错误
+- 当 Schema 中存在 `flattenPath: true` 的字段时，必须使用基于 Schema 的方法
 
 ### 6.4 DynamicForm 组件集成
 
@@ -484,9 +517,10 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
     // 第一步：包装基本类型数组
     const wrappedData = wrapPrimitiveArrays(defaultValues, schema);
 
-    // 第二步：如果使用了路径扁平化，转换为扁平格式
+    // 第二步：如果使用了路径扁平化，使用基于 Schema 的转换
+    // 这会将物理路径的数据转换到逻辑路径的 key 下
     if (!useFlattenPath) return wrappedData;
-    return PathTransformer.nestedToFlat(wrappedData);
+    return PathTransformer.nestedToFlatWithSchema(wrappedData, schema);
   }, [defaultValues, useFlattenPath, schema]);
 
   const methods = useForm({
@@ -499,7 +533,10 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
     if (onChange) {
       const subscription = watch(data => {
         // 第一步：如果使用了路径扁平化，将扁平数据转换回嵌套结构
-        let processedData = useFlattenPath ? PathTransformer.flatToNested(data) : data;
+        // 使用基于 Schema 的转换，正确恢复物理路径结构
+        let processedData = useFlattenPath
+          ? PathTransformer.flatToNestedWithSchema(data, schema)
+          : data;
 
         // 第二步：解包基本类型数组
         processedData = unwrapPrimitiveArrays(processedData, schema);
@@ -514,7 +551,10 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
   const onSubmitHandler = async (data: Record<string, any>) => {
     if (onSubmit) {
       // 第一步：如果使用了路径扁平化，将扁平数据转换回嵌套结构
-      let processedData = useFlattenPath ? PathTransformer.flatToNested(data) : data;
+      // 使用基于 Schema 的转换，正确恢复物理路径结构
+      let processedData = useFlattenPath
+        ? PathTransformer.flatToNestedWithSchema(data, schema)
+        : data;
 
       // 第二步：解包基本类型数组（将对象数组转换回基本类型数组）
       processedData = unwrapPrimitiveArrays(processedData, schema);
@@ -534,10 +574,11 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
 
 **关键点**：
 - 使用 `hasFlattenPath()` 检查是否需要路径转换
-- 初始化时将嵌套的 `defaultValues` 转换为扁平格式
+- 初始化时使用 `nestedToFlatWithSchema` 将嵌套的 `defaultValues` 转换为扁平格式
 - 同时处理基本类型数组的包装/解包（`wrapPrimitiveArrays` / `unwrapPrimitiveArrays`）
 - 提交时使用 `filterValueWithNestedSchemas` 过滤数据
-- 在 `onChange` 和 `onSubmit` 时将扁平数据转换回嵌套结构
+- 在 `onChange` 和 `onSubmit` 时使用 `flatToNestedWithSchema` 将扁平数据转换回嵌套结构
+- 基于 Schema 的转换方法能正确处理 `flattenPath` 配置，确保数据结构正确
 - 对于没有使用 `flattenPath` 的表单，不进行任何转换，保持向后兼容
 
 ---
@@ -1126,11 +1167,19 @@ if (inheritedUI && (inheritedUI.layout || inheritedUI.labelWidth)) {
 ---
 
 **创建日期**: 2025-12-26
-**最后更新**: 2025-12-27
-**版本**: 2.1
+**最后更新**: 2025-12-28
+**版本**: 2.2
 **文档状态**: 已更新
 
 **更新内容**:
+
+### v2.2 (2025-12-28)
+- 更新了 PathTransformer 工具类文档，新增基于 Schema 的转换方法说明
+- 将 `nestedToFlatWithSchema` 和 `flatToNestedWithSchema` 标记为推荐方法
+- 更新了 DynamicForm 组件集成代码示例，使用基于 Schema 的转换方法
+- 说明了简单转换方法（`nestedToFlat`/`flatToNested`）不适用于 `flattenPath` 场景
+
+### v2.1 (2025-12-27)
 - 更新了实现方案，明确了路径透明化不会渲染 Card 和 NestedFormWidget
 - 添加了 SchemaParser.hasFlattenPath() 方法说明
 - 更新了 DynamicForm 组件集成方式，支持自动检测和数据转换

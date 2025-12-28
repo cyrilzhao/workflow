@@ -30,8 +30,8 @@ export class PathResolver {
 
     let value = formData;
     for (const segment of segments) {
-      // 跳过 "properties" 关键字
-      if (segment === 'properties') continue;
+      // 跳过 "properties" 和 "items" 关键字
+      if (segment === 'properties' || segment === 'items') continue;
 
       if (value === null || value === undefined) {
         return undefined;
@@ -83,7 +83,7 @@ export class PathResolver {
     }
 
     const cleanPath = path.replace(/^#\//, '');
-    const segments = cleanPath.split('/').filter(s => s !== 'properties');
+    const segments = cleanPath.split('/').filter(s => s !== 'properties' && s !== 'items');
     return segments.join('.');
   }
 

@@ -97,8 +97,9 @@ export class SchemaParser {
         };
 
         // 递归解析子字段，跳过当前层级，但传递 UI 配置
+        // 关键修复：传递 parentPath 而不是 currentPath，真正跳过当前层级
         const nestedFields = this.parse(fieldSchema, {
-          parentPath: currentPath,
+          parentPath: parentPath,  // 修复：使用 parentPath 而不是 currentPath
           prefixLabel: newPrefixLabel,
           inheritedUI: newInheritedUI,
         });

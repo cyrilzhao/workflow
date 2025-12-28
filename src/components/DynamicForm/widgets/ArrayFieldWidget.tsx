@@ -368,7 +368,6 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
   // 根据 schema 获取对应的 Widget
   const itemWidget = useMemo(() => determineItemWidget(schema), [schema]);
   const WidgetComponent = FieldRegistry.getWidget(itemWidget);
-  console.info('cyril schema: ', schema);
 
   if (!WidgetComponent) {
     console.error(`Widget "${itemWidget}" not found in registry`);
@@ -448,6 +447,7 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
 
         {/* 直接渲染 NestedFormWidget，不再使用 Controller 包裹 */}
         {/* NestedFormWidget 内部使用 asNestedForm 模式，子字段会直接注册到父表单 */}
+        {/* 传递 noCard={true} 避免双层 Card 嵌套 */}
         <WidgetComponent
           name={name}
           schema={schema}
@@ -455,6 +455,7 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
           readonly={readonly}
           layout={layout}
           labelWidth={labelWidth}
+          noCard={true}
         />
       </Card>
     );

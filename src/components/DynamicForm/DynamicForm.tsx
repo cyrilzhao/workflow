@@ -5,14 +5,16 @@ import { SchemaParser } from './core/SchemaParser';
 import { FormField } from './layout/FormField';
 import { ErrorList } from './components/ErrorList';
 import type { DynamicFormProps } from './types';
-import { parseSchemaLinkages } from '@/utils/schemaLinkageParser';
+import { parseSchemaLinkages, transformToAbsolutePaths } from '@/utils/schemaLinkageParser';
 import { useLinkageManager } from '@/hooks/useLinkageManager';
+import { useArrayLinkageManager } from '@/hooks/useArrayLinkageManager';
 import { filterValueWithNestedSchemas } from './utils/filterValueWithNestedSchemas';
 import {
   NestedSchemaProvider,
   useNestedSchemaRegistryOptional,
 } from './context/NestedSchemaContext';
 import { PathPrefixProvider } from './context/PathPrefixContext';
+import { LinkageStateProvider, useLinkageStateContext } from './context/LinkageStateContext';
 import { PathTransformer } from '@/utils/pathTransformer';
 import { wrapPrimitiveArrays, unwrapPrimitiveArrays } from './utils/arrayTransformer';
 import '@blueprintjs/core/lib/css/blueprint.css';
@@ -21,6 +23,20 @@ import '@blueprintjs/core/lib/css/blueprint.css';
 const EMPTY_LINKAGE_FUNCTIONS = {};
 const EMPTY_WIDGETS = {};
 const EMPTY_CUSTOM_FORMATS = {};
+
+/**
+ * 检查 schema 是否包含数组字段
+ */
+function hasArrayFields(schema: any): boolean {
+  if (!schema || !schema.properties) return false;
+
+  for (const [, fieldSchema] of Object.entries(schema.properties)) {
+    if (typeof fieldSchema === 'object' && (fieldSchema as any).type === 'array') {
+      return true;
+    }
+  }
+  return false;
+}
 
 // 内层组件：实际的表单逻辑
 const DynamicFormInner: React.FC<DynamicFormProps> = ({
@@ -78,9 +94,10 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
     // 第一步：包装基本类型数组
     const wrappedData = wrapPrimitiveArrays(defaultValues, schema);
 
-    // 第二步：如果使用了路径扁平化，转换为扁平格式
+    // 第二步：如果使用了路径扁平化，使用基于 Schema 的转换
+    // 这会将物理路径的数据转换到逻辑路径的 key 下
     if (!useFlattenPath) return wrappedData;
-    return PathTransformer.nestedToFlat(wrappedData);
+    return PathTransformer.nestedToFlatWithSchema(wrappedData, schema);
   }, [defaultValues, useFlattenPath, schema]);
 
   // 尝试获取父表单的 FormContext（用于嵌套表单模式）
@@ -97,15 +114,88 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
   // 嵌套表单模式下复用父表单的 FormContext，否则使用自己的
   const methods = asNestedForm && parentFormContext ? parentFormContext : ownMethods;
 
-  // 解析 schema 中的联动配置
-  const { linkages } = useMemo(() => parseSchemaLinkages(schema), [schema]);
+  // 尝试获取父级 LinkageStateContext
+  const linkageStateContext = useLinkageStateContext();
 
-  // 使用联动管理器
-  const linkageStates = useLinkageManager({
-    form: methods,
-    linkages,
-    linkageFunctions: stableLinkageFunctions,
-  });
+  // 解析 schema 中的联动配置（包含路径映射）
+  const {
+    linkages: rawLinkages,
+    pathMappings,
+    hasFlattenPath,
+  } = useMemo(() => {
+    const parsed = parseSchemaLinkages(schema);
+    console.log(
+      '[DynamicForm] 解析 schema 联动配置:',
+      JSON.stringify({
+        schema: schema.title || 'root',
+        pathPrefix,
+        asNestedForm,
+        rawLinkages: parsed.linkages,
+        pathMappingsCount: parsed.pathMappings.length,
+        hasFlattenPath: parsed.hasFlattenPath,
+      })
+    );
+    return parsed;
+  }, [schema, pathPrefix, asNestedForm]);
+
+  // 如果是嵌套表单且有路径前缀，转换为绝对路径
+  const linkages = useMemo(() => {
+    if (asNestedForm && pathPrefix) {
+      const transformed = transformToAbsolutePaths(rawLinkages, pathPrefix);
+      console.log('[DynamicForm] 嵌套表单路径转换:', {
+        pathPrefix,
+        rawLinkages,
+        transformed,
+      });
+      return transformed;
+    }
+    return rawLinkages;
+  }, [rawLinkages, asNestedForm, pathPrefix]);
+
+  // 检查是否包含数组字段
+  const hasArrays = useMemo(() => hasArrayFields(schema), [schema]);
+
+  // 根据是否有父级 Context 决定使用哪个联动管理器
+  // 分层计算
+  // - 顶层 DynamicForm：使用 useArrayLinkageManager 处理数组联动
+  // - 嵌套 DynamicForm：使用 useLinkageManager 计算自己范围内的联动
+  const formToUse = linkageStateContext?.form || methods;
+
+  // 顶层且有数组字段时使用 useArrayLinkageManager，否则使用 useLinkageManager
+  // useArrayLinkageManager 会动态实例化数组元素的联动配置
+  const ownLinkageStates =
+    hasArrays && !asNestedForm
+      ? useArrayLinkageManager({
+          form: formToUse,
+          baseLinkages: linkages,
+          linkageFunctions: stableLinkageFunctions,
+          schema, // 传递 schema 用于 JSON Pointer 路径解析
+          pathMappings, // 传递路径映射用于路径转换
+        })
+      : useLinkageManager({
+          form: formToUse,
+          linkages,
+          linkageFunctions: stableLinkageFunctions,
+          pathMappings, // 传递路径映射用于路径转换
+        });
+
+  // 合并父级和自己的联动状态
+  const linkageStates = useMemo(() => {
+    if (linkageStateContext?.parentLinkageStates) {
+      const merged = { ...linkageStateContext.parentLinkageStates, ...ownLinkageStates };
+      console.log(
+        '[DynamicForm] 合并联动状态:',
+        JSON.stringify({
+          pathPrefix,
+          parentStates: linkageStateContext.parentLinkageStates,
+          ownStates: ownLinkageStates,
+          merged,
+        })
+      );
+      return merged;
+    }
+    return ownLinkageStates;
+  }, [linkageStateContext?.parentLinkageStates, ownLinkageStates, pathPrefix]);
 
   const {
     handleSubmit,
@@ -120,7 +210,10 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
     if (onChange) {
       const subscription = watch(data => {
         // 第一步：如果使用了路径扁平化，将扁平数据转换回嵌套结构
-        let processedData = useFlattenPath ? PathTransformer.flatToNested(data) : data;
+        // 使用基于 Schema 的转换，正确恢复物理路径结构
+        let processedData = useFlattenPath
+          ? PathTransformer.flatToNestedWithSchema(data, schema)
+          : data;
 
         // 第二步：解包基本类型数组
         processedData = unwrapPrimitiveArrays(processedData, schema);
@@ -134,13 +227,15 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
   const onSubmitHandler = async (data: Record<string, any>) => {
     if (onSubmit) {
       // 第一步：如果使用了路径扁平化，将扁平数据转换回嵌套结构
-      let processedData = useFlattenPath ? PathTransformer.flatToNested(data) : data;
+      // 使用基于 Schema 的转换，正确恢复物理路径结构
+      let processedData = useFlattenPath
+        ? PathTransformer.flatToNestedWithSchema(data, schema)
+        : data;
 
       // 第二步：解包基本类型数组（将对象数组转换回基本类型数组）
       processedData = unwrapPrimitiveArrays(processedData, schema);
 
       // 第三步：根据当前 schema 过滤数据，只保留 schema 中定义的字段
-      // 如果有嵌套 schema 注册表，使用它来正确过滤动态嵌套表单的数据
       const filteredData = nestedSchemaRegistry
         ? filterValueWithNestedSchemas(processedData, schema, nestedSchemaRegistry.getAllSchemas())
         : filterValueWithNestedSchemas(processedData, schema, new Map());
@@ -150,31 +245,63 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
   };
 
   // 渲染表单字段
-  const renderFields = () => (
-    <div className="dynamic-form__fields">
-      {fields.map(field => {
-        const linkageState = linkageStates[field.name];
+  const renderFields = () => {
+    const fieldsContent = (
+      <div className="dynamic-form__fields">
+        {fields.map(field => {
+          const linkageState = linkageStates[field.name];
 
-        // 如果联动状态指定不可见，则不渲染该字段
-        if (linkageState?.visible === false) {
-          return null;
-        }
+          // 调试日志：检查字段联动状态
+          // if (asNestedForm) {
+          //   console.log(
+          //     '[DynamicForm renderFields] 嵌套表单字段:',
+          //     JSON.stringify({
+          //       fieldName: field.name,
+          //       linkageState,
+          //       allLinkageStates: linkageStates,
+          //     })
+          //   );
+          // }
 
-        return (
-          <FormField
-            key={field.name}
-            field={field}
-            disabled={disabled || field.disabled || loading || linkageState?.disabled}
-            readonly={readonly || field.readonly || linkageState?.readonly}
-            widgets={stableWidgets}
-            linkageState={linkageState}
-            layout={layout}
-            labelWidth={labelWidth}
-          />
-        );
-      })}
-    </div>
-  );
+          // 如果联动状态指定不可见，则不渲染该字段
+          if (linkageState?.visible === false) {
+            return null;
+          }
+
+          return (
+            <FormField
+              key={field.name}
+              field={field}
+              disabled={disabled || field.disabled || loading || linkageState?.disabled}
+              readonly={readonly || field.readonly || linkageState?.readonly}
+              widgets={stableWidgets}
+              linkageState={linkageState}
+              layout={layout}
+              labelWidth={labelWidth}
+            />
+          );
+        })}
+      </div>
+    );
+
+    // 如果不是嵌套表单，提供 LinkageStateContext
+    if (!asNestedForm) {
+      return (
+        <LinkageStateProvider
+          value={{
+            parentLinkageStates: linkageStates,
+            form: methods,
+            rootSchema: schema,
+            pathPrefix: pathPrefix,
+          }}
+        >
+          {fieldsContent}
+        </LinkageStateProvider>
+      );
+    }
+
+    return fieldsContent;
+  };
 
   // 渲染提交按钮
   const renderSubmitButton = () => {
