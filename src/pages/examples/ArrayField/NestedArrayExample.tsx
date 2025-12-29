@@ -1,7 +1,7 @@
 import React from 'react';
 import { DynamicForm } from '@/components/DynamicForm';
 import type { ExtendedJSONSchema } from '@/types/schema';
-import { Card } from '@blueprintjs/core';
+import { Card, H3 } from '@blueprintjs/core';
 
 export const NestedArrayExample: React.FC = () => {
   const schema: ExtendedJSONSchema = {
@@ -72,6 +72,12 @@ export const NestedArrayExample: React.FC = () => {
         <li>适用于树形结构数据</li>
       </ul>
       <DynamicForm schema={schema} defaultValues={defaultValues} onSubmit={handleSubmit} />
+      <Card style={{ marginTop: '20px' }}>
+        <H3>Schema 配置</H3>
+        <pre style={{ background: '#f5f5f5', padding: '10px', overflow: 'auto' }}>
+          {JSON.stringify(schema, null, 2)}
+        </pre>
+      </Card>
     </Card>
   );
 };

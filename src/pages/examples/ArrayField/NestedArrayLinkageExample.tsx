@@ -1,6 +1,7 @@
 import React from 'react';
 import { DynamicForm } from '@/components/DynamicForm';
 import type { ExtendedJSONSchema } from '@/types/schema';
+import { Card, H3 } from '@blueprintjs/core';
 
 /**
  * 场景6：嵌套数组联动
@@ -14,6 +15,7 @@ export const NestedArrayLinkageExample: React.FC = () => {
         type: 'array',
         title: '部门列表',
         items: {
+          title: '部门',
           type: 'object',
           properties: {
             name: {
@@ -82,9 +84,7 @@ export const NestedArrayLinkageExample: React.FC = () => {
       {
         name: '技术部',
         type: 'tech',
-        employees: [
-          { name: '张三' },
-        ],
+        employees: [{ name: '张三' }],
       },
     ],
   };
@@ -107,15 +107,18 @@ export const NestedArrayLinkageExample: React.FC = () => {
         <li>子数组元素依赖父数组元素字段</li>
         <li>系统自动匹配正确的父数组索引</li>
         <li>
-          路径解析：<code>departments.0.employees.1.techStack</code> → <code>departments.0.type</code>
+          路径解析：<code>departments.0.employees.1.techStack</code> →{' '}
+          <code>departments.0.type</code>
         </li>
       </ul>
 
-      <DynamicForm
-        schema={schema}
-        defaultValues={defaultValues}
-        onSubmit={handleSubmit}
-      />
+      <DynamicForm schema={schema} defaultValues={defaultValues} onSubmit={handleSubmit} />
+      <Card style={{ marginTop: '20px' }}>
+        <H3>Schema 配置</H3>
+        <pre style={{ background: '#f5f5f5', padding: '10px', overflow: 'auto' }}>
+          {JSON.stringify(schema, null, 2)}
+        </pre>
+      </Card>
     </div>
   );
 };
