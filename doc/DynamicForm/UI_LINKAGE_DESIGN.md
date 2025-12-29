@@ -111,9 +111,9 @@ interface ConditionExpression {
       "ui": {
         "linkage": {
           "type": "visibility",
-          "dependencies": ["hasAddress"],
+          "dependencies": ["#/properties/hasAddress"],
           "when": {
-            "field": "hasAddress",
+            "field": "#/properties/hasAddress",
             "operator": "==",
             "value": true
           },
@@ -147,9 +147,9 @@ interface ConditionExpression {
       "ui": {
         "linkage": {
           "type": "disabled",
-          "dependencies": ["accountType"],
+          "dependencies": ["#/properties/accountType"],
           "when": {
-            "field": "accountType",
+            "field": "#/properties/accountType",
             "operator": "==",
             "value": "free"
           },
@@ -187,7 +187,7 @@ interface ConditionExpression {
         "readonly": true,
         "linkage": {
           "type": "value",
-          "dependencies": ["price", "quantity"],
+          "dependencies": ["#/properties/price", "#/properties/quantity"],
           "fulfill": {
             "function": "calculateTotal"
           }
@@ -230,9 +230,9 @@ const linkageFunctions = {
       "ui": {
         "linkage": {
           "type": "value",
-          "dependencies": ["autoConfig"],
+          "dependencies": ["#/properties/autoConfig"],
           "when": {
-            "field": "autoConfig",
+            "field": "#/properties/autoConfig",
             "operator": "==",
             "value": true
           },
@@ -272,7 +272,7 @@ const linkageFunctions = {
       "ui": {
         "linkage": {
           "type": "options",
-          "dependencies": ["country"],
+          "dependencies": ["#/properties/country"],
           "fulfill": {
             "function": "getProvinceOptions"
           }
@@ -332,16 +332,16 @@ const linkageFunctions = {
       "ui": {
         "linkage": {
           "type": "visibility",
-          "dependencies": ["age", "income"],
+          "dependencies": ["#/properties/age", "#/properties/income"],
           "when": {
             "and": [
               {
-                "field": "age",
+                "field": "#/properties/age",
                 "operator": ">=",
                 "value": 18
               },
               {
-                "field": "income",
+                "field": "#/properties/income",
                 "operator": ">=",
                 "value": 50000
               }
@@ -392,11 +392,11 @@ const linkageFunctions = {
       "ui": {
         "linkage": {
           "type": "visibility",
-          "dependencies": ["userType", "country", "age"],
+          "dependencies": ["#/properties/userType", "#/properties/country", "#/properties/age"],
           "when": {
             "and": [
               {
-                "field": "userType",
+                "field": "#/properties/userType",
                 "operator": "==",
                 "value": "individual"
               },
@@ -405,12 +405,12 @@ const linkageFunctions = {
                   {
                     "and": [
                       {
-                        "field": "country",
+                        "field": "#/properties/country",
                         "operator": "==",
                         "value": "china"
                       },
                       {
-                        "field": "age",
+                        "field": "#/properties/age",
                         "operator": ">=",
                         "value": 16
                       }
@@ -419,12 +419,12 @@ const linkageFunctions = {
                   {
                     "and": [
                       {
-                        "field": "country",
+                        "field": "#/properties/country",
                         "operator": "==",
                         "value": "japan"
                       },
                       {
-                        "field": "age",
+                        "field": "#/properties/age",
                         "operator": ">=",
                         "value": 20
                       }
@@ -466,9 +466,9 @@ UI 联动和数据验证是独立的：
       "ui": {
         "linkage": {
           "type": "visibility",
-          "dependencies": ["hasAddress"],
+          "dependencies": ["#/properties/hasAddress"],
           "when": {
-            "field": "hasAddress",
+            "field": "#/properties/hasAddress",
             "operator": "==",
             "value": true
           }
@@ -742,6 +742,8 @@ interface LinkageManagerOptions {
   form: UseFormReturn<any>;
   linkages: Record<string, LinkageConfig>;
   linkageFunctions?: Record<string, LinkageFunction>;
+  /** 路径映射表（用于 flattenPath 场景的逻辑路径与物理路径转换） */
+  pathMappings?: PathMapping[];
 }
 
 /**
@@ -751,6 +753,7 @@ export function useLinkageManager({
   form,
   linkages,
   linkageFunctions = {},
+  pathMappings = [],
 }: LinkageManagerOptions) {
   const { watch, getValues } = form;
 
@@ -1035,7 +1038,7 @@ const schema = {
       ui: {
         linkage: {
           type: "options",
-          dependencies: ["country"],
+          dependencies: ["#/properties/country"],
           fulfill: {
             function: "fetchProvinceOptions"
           }
@@ -1083,7 +1086,7 @@ const schema = {
       ui: {
         linkage: {
           type: "visibility",
-          dependencies: ["userId"],
+          dependencies: ["#/properties/userId"],
           when: "checkAdminPermission",
           fulfill: {
             state: { visible: true }
@@ -1141,7 +1144,7 @@ const schema = {
         readonly: true,
         linkage: {
           type: "value",
-          dependencies: ["price", "quantity"],
+          dependencies: ["#/properties/price", "#/properties/quantity"],
           fulfill: {
             function: "calculateDiscount"
           }
@@ -1155,7 +1158,7 @@ const schema = {
         readonly: true,
         linkage: {
           type: "value",
-          dependencies: ["price", "quantity", "region"],
+          dependencies: ["#/properties/price", "#/properties/quantity", "#/properties/region"],
           fulfill: {
             function: "calculateTax"
           }
@@ -1169,7 +1172,7 @@ const schema = {
         readonly: true,
         linkage: {
           type: "value",
-          dependencies: ["price", "quantity", "discount", "tax"],
+          dependencies: ["#/properties/price", "#/properties/quantity", "#/properties/discount", "#/properties/tax"],
           fulfill: {
             function: "calculateTotal"
           }
@@ -1427,9 +1430,9 @@ const schema = {
       ui: {
         linkage: {
           type: "visibility",
-          dependencies: ["hasAddress"],
+          dependencies: ["#/properties/hasAddress"],
           when: {
-            field: "hasAddress",
+            field: "#/properties/hasAddress",
             operator: "==",
             value: true
           },
@@ -1478,7 +1481,7 @@ const schema = {
         readonly: true,
         linkage: {
           type: "value",
-          dependencies: ["price", "quantity"],
+          dependencies: ["#/properties/price", "#/properties/quantity"],
           fulfill: {
             function: "calculateTotal"
           }
@@ -1518,7 +1521,7 @@ const schema = {
       ui: {
         linkage: {
           type: "options",
-          dependencies: ["country"],
+          dependencies: ["#/properties/country"],
           fulfill: {
             function: "getProvinceOptions"
           }
@@ -1595,14 +1598,14 @@ const linkageFunctions = {
 #### 路径格式
 
 ```typescript
-// 简单字段名
-dependencies: ['age', 'income'];
+// ❌ 简单字段名（已废弃，不推荐使用）
+// dependencies: ['age', 'income'];
 
-// JSON Pointer 格式（推荐用于嵌套字段）
-dependencies: ['#/properties/age', '#/properties/address/city'];
+// ✅ JSON Pointer 格式（推荐）
+dependencies: ['#/properties/age', '#/properties/income'];
 
-// 支持嵌套对象
-dependencies: ['#/properties/user/name', '#/properties/user/profile/age'];
+// ✅ 支持嵌套对象
+dependencies: ['#/properties/user/properties/name', '#/properties/user/properties/profile/properties/age'];
 ```
 
 #### 路径解析工具
@@ -1808,7 +1811,7 @@ export class PathResolver {
           "type": "disabled",
           "dependencies": ["#/properties/age"],
           "when": {
-            "field": "age",
+            "field": "#/properties/age",
             "operator": "<",
             "value": 18
           },
@@ -1851,7 +1854,7 @@ export class PathResolver {
 // ✅ 安全：结构化条件
 {
   "when": {
-    "field": "age",
+    "field": "#/properties/age",
     "operator": ">",
     "value": 18
   }
@@ -2309,7 +2312,7 @@ export interface LinkageResult {
           "type": "value",
           "dependencies": ["#/properties/autoConfig"],
           "when": {
-            "field": "autoConfig",
+            "field": "#/properties/autoConfig",
             "operator": "==",
             "value": true
           },

@@ -9,7 +9,7 @@
 **核心特点**：
 - 设置了 `flattenPath: true` 的对象字段不会渲染成 NestedFormWidget 和 Card 组件
 - 这些中间层级在 UI 上完全"消失"，只保留最终的叶子节点字段
-- 数据在表单内部使用扁平路径（如 `auth.content.key`），提交时自动转换为嵌套结构
+- 数据在表单内部使用逻辑路径（使用 `~~` 分隔符，如 `auth~~content~~key`），提交时自动转换为嵌套结构
 
 ---
 
@@ -60,7 +60,7 @@
 ## 3. 核心特性
 
 1. **自动跳过中间层级**：设置了 `flattenPath: true` 的对象字段不会渲染成 NestedFormWidget 和 Card 组件
-2. **自动路径映射**：表单字段使用完整路径（如 `auth.content.key`）作为字段名
+2. **自动路径映射**：表单字段使用逻辑路径（使用 `~~` 分隔符，如 `auth~~content~~key`）作为字段名
 3. **数据自动转换**：提交时自动将扁平数据转换为嵌套结构
 4. **可选前缀**：支持在字段标签前添加父级标题作为前缀
 5. **向后兼容**：不影响现有的嵌套表单功能
@@ -305,7 +305,7 @@ export interface UIConfig {
 
 1. **Schema 解析阶段**（SchemaParser）：
    - 检测到 `flattenPath: true` 时，跳过该对象字段，直接递归解析其子字段
-   - 使用完整路径作为字段名（如 `auth.content.key`）
+   - 使用 `~~` 分隔符构建逻辑路径（如 `auth~~content~~key`），避免路径冲突
    - 支持 `flattenPrefix` 来添加标签前缀
 
 2. **数据转换阶段**（PathTransformer）：
@@ -321,95 +321,57 @@ export interface UIConfig {
 ```typescript
 // src/components/DynamicForm/core/SchemaParser.ts
 
+import { buildLogicalPath } from '@/utils/schemaLinkageParser';
+
 export class SchemaParser {
   /**
    * 检查 schema 中是否使用了路径扁平化
    */
   static hasFlattenPath(schema: ExtendedJSONSchema): boolean {
-    if (schema.type !== 'object' || !schema.properties) {
-      return false;
-    }
-
-    const properties = schema.properties;
-
-    for (const key of Object.keys(properties)) {
-      const property = properties[key];
-      if (!property || typeof property === 'boolean') continue;
-
-      const fieldSchema = property as ExtendedJSONSchema;
-
-      // 如果当前字段使用了 flattenPath
-      if (fieldSchema.type === 'object' && fieldSchema.ui?.flattenPath) {
-        return true;
-      }
-
-      // 递归检查子字段
-      if (fieldSchema.type === 'object' && this.hasFlattenPath(fieldSchema)) {
-        return true;
-      }
-    }
-
-    return false;
+    // ... 实现省略
   }
 
   /**
    * 解析 Schema 生成字段配置（支持路径扁平化）
    */
-  static parse(
-    schema: ExtendedJSONSchema,
-    parentPath: string = '',
-    prefixLabel: string = ''
-  ): FieldConfig[] {
+  static parse(schema: ExtendedJSONSchema, options: ParseOptions = {}): FieldConfig[] {
+    const { parentPath = '', prefixLabel = '', inheritedUI } = options;
     const fields: FieldConfig[] = [];
 
-    if (schema.type !== 'object' || !schema.properties) {
-      return fields;
-    }
-
-    const properties = schema.properties;
-    const required = schema.required || [];
-    const order = schema.ui?.order || Object.keys(properties);
+    // ... 省略部分代码
 
     for (const key of order) {
-      const property = properties[key];
-      if (!property || typeof property === 'boolean') continue;
-
       const fieldSchema = property as ExtendedJSONSchema;
-      const currentPath = parentPath ? `${parentPath}.${key}` : key;
 
       // 检查是否需要路径扁平化
       if (fieldSchema.type === 'object' && fieldSchema.ui?.flattenPath) {
-        // 确定是否需要添加前缀
-        const newPrefixLabel = fieldSchema.ui.flattenPrefix && fieldSchema.title
-          ? (prefixLabel ? `${prefixLabel} - ${fieldSchema.title}` : fieldSchema.title)
-          : prefixLabel;
+        // 使用统一的路径生成函数构建逻辑路径
+        const newParentPath = buildLogicalPath(parentPath, key, true);
 
-        // 递归解析子字段，跳过当前层级（不生成 NestedFormWidget）
-        const nestedFields = this.parse(fieldSchema, currentPath, newPrefixLabel);
+        // 递归解析子字段，传递带 ~~ 分隔符的逻辑路径
+        const nestedFields = this.parse(fieldSchema, {
+          parentPath: newParentPath,
+          prefixLabel: newPrefixLabel,
+          inheritedUI: newInheritedUI,
+        });
         fields.push(...nestedFields);
       } else {
-        // 正常解析字段
-        const fieldConfig = this.parseField(
-          currentPath,
-          fieldSchema,
-          required.includes(key),
-          prefixLabel
-        );
-
-        if (!fieldConfig.hidden) {
-          fields.push(fieldConfig);
-        }
+        // 正常解析字段：使用统一的路径生成函数
+        const currentPath = buildLogicalPath(parentPath, key, false);
+        const fieldConfig = this.parseField(currentPath, fieldSchema, ...);
+        fields.push(fieldConfig);
       }
     }
 
     return fields;
   }
+}
 ```
 
 **关键点**：
 - 当检测到 `flattenPath: true` 时，不会为该对象字段生成 `widget: 'nested-form'` 的配置
 - 而是直接递归解析其子字段，将子字段"提升"到当前层级
-- 使用完整路径（如 `auth.content.key`）作为字段名
+- 使用 `~~` 分隔符构建逻辑路径（如 `auth~~content~~key`），避免不同物理路径产生相同逻辑路径的冲突
 
 ### 6.3 路径转换工具
 
@@ -433,7 +395,7 @@ export class PathTransformer {
    *   { group: { category: { contacts: [...] } } },
    *   schema
    * )
-   * // => { contacts: [...] }  // 跳过了 flattenPath 层级
+   * // => { 'group~~category~~contacts': [...] }  // 使用 ~~ 分隔符的逻辑路径
    */
   static nestedToFlatWithSchema(
     nestedData: Record<string, any>,
@@ -451,7 +413,7 @@ export class PathTransformer {
    * @example
    * // Schema 中 group.category 设置了 flattenPath: true
    * flatToNestedWithSchema(
-   *   { contacts: [...] },
+   *   { 'group~~category~~contacts': [...] },
    *   schema
    * )
    * // => { group: { category: { contacts: [...] } } }  // 恢复了物理路径结构
@@ -1167,11 +1129,17 @@ if (inheritedUI && (inheritedUI.layout || inheritedUI.labelWidth)) {
 ---
 
 **创建日期**: 2025-12-26
-**最后更新**: 2025-12-28
-**版本**: 2.2
+**最后更新**: 2025-12-29
+**版本**: 2.3
 **文档状态**: 已更新
 
 **更新内容**:
+
+### v2.3 (2025-12-29)
+- 重要更新：逻辑路径现在使用 `~~` 分隔符（如 `auth~~content~~key`），避免路径冲突
+- 新增统一的路径生成工具函数 `buildLogicalPath` 和 `buildPhysicalPath`
+- 更新了 SchemaParser 实现，使用统一的路径生成函数
+- 更新了 PathTransformer 示例，展示正确的逻辑路径格式
 
 ### v2.2 (2025-12-28)
 - 更新了 PathTransformer 工具类文档，新增基于 Schema 的转换方法说明

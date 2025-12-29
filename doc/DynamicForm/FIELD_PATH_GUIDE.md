@@ -31,7 +31,7 @@
 |------|------|------|
 | **表单数据路径** | 用于 react-hook-form 的字段注册和数据访问 | `contacts.0.name` |
 | **联动依赖路径** | 用于 Schema 中配置字段间的依赖关系 | `./type` 或 `#/properties/enableVip` |
-| **物理/逻辑路径** | 路径透明化场景下的两种路径表示 | 物理: `group.category.contacts`<br>逻辑: `contacts` |
+| **物理/逻辑路径** | 路径透明化场景下的两种路径表示 | 物理: `group.category.contacts`<br>逻辑: `group~~category~~contacts` |
 
 ---
 
@@ -45,7 +45,7 @@
 | **数组索引路径** | `a.0.b` | 数组元素字段访问 | `contacts.0.name` |
 | **相对路径** | `./field` | 数组元素内部联动 | `./type` |
 | **JSON Pointer** | `#/properties/...` | 跨层级联动依赖 | `#/properties/enableVip` |
-| **逻辑路径** | 跳过 flattenPath 层级 | Schema 字段定义 | `contacts`（实际数据在 `group.category.contacts`） |
+| **逻辑路径** | 使用 `~~` 分隔 flattenPath 层级 | Schema 字段定义 | `group~~category~~contacts` |
 | **物理路径** | 完整数据路径 | 实际数据存储 | `group.category.contacts` |
 
 ### 2.2 路径格式对比
@@ -574,7 +574,10 @@ import {
   parseSchemaLinkages,
   physicalToLogicalPath,
   logicalToPhysicalPath,
-  transformToAbsolutePaths
+  transformToAbsolutePaths,
+  buildLogicalPath,
+  buildPhysicalPath,
+  isInFlattenPathChain
 } from '@/utils/schemaLinkageParser';
 
 // 解析 Schema
@@ -582,10 +585,20 @@ const { linkages, pathMappings, hasFlattenPath } = parseSchemaLinkages(schema);
 
 // 路径转换
 physicalToLogicalPath('group.category.contacts.0', pathMappings);
-// → 'contacts.0'
+// → 'group~~category~~contacts.0'
 
-logicalToPhysicalPath('contacts.0', pathMappings);
+logicalToPhysicalPath('group~~category~~contacts.0', pathMappings);
 // → 'group.category.contacts.0'
+
+// 统一的路径生成函数（推荐）
+buildLogicalPath('auth~~content', 'key', false);
+// → 'auth~~content~~key'  // 父级在 flattenPath 链中，自动使用 ~~ 分隔符
+
+buildLogicalPath('user', 'name', false);
+// → 'user.name'  // 普通路径，使用 . 分隔符
+
+buildPhysicalPath('auth.content', 'key');
+// → 'auth.content.key'  // 物理路径始终使用 . 分隔符
 
 // 转换为绝对路径（用于嵌套表单）
 transformToAbsolutePaths(linkages, 'contacts.0');
@@ -849,7 +862,7 @@ console.log(`${depPath} → ${resolved}`);
 |------|------|
 | `src/utils/pathResolver.ts` | JSON Pointer 解析和转换 |
 | `src/utils/pathTransformer.ts` | 路径透明化数据转换 |
-| `src/utils/schemaLinkageParser.ts` | Schema 联动配置解析、路径映射 |
+| `src/utils/schemaLinkageParser.ts` | Schema 联动配置解析、路径映射、统一路径生成函数 |
 | `src/utils/arrayLinkageHelper.ts` | 数组联动路径处理 |
 | `src/hooks/useLinkageManager.ts` | 联动状态管理 |
 | `src/hooks/useArrayLinkageManager.ts` | 数组联动状态管理 |
@@ -857,5 +870,13 @@ console.log(`${depPath} → ${resolved}`);
 ---
 
 **创建日期**: 2025-12-28
-**版本**: 1.0
-**文档状态**: 已完成
+**最后更新**: 2025-12-29
+**版本**: 1.1
+**文档状态**: 已更新
+
+**更新内容**:
+
+### v1.1 (2025-12-29)
+- 更新了逻辑路径示例，使用 `~~` 分隔符
+- 新增统一路径生成函数 `buildLogicalPath`、`buildPhysicalPath`、`isInFlattenPathChain` 的说明
+- 更新了 schemaLinkageParser 工具函数列表
