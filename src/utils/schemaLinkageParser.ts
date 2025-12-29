@@ -11,6 +11,40 @@ import type { ExtendedJSONSchema, LinkageConfig } from '@/types/schema';
 export const FLATTEN_PATH_SEPARATOR = '~~';
 
 /**
+ * 判断父级路径是否在 flattenPath 链中
+ */
+function isInFlattenPathChain(parentPath: string): boolean {
+  return parentPath.includes(FLATTEN_PATH_SEPARATOR);
+}
+
+/**
+ * 统一的逻辑路径生成函数
+ */
+function buildLogicalPath(
+  parentPath: string,
+  fieldName: string,
+  isFlattenPath: boolean
+): string {
+  if (!parentPath) {
+    return fieldName;
+  }
+  if (isInFlattenPathChain(parentPath) || isFlattenPath) {
+    return `${parentPath}${FLATTEN_PATH_SEPARATOR}${fieldName}`;
+  }
+  return `${parentPath}.${fieldName}`;
+}
+
+/**
+ * 统一的物理路径生成函数
+ */
+function buildPhysicalPath(parentPath: string, fieldName: string): string {
+  if (!parentPath) {
+    return fieldName;
+  }
+  return `${parentPath}.${fieldName}`;
+}
+
+/**
  * 路径映射信息
  * 用于处理 flattenPath 导致的逻辑路径和物理路径不一致问题
  */
@@ -111,24 +145,10 @@ function parseSchemaRecursive(
       onFlattenPathUsed(true);
     }
 
-    // 构建逻辑路径和物理路径
-    let logicalPath: string;
-    let physicalPath: string;
-    let currentSkippedSegments: string[];
-
-    if (shouldSkipInPath) {
-      // 透明化层级：使用 ~~ 分隔符将字段名连接到逻辑路径，避免冲突
-      logicalPath = logicalParentPath
-        ? `${logicalParentPath}${FLATTEN_PATH_SEPARATOR}${fieldName}`
-        : fieldName;
-      physicalPath = physicalParentPath ? `${physicalParentPath}.${fieldName}` : fieldName;
-      currentSkippedSegments = [...skippedSegments, fieldName];
-    } else {
-      // 正常添加：逻辑路径和物理路径都添加字段名
-      logicalPath = logicalParentPath ? `${logicalParentPath}.${fieldName}` : fieldName;
-      physicalPath = physicalParentPath ? `${physicalParentPath}.${fieldName}` : fieldName;
-      currentSkippedSegments = [];
-    }
+    // 使用统一的路径生成函数
+    const logicalPath = buildLogicalPath(logicalParentPath, fieldName, shouldSkipInPath);
+    const physicalPath = buildPhysicalPath(physicalParentPath, fieldName);
+    const currentSkippedSegments = shouldSkipInPath ? [...skippedSegments, fieldName] : [];
 
     console.log(
       '[parseSchemaRecursive] 处理字段:',

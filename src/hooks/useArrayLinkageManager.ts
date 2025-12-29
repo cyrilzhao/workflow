@@ -8,6 +8,7 @@ import {
   isArrayElementPath,
   extractArrayInfo,
   resolveArrayElementLinkage,
+  findArrayInPath,
 } from '@/utils/arrayLinkageHelper';
 import type { PathMapping } from '@/utils/schemaLinkageParser';
 import { DependencyGraph } from '@/utils/dependencyGraph';
@@ -73,6 +74,8 @@ export function useArrayLinkageManager({
 
     return merged;
   }, [baseLinkages, dynamicLinkages, onCycleDetected, throwOnCycle]);
+  console.info('cyril baseLinkages: ', baseLinkages);
+  console.info('cyril 合并基础联动和动态联动: ', allLinkages);
 
   // 使用基础联动管理器（传递路径映射）
   const linkageStates = useBaseLinkageManager({
@@ -81,10 +84,13 @@ export function useArrayLinkageManager({
     linkageFunctions,
     pathMappings,
   });
+  console.info('cyril linkageStates: ', linkageStates);
 
   // 监听表单数据变化，动态注册数组元素的联动
   useEffect(() => {
     const subscription = watch(() => {
+      if (!schema) return;
+
       const formData = getValues();
       const newDynamicLinkages: Record<string, LinkageConfig> = {};
 
@@ -95,56 +101,45 @@ export function useArrayLinkageManager({
       Object.entries(baseLinkages).forEach(([fieldPath, linkage]) => {
         console.log('[useArrayLinkageManager] 处理字段路径:', fieldPath);
 
-        // 检查是否是数组元素的联动配置（路径中不包含数字索引）
-        if (!isArrayElementPath(fieldPath) && fieldPath.includes('.')) {
-          // 尝试从 formData 中找到对应的数组
-          const parts = fieldPath.split('.');
-
-          // 查找可能的数组路径
-          for (let i = 0; i < parts.length - 1; i++) {
-            const possibleArrayPath = parts.slice(0, i + 1).join('.');
-            const value = getNestedValue(formData, possibleArrayPath);
-
-            console.log(
-              '[useArrayLinkageManager] 检查路径:',
-              possibleArrayPath,
-              '是否为数组:',
-              Array.isArray(value)
-            );
-
-            if (Array.isArray(value)) {
-              // 找到数组，为每个元素生成联动配置
-              const fieldPathInArray = parts.slice(i + 1).join('.');
-
-              console.log(
-                '[useArrayLinkageManager] 找到数组:',
-                possibleArrayPath,
-                '元素数量:',
-                value.length
-              );
-              console.log('[useArrayLinkageManager] 数组内字段路径:', fieldPathInArray);
-
-              value.forEach((_, index) => {
-                const elementFieldPath = `${possibleArrayPath}.${index}.${fieldPathInArray}`;
-                // 传递 schema 参数以支持完整的路径解析（包括 JSON Pointer）
-                const resolvedLinkage = resolveArrayElementLinkage(
-                  linkage,
-                  elementFieldPath,
-                  schema
-                );
-                newDynamicLinkages[elementFieldPath] = resolvedLinkage;
-
-                console.log('[useArrayLinkageManager] 生成联动配置:', elementFieldPath);
-                console.log(
-                  '[useArrayLinkageManager] 解析后的联动:',
-                  JSON.stringify(resolvedLinkage)
-                );
-              });
-
-              break;
-            }
-          }
+        // 跳过已经包含数字索引的路径（已实例化的联动）
+        if (isArrayElementPath(fieldPath)) {
+          return;
         }
+
+        // 使用 schema 查找路径中的数组字段
+        const arrayInfo = findArrayInPath(fieldPath, schema);
+
+        if (!arrayInfo) {
+          console.log('[useArrayLinkageManager] 路径中未找到数组:', fieldPath);
+          return;
+        }
+
+        const { arrayPath, fieldPathInArray } = arrayInfo;
+        console.log('[useArrayLinkageManager] 找到数组路径:', arrayPath);
+        console.log('[useArrayLinkageManager] 数组内字段路径:', fieldPathInArray);
+
+        // 从 formData 中获取数组值
+        const arrayValue = formData[arrayPath];
+
+        if (!Array.isArray(arrayValue)) {
+          console.log('[useArrayLinkageManager] formData 中未找到数组:', arrayPath);
+          return;
+        }
+
+        console.log('[useArrayLinkageManager] 数组元素数量:', arrayValue.length);
+
+        // 为每个数组元素生成联动配置
+        arrayValue.forEach((_, index) => {
+          const elementFieldPath = `${arrayPath}.${index}.${fieldPathInArray}`;
+          const resolvedLinkage = resolveArrayElementLinkage(
+            linkage,
+            elementFieldPath,
+            schema
+          );
+          newDynamicLinkages[elementFieldPath] = resolvedLinkage;
+
+          console.log('[useArrayLinkageManager] 生成联动配置:', elementFieldPath);
+        });
       });
 
       console.log(
@@ -158,21 +153,4 @@ export function useArrayLinkageManager({
   }, [watch, getValues, baseLinkages, schema]);
 
   return linkageStates;
-}
-
-/**
- * 获取嵌套对象的值
- */
-function getNestedValue(obj: any, path: string): any {
-  const parts = path.split('.');
-  let current = obj;
-
-  for (const part of parts) {
-    if (current === null || current === undefined) {
-      return undefined;
-    }
-    current = current[part];
-  }
-
-  return current;
 }

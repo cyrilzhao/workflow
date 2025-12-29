@@ -1,6 +1,7 @@
 import type { LinkageConfig } from '@/types/linkage';
 import type { ExtendedJSONSchema } from '@/types/schema';
-import { FLATTEN_PATH_SEPARATOR } from './schemaLinkageParser';
+import { FLATTEN_PATH_SEPARATOR, type PathMapping } from './schemaLinkageParser';
+import { SchemaParser } from '@/components/DynamicForm/core/SchemaParser';
 
 /**
  * 数组联动辅助工具
@@ -103,7 +104,7 @@ export function parseJsonPointer(pointer: string): string {
  * 支持包含 ~~ 分隔符的逻辑路径
  * @param relativePath - 相对路径（如 './type'）
  * @param currentPath - 当前字段的完整路径（如 'contacts.0.companyName' 或 'group~~category~~contacts.0.companyName'）
- * @returns 解析后的绝对路径（如 'contacts.0.type' 或 'group~~category~~contacts.0.type'）
+ * @returns 解析后的绝对路径（如 'contacts.0.type' 或 'group~~category~~contacts.0~~type'）
  */
 export function resolveRelativePath(relativePath: string, currentPath: string): string {
   if (!relativePath.startsWith('./')) {
@@ -123,13 +124,15 @@ export function resolveRelativePath(relativePath: string, currentPath: string): 
     return fieldName;
   }
 
-  // 如果最后一个分隔符是 ~~，需要包含完整的 ~~
-  const parentPath = lastPos === lastSeparatorPos
-    ? currentPath.substring(0, lastPos)
-    : currentPath.substring(0, lastPos);
+  // 获取父路径
+  const parentPath = currentPath.substring(0, lastPos);
 
-  // 同级字段使用 . 连接
-  return `${parentPath}.${fieldName}`;
+  // 复用 SchemaParser.buildFieldPath 的逻辑来构建路径
+  // 判断是否在 flattenPath 链中（如果最后一个分隔符是 ~~）
+  const isParentInFlattenChain = lastSeparatorPos > lastDotPos;
+
+  // 使用 SchemaParser.buildFieldPath 来构建路径，确保逻辑一致
+  return SchemaParser.buildFieldPath(parentPath, fieldName, isParentInFlattenChain);
 }
 
 /**
@@ -378,4 +381,104 @@ function resolveConditionPaths(
   }
 
   return resolved;
+}
+
+/**
+ * 从联动配置路径中提取数组信息（基于 schema 解析）
+ *
+ * @param fieldPath - 联动配置的字段路径（如 'group~~category.contacts~~category~~group.vipLevel'）
+ * @param schema - Schema 定义
+ * @returns 数组信息，如果路径中包含数组则返回相关信息，否则返回 null
+ *
+ * @example
+ * // 输入: 'group~~category.contacts~~category~~group.vipLevel'
+ * // 输出: { arrayPath: 'group~~category.contacts', fieldPathInArray: 'category~~group.vipLevel' }
+ */
+export function findArrayInPath(
+  fieldPath: string,
+  schema: ExtendedJSONSchema
+): { arrayPath: string; fieldPathInArray: string } | null {
+  // 递归遍历 schema，找到路径中的数组字段
+  return findArrayInPathRecursive(fieldPath, schema, '');
+}
+
+/**
+/**
+ * 递归查找路径中的数组字段
+ */
+function findArrayInPathRecursive(
+  targetPath: string,
+  schema: ExtendedJSONSchema,
+  currentLogicalPath: string
+): { arrayPath: string; fieldPathInArray: string } | null {
+  if (!schema.properties) {
+    return null;
+  }
+
+  for (const [fieldName, fieldSchema] of Object.entries(schema.properties)) {
+    if (typeof fieldSchema === 'boolean') continue;
+
+    const typedSchema = fieldSchema as ExtendedJSONSchema;
+    const shouldFlatten = typedSchema.type === 'object' && typedSchema.ui?.flattenPath;
+
+    // 计算当前字段的逻辑路径
+    // 使用与 SchemaParser.buildFieldPath 相同的逻辑
+    let newLogicalPath: string;
+    if (!currentLogicalPath) {
+      // 根节点
+      newLogicalPath = fieldName;
+    } else {
+      // 检查父路径的最后一个分隔符类型
+      const lastDotIndex = currentLogicalPath.lastIndexOf('.');
+      const lastSepIndex = currentLogicalPath.lastIndexOf(FLATTEN_PATH_SEPARATOR);
+
+      // 如果最后一个分隔符是 ~~，说明父级在 flattenPath 链中
+      const isParentInFlattenChain = lastSepIndex > lastDotIndex;
+
+      // 规则：如果父级在 flattenPath 链中，或当前字段是 flattenPath，使用 ~~
+      if (isParentInFlattenChain || shouldFlatten) {
+        newLogicalPath = `${currentLogicalPath}${FLATTEN_PATH_SEPARATOR}${fieldName}`;
+      } else {
+        newLogicalPath = `${currentLogicalPath}.${fieldName}`;
+      }
+    }
+
+    // 检查目标路径是否以当前逻辑路径开头
+    if (!targetPath.startsWith(newLogicalPath)) {
+      continue;
+    }
+
+    // 如果是数组类型，检查是否匹配
+    if (typedSchema.type === 'array') {
+      // 数组后面可能跟 '.' 或 '~~'（如果数组元素内部第一层是 flattenPath）
+      const arrayPathWithDot = newLogicalPath + '.';
+      const arrayPathWithSeparator = newLogicalPath + FLATTEN_PATH_SEPARATOR;
+
+      if (targetPath.startsWith(arrayPathWithDot)) {
+        const fieldPathInArray = targetPath.slice(arrayPathWithDot.length);
+        return { arrayPath: newLogicalPath, fieldPathInArray };
+      }
+      if (targetPath.startsWith(arrayPathWithSeparator)) {
+        const fieldPathInArray = targetPath.slice(arrayPathWithSeparator.length);
+        return { arrayPath: newLogicalPath, fieldPathInArray };
+      }
+    }
+
+    // 递归处理嵌套对象
+    if (typedSchema.type === 'object' && typedSchema.properties) {
+      const result = findArrayInPathRecursive(targetPath, typedSchema, newLogicalPath);
+      if (result) return result;
+    }
+
+    // 递归处理数组元素内部
+    if (typedSchema.type === 'array' && typedSchema.items) {
+      const itemsSchema = typedSchema.items as ExtendedJSONSchema;
+      if (itemsSchema.type === 'object' && itemsSchema.properties) {
+        const result = findArrayInPathRecursive(targetPath, itemsSchema, newLogicalPath);
+        if (result) return result;
+      }
+    }
+  }
+
+  return null;
 }

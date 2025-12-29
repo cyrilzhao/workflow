@@ -322,14 +322,51 @@ function parseJsonPointer(pointer: string): string {
 // 物理路径（数据存储）: group.category.contacts
 ```
 
-### 5.2 逻辑路径 vs 物理路径
+### 5.2 逻辑路径生成规则
+
+逻辑路径的生成遵循以下规则：
+
+**规则 1**：如果父路径的最后一段是 flattenPath（最后一个分隔符是 `~~`），则子字段也使用 `~~` 连接（无论子字段是否是 flattenPath）
+
+**规则 2**：如果当前字段设置了 `flattenPath: true`，使用 `~~` 连接
+
+**规则 3**：否则使用 `.` 连接
+
+**关键点**：
+- flattenPath 对象之间使用 `~~` 连接
+- flattenPath 链的最后一个字段（数组或普通字段）也使用 `~~` 连接
+- 数组索引始终使用 `.` 连接
+- 普通对象和字段使用 `.` 连接
+
+**示例**：
+
+```typescript
+// Schema 结构
+region (flattenPath: true)
+  └─ market (flattenPath: true)
+      └─ contacts (array)
+          └─ items[0]
+              ├─ category (flattenPath: true)
+              │   └─ group (flattenPath: true)
+              │       └─ name (string)
+              └─ auth (object)
+                  └─ apiKey (string)
+
+// 生成的逻辑路径
+'region~~market~~contacts'                      // region 和 market 是 flattenPath，contacts 继承 ~~
+'region~~market~~contacts.0'                    // 数组索引使用 .
+'region~~market~~contacts.0~~category~~group~~name'  // category 和 group 是 flattenPath，name 继承 ~~
+'region~~market~~contacts.0.auth.apiKey'        // auth 是普通对象，使用 .
+```
+
+### 5.3 逻辑路径 vs 物理路径
 
 | 概念 | 定义 | 用途 |
 |------|------|------|
-| **逻辑路径** | 使用 `~~` 连接透明化层级的路径 | 表单字段注册、联动配置 |
+| **逻辑路径** | 使用 `~~` 连接 flattenPath 层级的路径 | 表单字段注册、联动配置 |
 | **物理路径** | 使用 `.` 连接所有层级的完整路径 | 实际数据存储 |
 
-**示例**：
+**对比示例**：
 
 ```typescript
 // Schema 中 group 和 category 都设置了 flattenPath: true
@@ -341,6 +378,10 @@ function parseJsonPointer(pointer: string): string {
 // 字段: contacts[0].name
 逻辑路径: 'group~~category~~contacts.0.name'
 物理路径: 'group.category.contacts.0.name'
+
+// 字段: contacts[0] 内部的 flattenPath 字段
+逻辑路径: 'group~~category~~contacts.0~~inner~~field'
+物理路径: 'group.category.contacts.0.inner.field'
 ```
 
 **为什么使用 `~~` 分隔符？**
@@ -355,7 +396,7 @@ function parseJsonPointer(pointer: string): string {
 
 这样就不会产生冲突。
 
-### 5.3 路径映射
+### 5.4 路径映射
 
 系统会自动生成路径映射表，用于在逻辑路径和物理路径之间转换：
 
@@ -376,7 +417,7 @@ interface PathMapping {
 }
 ```
 
-### 5.4 数据转换
+### 5.5 数据转换
 
 路径透明化场景需要在数据输入和输出时进行转换：
 
@@ -745,7 +786,141 @@ const schema = {
 //   when.field: 'enableVip'
 ```
 
-### 8.3 示例 3：路径透明化
+### 8.3 示例 3：复杂的路径透明化 + 数组 + 联动
+
+这是一个综合示例，展示了路径透明化、数组字段和联动配置的组合使用。
+
+```typescript
+// Schema
+const schema = {
+  type: 'object',
+  properties: {
+    enableRegion: {
+      type: 'boolean',
+      title: '启用地区配置',
+      default: true,
+    },
+    region: {
+      title: '地区',
+      type: 'object',
+      ui: {
+        flattenPath: true,
+        flattenPrefix: true,
+      },
+      properties: {
+        market: {
+          type: 'object',
+          title: '市场',
+          ui: {
+            flattenPath: true,
+          },
+          properties: {
+            contacts: {
+              type: 'array',
+              title: '联系人列表',
+              items: {
+                type: 'object',
+                properties: {
+                  auth: {
+                    type: 'object',
+                    properties: {
+                      apiKey: { type: 'string', title: 'API Key' },
+                      apiSecret: { type: 'string', title: 'API Secret' },
+                    },
+                  },
+                  category: {
+                    type: 'object',
+                    title: '分类',
+                    ui: {
+                      flattenPath: true,
+                      flattenPrefix: true,
+                    },
+                    properties: {
+                      group: {
+                        type: 'object',
+                        title: '分组',
+                        ui: {
+                          flattenPath: true,
+                          flattenPrefix: true,
+                        },
+                        properties: {
+                          type: {
+                            type: 'string',
+                            title: '类型',
+                            enum: ['vip', 'normal'],
+                          },
+                          name: { type: 'string', title: '名称' },
+                          vipLevel: {
+                            type: 'string',
+                            title: 'VIP等级',
+                            ui: {
+                              linkage: {
+                                type: 'visibility',
+                                dependencies: ['./type'],
+                                when: { field: './type', operator: '==', value: 'vip' },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+};
+```
+
+**生成的逻辑路径**：
+
+```typescript
+// 顶层字段
+'enableRegion'
+
+// 数组字段（region 和 market 都是 flattenPath）
+'region~~market~~contacts'
+
+// 数组元素内部字段（假设索引为 0）
+'region~~market~~contacts.0.auth.apiKey'           // auth 是普通对象，使用 .
+'region~~market~~contacts.0.auth.apiSecret'        // auth 是普通对象，使用 .
+'region~~market~~contacts.0~~category~~group~~type'    // category 和 group 是 flattenPath，使用 ~~
+'region~~market~~contacts.0~~category~~group~~name'    // name 继承 flattenPath 链，使用 ~~
+'region~~market~~contacts.0~~category~~group~~vipLevel' // vipLevel 继承 flattenPath 链，使用 ~~
+```
+
+**路径解析规则说明**：
+
+1. **`region~~market~~contacts`**：
+   - `region` 和 `market` 都设置了 `flattenPath: true`，使用 `~~` 连接
+   - `contacts` 是数组字段，继承父级的 flattenPath 链，也使用 `~~` 连接
+
+2. **`region~~market~~contacts.0`**：
+   - 数组索引始终使用 `.` 连接
+
+3. **`region~~market~~contacts.0.auth.apiKey`**：
+   - `auth` 是普通对象（没有设置 `flattenPath`），使用 `.` 连接
+   - `apiKey` 是普通字段，使用 `.` 连接
+
+4. **`region~~market~~contacts.0~~category~~group~~name`**：
+   - `category` 设置了 `flattenPath: true`，使用 `~~` 连接
+   - `group` 也设置了 `flattenPath: true`，继续使用 `~~` 连接
+   - `name` 是普通字段，但父级在 flattenPath 链中，继承使用 `~~` 连接
+
+**联动路径解析**（运行时）：
+
+```typescript
+// vipLevel 字段的联动配置
+// 模板路径: './type'
+// 当前字段: 'region~~market~~contacts.0~~category~~group~~vipLevel'
+// 解析结果: 'region~~market~~contacts.0~~category~~group~~type'
+```
+
+### 8.4 示例 4：简单的路径透明化
 
 ```typescript
 // Schema
@@ -864,6 +1039,7 @@ console.log(`${depPath} → ${resolved}`);
 | `src/utils/pathTransformer.ts` | 路径透明化数据转换 |
 | `src/utils/schemaLinkageParser.ts` | Schema 联动配置解析、路径映射、统一路径生成函数 |
 | `src/utils/arrayLinkageHelper.ts` | 数组联动路径处理 |
+| `src/components/DynamicForm/core/SchemaParser.ts` | Schema 解析、字段配置生成、逻辑路径计算 |
 | `src/hooks/useLinkageManager.ts` | 联动状态管理 |
 | `src/hooks/useArrayLinkageManager.ts` | 数组联动状态管理 |
 
@@ -871,10 +1047,21 @@ console.log(`${depPath} → ${resolved}`);
 
 **创建日期**: 2025-12-28
 **最后更新**: 2025-12-29
-**版本**: 1.1
+**版本**: 1.3
 **文档状态**: 已更新
 
 **更新内容**:
+
+### v1.3 (2025-12-29)
+- 新增 8.3 节：复杂的路径透明化 + 数组 + 联动综合示例
+- 添加了完整的 Schema 配置和逻辑路径解析示例
+- 详细说明了混合使用 flattenPath 和普通对象时的路径生成规则
+
+### v1.2 (2025-12-29)
+- 新增 5.2 节：详细说明逻辑路径生成规则
+- 更新了逻辑路径示例，包含数组元素内部 flattenPath 的情况
+- 新增 SchemaParser.buildFieldPath 方法的说明
+- 更新了路径相关文件索引，添加 SchemaParser.ts
 
 ### v1.1 (2025-12-29)
 - 更新了逻辑路径示例，使用 `~~` 分隔符

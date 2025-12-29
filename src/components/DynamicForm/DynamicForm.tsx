@@ -25,16 +25,32 @@ const EMPTY_WIDGETS = {};
 const EMPTY_CUSTOM_FORMATS = {};
 
 /**
- * 检查 schema 是否包含数组字段
+ * 检查 schema 是否包含数组字段（递归检查所有嵌套层级）
  */
 function hasArrayFields(schema: any): boolean {
-  if (!schema || !schema.properties) return false;
+  if (!schema) return false;
 
-  for (const [, fieldSchema] of Object.entries(schema.properties)) {
-    if (typeof fieldSchema === 'object' && (fieldSchema as any).type === 'array') {
+  // 检查当前 schema 是否是数组类型
+  if (schema.type === 'array') {
+    return true;
+  }
+
+  // 递归检查 properties 中的所有字段
+  if (schema.properties) {
+    for (const fieldSchema of Object.values(schema.properties)) {
+      if (typeof fieldSchema === 'object' && hasArrayFields(fieldSchema)) {
+        return true;
+      }
+    }
+  }
+
+  // 检查数组的 items（虽然已经在上面检测到数组了，但为了完整性）
+  if (schema.items && typeof schema.items === 'object') {
+    if (hasArrayFields(schema.items)) {
       return true;
     }
   }
+
   return false;
 }
 
@@ -150,6 +166,7 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
       SchemaParser.setCustomFormats(stableCustomFormats);
     }
     const parsedFields = SchemaParser.parse(schema);
+    console.info('cyril parsedFields: ', JSON.stringify(parsedFields));
 
     // 如果是嵌套表单模式且有路径前缀，为字段名添加前缀
     if (asNestedForm && pathPrefix) {
@@ -177,6 +194,10 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
   // 尝试获取父表单的 FormContext（用于嵌套表单模式）
   // 注意：useFormContext 在没有 FormProvider 时返回 null（react-hook-form 7.x）
   const parentFormContext = useFormContext();
+
+  console.info('cyril schema: ', JSON.stringify(schema));
+  console.info('cyril defaultValues: ', JSON.stringify(defaultValues));
+  console.info('cyril processedDefaultValues: ', JSON.stringify(processedDefaultValues));
 
   // 只有非嵌套表单模式才创建新的 useForm 实例
   const ownMethods = useForm({
@@ -213,9 +234,29 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
   }, [schema, pathPrefix, asNestedForm]);
 
   // 如果是嵌套表单且有路径前缀，转换为绝对路径
+  // 同时过滤掉已经在父级计算过的联动配置
   const linkages = useMemo(() => {
     if (asNestedForm && pathPrefix) {
       const transformed = transformToAbsolutePaths(rawLinkages, pathPrefix);
+
+      // 如果有父级联动状态，过滤掉已经在父级计算过的联动
+      // 这避免了嵌套表单重复计算数组元素的联动（由顶层 useArrayLinkageManager 统一处理）
+      if (linkageStateContext?.parentLinkageStates) {
+        const filtered: Record<string, LinkageConfig> = {};
+        Object.entries(transformed).forEach(([key, value]) => {
+          if (!(key in linkageStateContext.parentLinkageStates)) {
+            filtered[key] = value;
+          }
+        });
+        console.log('[DynamicForm] 嵌套表单路径转换（已过滤父级联动）:', {
+          pathPrefix,
+          rawLinkages,
+          transformed,
+          filtered,
+        });
+        return filtered;
+      }
+
       console.log('[DynamicForm] 嵌套表单路径转换:', {
         pathPrefix,
         rawLinkages,
@@ -224,7 +265,7 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
       return transformed;
     }
     return rawLinkages;
-  }, [rawLinkages, asNestedForm, pathPrefix]);
+  }, [rawLinkages, asNestedForm, pathPrefix, linkageStateContext?.parentLinkageStates]);
 
   // 检查是否包含数组字段
   const hasArrays = useMemo(() => hasArrayFields(schema), [schema]);

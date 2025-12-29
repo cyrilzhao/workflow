@@ -321,14 +321,38 @@ export interface UIConfig {
 ```typescript
 // src/components/DynamicForm/core/SchemaParser.ts
 
-import { buildLogicalPath } from '@/utils/schemaLinkageParser';
+import { FLATTEN_PATH_SEPARATOR } from '@/utils/schemaLinkageParser';
 
 export class SchemaParser {
   /**
-   * 检查 schema 中是否使用了路径扁平化
+   * 构建字段路径（支持 flattenPath 的 ~~ 分隔符）
+   *
+   * 规则：
+   * 1. 如果父路径的最后一段是 flattenPath（最后一个分隔符是 ~~），
+   *    则子字段也使用 ~~ 连接（无论子字段是否是 flattenPath）
+   * 2. 如果当前字段是 flattenPath，使用 ~~ 连接
+   * 3. 否则使用 . 连接
    */
-  static hasFlattenPath(schema: ExtendedJSONSchema): boolean {
-    // ... 实现省略
+  private static buildFieldPath(
+    parentPath: string,
+    fieldName: string,
+    isFlattenPath: boolean
+  ): string {
+    if (!parentPath) {
+      return fieldName;
+    }
+
+    // 检查父路径的最后一个分隔符类型
+    const lastDotIndex = parentPath.lastIndexOf('.');
+    const lastSepIndex = parentPath.lastIndexOf(FLATTEN_PATH_SEPARATOR);
+    const isParentInFlattenChain = lastSepIndex > lastDotIndex;
+
+    // 如果父级在 flattenPath 链中，或当前字段是 flattenPath，使用 ~~
+    if (isParentInFlattenChain || isFlattenPath) {
+      return `${parentPath}${FLATTEN_PATH_SEPARATOR}${fieldName}`;
+    }
+
+    return `${parentPath}.${fieldName}`;
   }
 
   /**
@@ -343,21 +367,23 @@ export class SchemaParser {
     for (const key of order) {
       const fieldSchema = property as ExtendedJSONSchema;
 
-      // 检查是否需要路径扁平化
-      if (fieldSchema.type === 'object' && fieldSchema.ui?.flattenPath) {
-        // 使用统一的路径生成函数构建逻辑路径
-        const newParentPath = buildLogicalPath(parentPath, key, true);
+      // 检查当前字段是否设置了 flattenPath
+      const isFlattenPath = fieldSchema.type === 'object' && fieldSchema.ui?.flattenPath;
 
-        // 递归解析子字段，传递带 ~~ 分隔符的逻辑路径
+      // 使用 buildFieldPath 方法正确处理 flattenPath 的路径
+      const currentPath = this.buildFieldPath(parentPath, key, isFlattenPath);
+
+      // 检查是否需要路径扁平化
+      if (isFlattenPath) {
+        // 递归解析子字段，传递当前路径（已经包含 ~~ 分隔符）
         const nestedFields = this.parse(fieldSchema, {
-          parentPath: newParentPath,
+          parentPath: currentPath,
           prefixLabel: newPrefixLabel,
           inheritedUI: newInheritedUI,
         });
         fields.push(...nestedFields);
       } else {
-        // 正常解析字段：使用统一的路径生成函数
-        const currentPath = buildLogicalPath(parentPath, key, false);
+        // 正常解析字段
         const fieldConfig = this.parseField(currentPath, fieldSchema, ...);
         fields.push(fieldConfig);
       }
@@ -369,9 +395,11 @@ export class SchemaParser {
 ```
 
 **关键点**：
+- 使用 `buildFieldPath` 方法统一处理路径生成逻辑
 - 当检测到 `flattenPath: true` 时，不会为该对象字段生成 `widget: 'nested-form'` 的配置
 - 而是直接递归解析其子字段，将子字段"提升"到当前层级
 - 使用 `~~` 分隔符构建逻辑路径（如 `auth~~content~~key`），避免不同物理路径产生相同逻辑路径的冲突
+- **重要**：如果父路径在 flattenPath 链中（最后一个分隔符是 `~~`），子字段也会使用 `~~` 连接
 
 ### 6.3 路径转换工具
 
@@ -689,71 +717,93 @@ const databaseSchema = {
 // - 数据库 - 密码
 ```
 
-### 7.3 示例 3：嵌套表单 + 路径透明化混合使用
+### 7.3 示例 3：复杂的路径透明化 + 数组 + 联动
 
-这个示例展示了如何在多层嵌套表单中混合使用正常嵌套和路径透明化：
+这是一个综合示例，展示了路径透明化、数组字段和联动配置的组合使用。
+
+**Schema 配置**：
 
 ```typescript
 const schema = {
   type: 'object',
   properties: {
-    // 正常的嵌套表单（会显示 Card）
-    basicInfo: {
-      type: 'object',
-      title: '基本信息',
-      properties: {
-        name: { type: 'string', title: '服务名称' },
-        description: { type: 'string', title: '服务描述' }
-      }
+    enableRegion: {
+      type: 'boolean',
+      title: '启用地区配置',
+      default: true,
     },
-
-    // 正常的嵌套表单，但内部使用路径透明化
-    apiConfig: {
+    region: {
+      title: '地区',
       type: 'object',
-      title: 'API 配置',
+      ui: { flattenPath: true, flattenPrefix: true },
       properties: {
-        endpoint: { type: 'string', title: '接口地址' },
-
-        // 这里开始使用路径透明化（不会显示 Card）
-        authentication: {
+        market: {
           type: 'object',
-          title: '认证配置',
-          ui: { flattenPath: true, flattenPrefix: true },
+          title: '市场',
+          ui: { flattenPath: true },
           properties: {
-            credentials: {
-              type: 'object',
-              ui: { flattenPath: true },
-              properties: {
-                apiKey: { type: 'string', title: 'API 密钥' },
-                apiSecret: { type: 'string', title: 'API 密文' }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
+            contacts: {
+              type: 'array',
+              title: '联系人列表',
+              items: {
+                type: 'object',
+                properties: {
+                  auth: {
+                    type: 'object',
+                    properties: {
+                      apiKey: { type: 'string', title: 'API Key' },
+                      apiSecret: { type: 'string', title: 'API Secret' },
+                    },
+                  },
+                  category: {
+                    type: 'object',
+                    title: '分类',
+                    ui: { flattenPath: true, flattenPrefix: true },
+                    properties: {
+                      group: {
+                        type: 'object',
+                        title: '分组',
+                        ui: { flattenPath: true, flattenPrefix: true },
+                        properties: {
+                          type: { type: 'string', title: '类型', enum: ['vip', 'normal'] },
+                          name: { type: 'string', title: '名称' },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
 };
 ```
 
-**渲染效果**：
-```
-┌─ 基本信息 ────────────────┐  ← Card 边框
-│ 服务名称: [________]      │
-│ 服务描述: [________]      │
-└───────────────────────────┘
+**生成的逻辑路径**：
 
-┌─ API 配置 ────────────────┐  ← Card 边框
-│ 接口地址: [________]      │
-│ 认证配置 - API 密钥: [__] │  ← 无额外 Card，直接显示
-│ 认证配置 - API 密文: [__] │  ← 无额外 Card，直接显示
-└───────────────────────────┘
+```typescript
+// 顶层字段
+'enableRegion'
+
+// 数组字段（region 和 market 都是 flattenPath）
+'region~~market~~contacts'
+
+// 数组元素内部字段（假设索引为 0）
+'region~~market~~contacts.0.auth.apiKey'
+'region~~market~~contacts.0.auth.apiSecret'
+'region~~market~~contacts.0~~category~~group~~type'
+'region~~market~~contacts.0~~category~~group~~name'
 ```
 
-**关键点**：
-- `basicInfo` 和 `apiConfig` 是正常的嵌套表单，会渲染成 Card
-- `authentication` 和 `credentials` 设置了 `flattenPath: true`，不会渲染成 Card
-- 避免了多余的 Card 嵌套和 padding
+**路径解析规则说明**：
+
+1. **`region~~market~~contacts`**：region 和 market 都是 flattenPath，contacts 继承使用 `~~`
+2. **`region~~market~~contacts.0`**：数组索引使用 `.`
+3. **`region~~market~~contacts.0.auth.apiKey`**：auth 是普通对象，使用 `.`
+4. **`region~~market~~contacts.0~~category~~group~~name`**：category 和 group 是 flattenPath，name 继承使用 `~~`
 
 ---
 
@@ -1130,10 +1180,27 @@ if (inheritedUI && (inheritedUI.layout || inheritedUI.labelWidth)) {
 
 **创建日期**: 2025-12-26
 **最后更新**: 2025-12-29
-**版本**: 2.3
+**版本**: 2.6
 **文档状态**: 已更新
 
 **更新内容**:
+
+### v2.6 (2025-12-29)
+- **重要修复**：修复了 `PathTransformer.flattenItemWithSchema` 方法中的数据转换错误
+- 问题：数组元素内部的普通嵌套对象（未设置 `flattenPath`）被错误地扁平化处理
+- 解决：区分 `flattenPath` 对象和普通嵌套对象，只对设置了 `flattenPath: true` 的对象进行路径扁平化
+- 影响：修复后，数组元素内部的普通对象（如 `auth`）会保持嵌套结构，defaultValues 可以正确回显
+
+### v2.5 (2025-12-29)
+- 新增 7.3 节：复杂的路径透明化 + 数组 + 联动综合示例
+- 添加了完整的 Schema 配置和逻辑路径解析示例
+- 详细说明了混合使用 flattenPath 和普通对象时的路径生成规则
+
+### v2.4 (2025-12-29)
+- 重要更新：修复了 SchemaParser 中的路径计算逻辑
+- 新增 `buildFieldPath` 方法，正确处理 flattenPath 链中的路径生成
+- 更新了 6.2 节的 SchemaParser 实现示例，展示完整的路径生成逻辑
+- 添加了路径生成规则的详细说明
 
 ### v2.3 (2025-12-29)
 - 重要更新：逻辑路径现在使用 `~~` 分隔符（如 `auth~~content~~key`），避免路径冲突

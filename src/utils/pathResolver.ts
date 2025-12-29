@@ -17,6 +17,8 @@ export class PathResolver {
    * PathResolver.resolve('#/properties/user/age', { user: { age: 18 } }) // 18
    */
   static resolve(path: string, formData: Record<string, any>): any {
+    console.info('cyril PathResolver.resolve path: ', path);
+    console.info('cyril PathResolver.resolve formData: ', formData);
     // 如果不是 JSON Pointer 格式，直接返回字段值
     if (!path.startsWith('#/')) {
       return this.getNestedValue(formData, path);
@@ -88,12 +90,40 @@ export class PathResolver {
   }
 
   /**
-   * 获取嵌套对象的值（支持点号路径）
+   * 获取嵌套对象的值（支持点号路径和扁平化 key）
+   *
+   * 对于扁平化的 formData（如 { "group~~category.contacts": [...] }），
+   * 会智能匹配最长的 key 前缀，然后继续解析剩余路径。
    */
   static getNestedValue(obj: Record<string, any>, path: string): any {
-    const keys = path.split('.');
-    let value = obj;
+    if (!obj || !path) return undefined;
 
+    // 首先尝试直接匹配完整路径（最常见的情况）
+    if (path in obj) {
+      return obj[path];
+    }
+
+    // 尝试找到最长匹配的 key 前缀
+    // 例如：path = "group~~category.contacts.0.category~~group.type"
+    // obj 可能有 key = "group~~category.contacts"
+    const keys = path.split('.');
+
+    for (let i = keys.length; i > 0; i--) {
+      const prefix = keys.slice(0, i).join('.');
+      if (prefix in obj) {
+        const value = obj[prefix];
+        // 如果已经匹配完整路径，直接返回
+        if (i === keys.length) {
+          return value;
+        }
+        // 否则继续解析剩余路径
+        const remainingPath = keys.slice(i).join('.');
+        return this.getNestedValue(value, remainingPath);
+      }
+    }
+
+    // 回退到传统的逐级解析
+    let value = obj;
     for (const key of keys) {
       if (value === null || value === undefined) {
         return undefined;

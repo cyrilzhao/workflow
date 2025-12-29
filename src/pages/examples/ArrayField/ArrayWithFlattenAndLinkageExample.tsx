@@ -17,7 +17,7 @@ export const ArrayWithFlattenAndLinkageExample: React.FC = () => {
         title: '启用地区配置',
         default: true,
       },
-      group: {
+      region: {
         title: '地区',
         type: 'object',
         ui: {
@@ -40,7 +40,7 @@ export const ArrayWithFlattenAndLinkageExample: React.FC = () => {
           },
         },
         properties: {
-          category: {
+          market: {
             type: 'object',
             title: '市场',
             ui: {
@@ -54,6 +54,58 @@ export const ArrayWithFlattenAndLinkageExample: React.FC = () => {
                   type: 'object',
                   title: '联系人',
                   properties: {
+                    auth: {
+                      title: 'Auth',
+                      type: 'object',
+                      properties: {
+                        enableAuth: {
+                          title: 'enableAuth',
+                          type: 'boolean',
+                        },
+                        apiKey: {
+                          title: 'apiKey',
+                          type: 'string',
+                          ui: {
+                            linkage: {
+                              type: 'visibility',
+                              dependencies: ['./enableAuth'],
+                              when: {
+                                field: './enableAuth',
+                                operator: '==',
+                                value: true,
+                              },
+                              fulfill: {
+                                state: { visible: true },
+                              },
+                              otherwise: {
+                                state: { visible: false },
+                              },
+                            },
+                          },
+                        },
+                        apiSecret: {
+                          title: 'apiSecret',
+                          type: 'string',
+                          ui: {
+                            linkage: {
+                              type: 'visibility',
+                              dependencies: ['./enableAuth'],
+                              when: {
+                                field: './enableAuth',
+                                operator: '==',
+                                value: true,
+                              },
+                              fulfill: {
+                                state: { visible: true },
+                              },
+                              otherwise: {
+                                state: { visible: false },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
                     category: {
                       type: 'object',
                       title: '分类',
@@ -137,10 +189,14 @@ export const ArrayWithFlattenAndLinkageExample: React.FC = () => {
 
   const defaultValues = {
     enableRegion: true,
-    group: {
-      category: {
+    region: {
+      market: {
         contacts: [
           {
+            auth: {
+              apiKey: 'aaa',
+              apiSecret: 'bbb',
+            },
             category: {
               group: {
                 type: 'normal',

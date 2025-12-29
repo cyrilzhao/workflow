@@ -2,6 +2,68 @@ import type { ExtendedJSONSchema } from '@/types/schema';
 import { FLATTEN_PATH_SEPARATOR } from './schemaLinkageParser';
 
 /**
+ * 判断父级路径是否在 flattenPath 链中
+ * @param parentPath - 父级路径
+ * @returns 如果父级路径包含 ~~ 分隔符，说明在 flattenPath 链中
+ */
+function isInFlattenPathChain(parentPath: string): boolean {
+  return parentPath.includes(FLATTEN_PATH_SEPARATOR);
+}
+
+/**
+ * 统一的逻辑路径生成函数
+ * 根据父级路径是否在 flattenPath 链中，自动选择正确的分隔符
+ *
+ * @param parentPath - 父级路径
+ * @param fieldName - 当前字段名
+ * @param isFlattenPath - 当前字段是否设置了 flattenPath: true
+ * @returns 生成的逻辑路径
+ *
+ * @example
+ * buildLogicalPath('', 'group', true) // → 'group'
+ * buildLogicalPath('group', 'category', true) // → 'group~~category'
+ * buildLogicalPath('group~~category', 'contacts', false) // → 'group~~category~~contacts'
+ * buildLogicalPath('user', 'name', false) // → 'user.name'
+ */
+function buildLogicalPath(
+  parentPath: string,
+  fieldName: string,
+  isFlattenPath: boolean
+): string {
+  if (!parentPath) {
+    return fieldName;
+  }
+
+  // 如果父级路径在 flattenPath 链中，或当前字段是 flattenPath，使用 ~~ 分隔符
+  if (isInFlattenPathChain(parentPath) || isFlattenPath) {
+    return `${parentPath}${FLATTEN_PATH_SEPARATOR}${fieldName}`;
+  }
+
+  // 否则使用 . 分隔符
+  return `${parentPath}.${fieldName}`;
+}
+
+/**
+ * 统一的物理路径生成函数
+ * 物理路径始终使用 . 分隔符
+ *
+ * @param parentPath - 父级路径
+ * @param fieldName - 当前字段名
+ * @returns 生成的物理路径
+ *
+ * @example
+ * buildPhysicalPath('', 'group') // → 'group'
+ * buildPhysicalPath('group', 'category') // → 'group.category'
+ * buildPhysicalPath('group.category', 'contacts') // → 'group.category.contacts'
+ */
+function buildPhysicalPath(parentPath: string, fieldName: string): string {
+  if (!parentPath) {
+    return fieldName;
+  }
+  return `${parentPath}.${fieldName}`;
+}
+
+/**
  * 路径转换工具类
  * 用于在扁平化路径和嵌套对象之间进行转换
  */
@@ -128,14 +190,9 @@ export class PathTransformer {
 
       const shouldFlatten = typedSchema.type === 'object' && typedSchema.ui?.flattenPath;
 
-      // 计算逻辑路径和物理路径
-      const newLogicalPath = shouldFlatten
-        ? logicalPath
-          ? `${logicalPath}${FLATTEN_PATH_SEPARATOR}${key}`
-          : key // flattenPath: 使用 ~~ 分隔符连接
-        : logicalPath ? `${logicalPath}.${key}` : key;
-
-      const newPhysicalPath = physicalPath ? `${physicalPath}.${key}` : key;
+      // 使用统一的路径生成函数
+      const newLogicalPath = buildLogicalPath(logicalPath, key, shouldFlatten);
+      const newPhysicalPath = buildPhysicalPath(physicalPath, key);
 
       if (typedSchema.type === 'object' && typedSchema.properties) {
         // 递归处理嵌套对象
@@ -213,21 +270,23 @@ export class PathTransformer {
 
       const shouldFlatten = typedSchema.type === 'object' && typedSchema.ui?.flattenPath;
 
-      if (shouldFlatten && typedSchema.properties) {
-        // flattenPath: 使用 ~~ 分隔符连接，递归处理子属性
-        const newPrefix = prefix ? `${prefix}${FLATTEN_PATH_SEPARATOR}${key}` : key;
-        this.flattenItemWithSchema(value, typedSchema, newPrefix, result);
-      } else if (typedSchema.type === 'object' && typedSchema.properties) {
-        // 普通对象：递归处理
-        const newPrefix = prefix ? `${prefix}.${key}` : key;
-        this.flattenItemWithSchema(value, typedSchema, newPrefix, result);
+      if (typedSchema.type === 'object' && typedSchema.properties) {
+        if (shouldFlatten) {
+          // flattenPath 对象：递归扁平化
+          const newPrefix = buildLogicalPath(prefix, key, true);
+          this.flattenItemWithSchema(value, typedSchema, newPrefix, result);
+        } else {
+          // 普通嵌套对象：直接保存整个对象，不进行扁平化
+          const outputKey = buildLogicalPath(prefix, key, false);
+          result[outputKey] = value;
+        }
       } else if (typedSchema.type === 'array' && Array.isArray(value)) {
-        // 嵌套数组：递归处理
-        const outputKey = prefix ? `${prefix}.${key}` : key;
+        // 嵌套数组：使用统一的路径生成函数
+        const outputKey = buildLogicalPath(prefix, key, false);
         result[outputKey] = this.transformArrayItems(value, typedSchema);
       } else {
-        // 基本类型
-        const outputKey = prefix ? `${prefix}.${key}` : key;
+        // 基本类型：使用统一的路径生成函数
+        const outputKey = buildLogicalPath(prefix, key, false);
         result[outputKey] = value;
       }
     });
@@ -270,15 +329,13 @@ export class PathTransformer {
       const shouldFlatten = typedSchema.type === 'object' && typedSchema.ui?.flattenPath;
 
       if (shouldFlatten && typedSchema.properties) {
-        // flattenPath: 创建中间层级，使用 ~~ 分隔符更新逻辑前缀
-        const newLogicalPrefix = logicalPrefix
-          ? `${logicalPrefix}${FLATTEN_PATH_SEPARATOR}${key}`
-          : key;
+        // flattenPath: 创建中间层级，使用统一的路径生成函数
+        const newLogicalPrefix = buildLogicalPath(logicalPrefix, key, true);
         result[key] = {};
         this.reverseTransformWithSchema(flatData, typedSchema, newLogicalPrefix, result[key]);
       } else {
-        // 计算逻辑路径
-        const logicalPath = logicalPrefix ? `${logicalPrefix}.${key}` : key;
+        // 使用统一的路径生成函数计算逻辑路径
+        const logicalPath = buildLogicalPath(logicalPrefix, key, false);
 
         if (typedSchema.type === 'object' && typedSchema.properties) {
           // 普通对象：递归处理
@@ -358,18 +415,20 @@ export class PathTransformer {
       const shouldFlatten = typedSchema.type === 'object' && typedSchema.ui?.flattenPath;
 
       if (shouldFlatten && typedSchema.properties) {
-        // flattenPath: 创建中间层级，使用 ~~ 分隔符更新逻辑前缀
-        const newLogicalPrefix = logicalPrefix
-          ? `${logicalPrefix}${FLATTEN_PATH_SEPARATOR}${key}`
-          : key;
+        // flattenPath: 创建中间层级，使用统一的路径生成函数
+        const newLogicalPrefix = buildLogicalPath(logicalPrefix, key, true);
         result[key] = {};
         this.reverseTransformItemWithSchema(flatItem, typedSchema, newLogicalPrefix, result[key]);
       } else {
-        const logicalPath = logicalPrefix ? `${logicalPrefix}.${key}` : key;
+        // 使用统一的路径生成函数计算逻辑路径
+        const logicalPath = buildLogicalPath(logicalPrefix, key, false);
 
         if (typedSchema.type === 'object' && typedSchema.properties) {
-          result[key] = {};
-          this.reverseTransformItemWithSchema(flatItem, typedSchema, logicalPath, result[key]);
+          // 普通嵌套对象：直接从 flatItem 获取整个对象
+          const value = flatItem[logicalPath];
+          if (value !== undefined) {
+            result[key] = value;
+          }
         } else if (typedSchema.type === 'array') {
           const value = flatItem[logicalPath];
           if (value !== undefined) {

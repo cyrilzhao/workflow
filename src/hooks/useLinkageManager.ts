@@ -1,6 +1,11 @@
 import { useMemo, useEffect, useState } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
-import type { LinkageConfig, LinkageFunction, ConditionExpression, LinkageFunctionContext } from '@/types/linkage';
+import type {
+  LinkageConfig,
+  LinkageFunction,
+  ConditionExpression,
+  LinkageFunctionContext,
+} from '@/types/linkage';
 import type { LinkageResult } from '@/types/linkage';
 import { ConditionEvaluator } from '@/utils/conditionEvaluator';
 import { DependencyGraph } from '@/utils/dependencyGraph';
@@ -122,6 +127,7 @@ export function useLinkageManager({
   useEffect(() => {
     (async () => {
       const physicalFormData = { ...getValues() };
+      console.info('cyril physicalFormData: ', physicalFormData);
       // 转换为逻辑路径的数据
       const formData = transformFormData(physicalFormData);
       const states: Record<string, LinkageResult> = {};
@@ -163,6 +169,8 @@ export function useLinkageManager({
 
       // 获取受影响的字段（使用依赖图精确计算）
       const affectedFields = dependencyGraph.getAffectedFields(logicalName);
+      console.info('cyril logicalName: ', logicalName);
+      console.info('cyril affectedFields: ', affectedFields);
       if (affectedFields.length === 0) return;
 
       // 异步处理联动逻辑
