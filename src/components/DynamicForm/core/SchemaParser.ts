@@ -5,6 +5,7 @@ import type {
   ValidationRules,
   FieldOption,
 } from '@/types/schema';
+import { FLATTEN_PATH_SEPARATOR } from '@/utils/schemaLinkageParser';
 
 /**
  * Schema 解析配置
@@ -96,10 +97,15 @@ export class SchemaParser {
           labelWidth: fieldSchema.ui.labelWidth ?? inheritedUI?.labelWidth,
         };
 
-        // 递归解析子字段，跳过当前层级，但传递 UI 配置
-        // 关键修复：传递 parentPath 而不是 currentPath，真正跳过当前层级
+        // 构建逻辑路径：使用 ~~ 分隔符保留被透明化的层级，避免路径冲突
+        // 例如：parentPath='group' + key='category' => 'group~~category'
+        const logicalPath = parentPath
+          ? `${parentPath}${FLATTEN_PATH_SEPARATOR}${key}`
+          : key;
+
+        // 递归解析子字段，传递逻辑路径
         const nestedFields = this.parse(fieldSchema, {
-          parentPath: parentPath,  // 修复：使用 parentPath 而不是 currentPath
+          parentPath: logicalPath,
           prefixLabel: newPrefixLabel,
           inheritedUI: newInheritedUI,
         });

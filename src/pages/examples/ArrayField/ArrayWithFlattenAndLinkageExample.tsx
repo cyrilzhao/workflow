@@ -25,9 +25,9 @@ export const ArrayWithFlattenAndLinkageExample: React.FC = () => {
           flattenPrefix: true,
           linkage: {
             type: 'visibility',
-            dependencies: ['enableRegion'],
+            dependencies: ['#/properties/enableRegion'],
             when: {
-              field: 'enableRegion',
+              field: '#/properties/enableRegion',
               operator: '==',
               value: true,
             },

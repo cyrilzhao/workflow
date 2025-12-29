@@ -38,6 +38,80 @@ function hasArrayFields(schema: any): boolean {
   return false;
 }
 
+/**
+ * 检查字段是否应该被隐藏（包括检查父级路径的联动状态）
+ * 对于 flattenPath 场景，联动配置可能在父级路径上，需要检查所有父级
+ *
+ * @param fieldPath - 字段路径，如 'group~~category.contacts'
+ * @param linkageStates - 联动状态映射
+ * @returns 如果字段或其任何父级被隐藏，返回 true
+ */
+function isFieldHiddenByLinkage(
+  fieldPath: string,
+  linkageStates: Record<string, { visible?: boolean }>
+): boolean {
+  // 检查字段自身的联动状态
+  if (linkageStates[fieldPath]?.visible === false) {
+    return true;
+  }
+
+  // 检查父级路径的联动状态
+  // 需要同时处理 '.' 和 '~~' 两种分隔符
+  const parts: string[] = [];
+  let currentPart = '';
+
+  for (let i = 0; i < fieldPath.length; i++) {
+    // 检查是否是 ~~ 分隔符
+    if (fieldPath[i] === '~' && fieldPath[i + 1] === '~') {
+      if (currentPart) {
+        parts.push(currentPart);
+        currentPart = '';
+      }
+      i++; // 跳过第二个 ~
+    } else if (fieldPath[i] === '.') {
+      if (currentPart) {
+        parts.push(currentPart);
+        currentPart = '';
+      }
+    } else {
+      currentPart += fieldPath[i];
+    }
+  }
+  if (currentPart) {
+    parts.push(currentPart);
+  }
+
+  // 重建路径并检查每个父级
+  // 需要保留原始的分隔符类型
+  let parentPath = '';
+  let pathIndex = 0;
+
+  for (let i = 0; i < parts.length - 1; i++) {
+    const part = parts[i];
+
+    if (parentPath) {
+      // 找到原始路径中这个 part 之前的分隔符
+      const nextPartStart = fieldPath.indexOf(part, pathIndex);
+      if (nextPartStart > pathIndex) {
+        const separator = fieldPath.substring(pathIndex, nextPartStart);
+        parentPath += separator;
+      }
+      parentPath += part;
+      pathIndex = nextPartStart + part.length;
+    } else {
+      parentPath = part;
+      pathIndex = part.length;
+    }
+
+    // 检查这个父级路径的联动状态
+    if (linkageStates[parentPath]?.visible === false) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 // 内层组件：实际的表单逻辑
 const DynamicFormInner: React.FC<DynamicFormProps> = ({
   schema,
@@ -268,7 +342,8 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
           }
 
           // 如果联动状态指定不可见，则不渲染该字段
-          if (linkageState?.visible === false) {
+          // 需要检查字段自身和所有父级路径的联动状态（支持 flattenPath 场景）
+          if (isFieldHiddenByLinkage(field.name, linkageStates)) {
             return null;
           }
 
