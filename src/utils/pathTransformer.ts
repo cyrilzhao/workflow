@@ -1,4 +1,5 @@
 import type { ExtendedJSONSchema } from '@/types/schema';
+import { FLATTEN_PATH_SEPARATOR } from './schemaLinkageParser';
 
 /**
  * 路径转换工具类
@@ -129,7 +130,9 @@ export class PathTransformer {
 
       // 计算逻辑路径和物理路径
       const newLogicalPath = shouldFlatten
-        ? logicalPath // flattenPath: 逻辑路径不变
+        ? logicalPath
+          ? `${logicalPath}${FLATTEN_PATH_SEPARATOR}${key}`
+          : key // flattenPath: 使用 ~~ 分隔符连接
         : logicalPath ? `${logicalPath}.${key}` : key;
 
       const newPhysicalPath = physicalPath ? `${physicalPath}.${key}` : key;
@@ -211,8 +214,9 @@ export class PathTransformer {
       const shouldFlatten = typedSchema.type === 'object' && typedSchema.ui?.flattenPath;
 
       if (shouldFlatten && typedSchema.properties) {
-        // flattenPath: 跳过当前层级，递归处理子属性
-        this.flattenItemWithSchema(value, typedSchema, prefix, result);
+        // flattenPath: 使用 ~~ 分隔符连接，递归处理子属性
+        const newPrefix = prefix ? `${prefix}${FLATTEN_PATH_SEPARATOR}${key}` : key;
+        this.flattenItemWithSchema(value, typedSchema, newPrefix, result);
       } else if (typedSchema.type === 'object' && typedSchema.properties) {
         // 普通对象：递归处理
         const newPrefix = prefix ? `${prefix}.${key}` : key;
@@ -266,9 +270,12 @@ export class PathTransformer {
       const shouldFlatten = typedSchema.type === 'object' && typedSchema.ui?.flattenPath;
 
       if (shouldFlatten && typedSchema.properties) {
-        // flattenPath: 创建中间层级，递归处理
+        // flattenPath: 创建中间层级，使用 ~~ 分隔符更新逻辑前缀
+        const newLogicalPrefix = logicalPrefix
+          ? `${logicalPrefix}${FLATTEN_PATH_SEPARATOR}${key}`
+          : key;
         result[key] = {};
-        this.reverseTransformWithSchema(flatData, typedSchema, logicalPrefix, result[key]);
+        this.reverseTransformWithSchema(flatData, typedSchema, newLogicalPrefix, result[key]);
       } else {
         // 计算逻辑路径
         const logicalPath = logicalPrefix ? `${logicalPrefix}.${key}` : key;
@@ -351,9 +358,12 @@ export class PathTransformer {
       const shouldFlatten = typedSchema.type === 'object' && typedSchema.ui?.flattenPath;
 
       if (shouldFlatten && typedSchema.properties) {
-        // flattenPath: 创建中间层级
+        // flattenPath: 创建中间层级，使用 ~~ 分隔符更新逻辑前缀
+        const newLogicalPrefix = logicalPrefix
+          ? `${logicalPrefix}${FLATTEN_PATH_SEPARATOR}${key}`
+          : key;
         result[key] = {};
-        this.reverseTransformItemWithSchema(flatItem, typedSchema, logicalPrefix, result[key]);
+        this.reverseTransformItemWithSchema(flatItem, typedSchema, newLogicalPrefix, result[key]);
       } else {
         const logicalPath = logicalPrefix ? `${logicalPrefix}.${key}` : key;
 

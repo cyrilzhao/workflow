@@ -1,6 +1,16 @@
 import type { ExtendedJSONSchema, LinkageConfig } from '@/types/schema';
 
 /**
+ * 路径透明化分隔符
+ * 用于在逻辑路径中保留被透明化的路径段，避免不同物理路径产生相同逻辑路径的冲突
+ *
+ * 例如：
+ * - 物理路径: group.category.contacts (group 和 category 都设置了 flattenPath)
+ * - 逻辑路径: group~~category~~contacts
+ */
+export const FLATTEN_PATH_SEPARATOR = '~~';
+
+/**
  * 路径映射信息
  * 用于处理 flattenPath 导致的逻辑路径和物理路径不一致问题
  */
@@ -107,8 +117,10 @@ function parseSchemaRecursive(
     let currentSkippedSegments: string[];
 
     if (shouldSkipInPath) {
-      // 跳过当前层级：逻辑路径保持不变，物理路径添加字段名
-      logicalPath = logicalParentPath;
+      // 透明化层级：使用 ~~ 分隔符将字段名连接到逻辑路径，避免冲突
+      logicalPath = logicalParentPath
+        ? `${logicalParentPath}${FLATTEN_PATH_SEPARATOR}${fieldName}`
+        : fieldName;
       physicalPath = physicalParentPath ? `${physicalParentPath}.${fieldName}` : fieldName;
       currentSkippedSegments = [...skippedSegments, fieldName];
     } else {

@@ -65,9 +65,9 @@
     - [x] 确保能检测到数组元素字段对内外跨层级字段的依赖关系是否存在循环依赖
     - [x] 联动时 otherwise 的赋值没生效
     - [x] 菱形依赖场景下，联系人类型切换成工作之后有触发联动，但是再切换回个人就没有触发对应的联动
+    - [x] 解决字段名称相同的情况下，生成的逻辑字段路径冲突的问题（group.category.contacts 和 region.market.contacts）
     - [ ] 跨数组依赖 - 当权限列表中存在管理员权限时，功能列表中的所有功能都自动启用
     - [ ] 场景6：嵌套数组联动 - 部门切换成技术部时，没有触发联动
-    - [ ] 解决字段名称相同的情况下，生成的逻辑字段路径冲突的问题（group.category.contacts 和 region.market.contacts）
 - [ ] FormField 组件中有从传入的 widgets 和 FieldRegistry 两个来源获取 widget 的方法，这两种方法有何异同，是否只需要保留 FieldRegistry
 - [ ] 路径透明化 - 混合使用：部分透明化 + 部分正常嵌套 - basicInfo 提交时是空对象
 - [ ] 添加自定义 nested form widget 的代码示例

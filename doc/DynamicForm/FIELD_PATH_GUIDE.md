@@ -295,16 +295,18 @@ function parseJsonPointer(pointer: string): string {
 
 当 Schema 中某个对象字段设置了 `flattenPath: true`，该层级在 UI 上会被"跳过"，但数据结构保持不变。
 
+**重要**：为了避免不同物理路径产生相同逻辑路径的冲突，系统使用 `~~` 分隔符在逻辑路径中保留被透明化的路径段。
+
 ```typescript
 // Schema 定义
 {
   group: {
     type: 'object',
-    ui: { flattenPath: true },  // 跳过此层级
+    ui: { flattenPath: true },  // 透明化此层级
     properties: {
       category: {
         type: 'object',
-        ui: { flattenPath: true },  // 跳过此层级
+        ui: { flattenPath: true },  // 透明化此层级
         properties: {
           contacts: {
             type: 'array',
@@ -316,16 +318,16 @@ function parseJsonPointer(pointer: string): string {
   }
 }
 
-// 逻辑路径（Schema 视角）: contacts
-// 物理路径（数据视角）: group.category.contacts
+// 逻辑路径（表单字段注册）: group~~category~~contacts
+// 物理路径（数据存储）: group.category.contacts
 ```
 
 ### 5.2 逻辑路径 vs 物理路径
 
 | 概念 | 定义 | 用途 |
 |------|------|------|
-| **逻辑路径** | 跳过 `flattenPath` 层级后的路径 | Schema 字段定义、联动配置 |
-| **物理路径** | 包含所有层级的完整路径 | 实际数据存储、表单字段注册 |
+| **逻辑路径** | 使用 `~~` 连接透明化层级的路径 | 表单字段注册、联动配置 |
+| **物理路径** | 使用 `.` 连接所有层级的完整路径 | 实际数据存储 |
 
 **示例**：
 
@@ -333,13 +335,25 @@ function parseJsonPointer(pointer: string): string {
 // Schema 中 group 和 category 都设置了 flattenPath: true
 
 // 字段: contacts
-逻辑路径: 'contacts'
+逻辑路径: 'group~~category~~contacts'
 物理路径: 'group.category.contacts'
 
 // 字段: contacts[0].name
-逻辑路径: 'contacts.0.name'
+逻辑路径: 'group~~category~~contacts.0.name'
 物理路径: 'group.category.contacts.0.name'
 ```
+
+**为什么使用 `~~` 分隔符？**
+
+避免路径冲突。如果有两个不同的物理路径：
+- `group.category.contacts`
+- `region.market.contacts`
+
+使用 `~~` 分隔符后，它们的逻辑路径分别是：
+- `group~~category~~contacts`
+- `region~~market~~contacts`
+
+这样就不会产生冲突。
 
 ### 5.3 路径映射
 
@@ -347,15 +361,15 @@ function parseJsonPointer(pointer: string): string {
 
 ```typescript
 interface PathMapping {
-  logicalPath: string;    // 逻辑路径
-  physicalPath: string;   // 物理路径
+  logicalPath: string;    // 逻辑路径（使用 ~~ 分隔符）
+  physicalPath: string;   // 物理路径（使用 . 分隔符）
   isArray?: boolean;      // 是否是数组字段
-  skippedSegments?: string[];  // 被跳过的路径段
+  skippedSegments?: string[];  // 被透明化的路径段
 }
 
 // 示例映射
 {
-  logicalPath: 'contacts',
+  logicalPath: 'group~~category~~contacts',
   physicalPath: 'group.category.contacts',
   isArray: true,
   skippedSegments: ['group', 'category']
@@ -367,18 +381,18 @@ interface PathMapping {
 路径透明化场景需要在数据输入和输出时进行转换：
 
 ```typescript
-// 输入转换：物理路径 → 逻辑路径
+// 输入转换：物理路径结构 → 逻辑路径结构
 // 用于初始化表单数据
 const formData = PathTransformer.nestedToFlatWithSchema(
   { group: { category: { contacts: [...] } } },  // 物理路径结构
   schema
 );
-// 结果: { contacts: [...] }  // 逻辑路径结构
+// 结果: { 'group~~category~~contacts': [...] }  // 逻辑路径结构
 
-// 输出转换：逻辑路径 → 物理路径
+// 输出转换：逻辑路径结构 → 物理路径结构
 // 用于提交表单数据
 const submitData = PathTransformer.flatToNestedWithSchema(
-  { contacts: [...] },  // 逻辑路径结构
+  { 'group~~category~~contacts': [...] },  // 逻辑路径结构
   schema
 );
 // 结果: { group: { category: { contacts: [...] } } }  // 物理路径结构
@@ -743,15 +757,15 @@ const schema = {
 };
 
 // 路径映射
-// 逻辑路径: apiKey      → 物理路径: config.auth.apiKey
-// 逻辑路径: apiSecret   → 物理路径: config.auth.apiSecret
+// 逻辑路径: config~~auth~~apiKey      → 物理路径: config.auth.apiKey
+// 逻辑路径: config~~auth~~apiSecret   → 物理路径: config.auth.apiSecret
 
 // 数据转换
 // 输入数据（物理路径结构）:
 { config: { auth: { apiKey: 'xxx', apiSecret: 'yyy' } } }
 
 // 表单数据（逻辑路径结构）:
-{ apiKey: 'xxx', apiSecret: 'yyy' }
+{ 'config~~auth~~apiKey': 'xxx', 'config~~auth~~apiSecret': 'yyy' }
 
 // 提交数据（物理路径结构）:
 { config: { auth: { apiKey: 'xxx', apiSecret: 'yyy' } } }
@@ -782,7 +796,7 @@ dependencies: ['#/properties/departments/items/properties/type']
 
 **可能原因**：联动配置中使用了物理路径而非逻辑路径
 
-**解决方案**：联动配置应使用逻辑路径
+**解决方案**：联动配置应使用逻辑路径（带 `~~` 分隔符）
 
 ```typescript
 // Schema 中 group.category 设置了 flattenPath: true
@@ -791,9 +805,9 @@ dependencies: ['#/properties/departments/items/properties/type']
 dependencies: ['group.category.enableFeature']
 
 // ✅ 正确：使用逻辑路径
-dependencies: ['enableFeature']
+dependencies: ['group~~category~~enableFeature']
 // 或使用 JSON Pointer
-dependencies: ['#/properties/enableFeature']
+dependencies: ['#/properties/group/properties/category/properties/enableFeature']
 ```
 
 ### 9.3 数组元素联动只对第一个元素生效？

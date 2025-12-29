@@ -1,5 +1,6 @@
 import type { LinkageConfig } from '@/types/linkage';
 import type { ExtendedJSONSchema } from '@/types/schema';
+import { FLATTEN_PATH_SEPARATOR } from './schemaLinkageParser';
 
 /**
  * 数组联动辅助工具
@@ -7,39 +8,75 @@ import type { ExtendedJSONSchema } from '@/types/schema';
  */
 
 /**
+ * 将路径按层级分割（支持 . 和 ~~ 分隔符）
+ * @example
+ * splitPath('group~~category~~contacts.0.name')
+ * // => ['group', 'category', 'contacts', '0', 'name']
+ */
+function splitPath(path: string): string[] {
+  // 先将 ~~ 替换为 .，然后按 . 分割
+  return path.replace(new RegExp(FLATTEN_PATH_SEPARATOR, 'g'), '.').split('.');
+}
+
+/**
  * 检查路径是否是数组元素路径
  * @example
  * isArrayElementPath('contacts.0.name') // true
+ * isArrayElementPath('group~~category~~contacts.0.name') // true
  * isArrayElementPath('contacts.name') // false
  */
 export function isArrayElementPath(path: string): boolean {
-  const parts = path.split('.');
+  const parts = splitPath(path);
   return parts.some(part => /^\d+$/.test(part));
 }
 
 /**
  * 从数组元素路径中提取数组路径和索引
+ * 支持包含 ~~ 分隔符的逻辑路径
  * @example
  * extractArrayInfo('contacts.0.name') // { arrayPath: 'contacts', index: 0, fieldPath: 'name' }
- * extractArrayInfo('contacts.0.category.group.name') // { arrayPath: 'contacts', index: 0, fieldPath: 'category.group.name' }
+ * extractArrayInfo('group~~category~~contacts.0.name') // { arrayPath: 'group~~category~~contacts', index: 0, fieldPath: 'name' }
  */
 export function extractArrayInfo(path: string): {
   arrayPath: string;
   index: number;
   fieldPath: string;
 } | null {
-  const parts = path.split('.');
-  const indexPos = parts.findIndex(part => /^\d+$/.test(part));
+  // 使用统一的分割方式找到索引位置
+  const normalizedParts = splitPath(path);
+  const indexPos = normalizedParts.findIndex(part => /^\d+$/.test(part));
 
   if (indexPos === -1) {
     return null;
   }
 
-  return {
-    arrayPath: parts.slice(0, indexPos).join('.'),
-    index: parseInt(parts[indexPos], 10),
-    fieldPath: parts.slice(indexPos + 1).join('.'),
-  };
+  // 需要从原始路径中提取 arrayPath，保留原始分隔符
+  // 策略：找到第 indexPos 个分隔符的位置
+  let separatorCount = 0;
+  let arrayPathEndPos = 0;
+
+  for (let i = 0; i < path.length; i++) {
+    if (path.substring(i, i + 2) === FLATTEN_PATH_SEPARATOR) {
+      separatorCount++;
+      if (separatorCount === indexPos) {
+        arrayPathEndPos = i;
+        break;
+      }
+      i++; // 跳过 ~~ 的第二个字符
+    } else if (path[i] === '.') {
+      separatorCount++;
+      if (separatorCount === indexPos) {
+        arrayPathEndPos = i;
+        break;
+      }
+    }
+  }
+
+  const arrayPath = path.substring(0, arrayPathEndPos);
+  const index = parseInt(normalizedParts[indexPos], 10);
+  const fieldPath = normalizedParts.slice(indexPos + 1).join('.');
+
+  return { arrayPath, index, fieldPath };
 }
 
 /**
@@ -63,9 +100,10 @@ export function parseJsonPointer(pointer: string): string {
 
 /**
  * 解析相对路径为绝对路径（仅支持同级字段）
+ * 支持包含 ~~ 分隔符的逻辑路径
  * @param relativePath - 相对路径（如 './type'）
- * @param currentPath - 当前字段的完整路径（如 'contacts.0.companyName'）
- * @returns 解析后的绝对路径（如 'contacts.0.type'）
+ * @param currentPath - 当前字段的完整路径（如 'contacts.0.companyName' 或 'group~~category~~contacts.0.companyName'）
+ * @returns 解析后的绝对路径（如 'contacts.0.type' 或 'group~~category~~contacts.0.type'）
  */
 export function resolveRelativePath(relativePath: string, currentPath: string): string {
   if (!relativePath.startsWith('./')) {
@@ -73,10 +111,25 @@ export function resolveRelativePath(relativePath: string, currentPath: string): 
   }
 
   const fieldName = relativePath.slice(2);
-  const parts = currentPath.split('.');
-  const parentPath = parts.slice(0, -1).join('.');
 
-  return parentPath ? `${parentPath}.${fieldName}` : fieldName;
+  // 找到最后一个分隔符的位置（. 或 ~~）
+  const lastDotPos = currentPath.lastIndexOf('.');
+  const lastSeparatorPos = currentPath.lastIndexOf(FLATTEN_PATH_SEPARATOR);
+
+  // 取较大的位置作为最后一个分隔符
+  const lastPos = Math.max(lastDotPos, lastSeparatorPos);
+
+  if (lastPos === -1) {
+    return fieldName;
+  }
+
+  // 如果最后一个分隔符是 ~~，需要包含完整的 ~~
+  const parentPath = lastPos === lastSeparatorPos
+    ? currentPath.substring(0, lastPos)
+    : currentPath.substring(0, lastPos);
+
+  // 同级字段使用 . 连接
+  return `${parentPath}.${fieldName}`;
 }
 
 /**
@@ -95,8 +148,8 @@ function analyzePathRelationship(
   currentPath: string,
   schema: ExtendedJSONSchema
 ): PathRelationship {
-  const depSegments = depLogicalPath.split('.');
-  const currentSegments = currentPath.split('.');
+  const depSegments = splitPath(depLogicalPath);
+  const currentSegments = splitPath(currentPath);
 
   // 找到共同前缀
   const commonPrefix: string[] = [];
@@ -109,13 +162,11 @@ function analyzePathRelationship(
   }
 
   // 判断是否是子数组到父数组的关系
-  // 例如：depPath='departments.type', currentPath='departments.0.employees.1.techStack'
   if (currentSegments.length > depSegments.length && commonPrefix.length > 0) {
     return { type: 'child-to-parent', commonPrefix };
   }
 
   // 判断是否是父数组到子数组的关系
-  // 例如：depPath='departments.employees', currentPath='departments.0.totalSalary'
   if (depSegments.length > currentSegments.length && commonPrefix.length > 0) {
     return { type: 'parent-to-child', commonPrefix };
   }
@@ -125,18 +176,25 @@ function analyzePathRelationship(
 
 /**
  * 解析子数组到父数组的依赖
+ * 支持包含 ~~ 分隔符的逻辑路径
  * @example
+ * // 普通路径
  * depPath: 'departments.type'
  * currentPath: 'departments.0.employees.1.techStack'
  * 返回: 'departments.0.type'
+ *
+ * // 包含 ~~ 分隔符的路径
+ * depPath: 'group~~category~~departments.type'
+ * currentPath: 'group~~category~~departments.0.employees.1.techStack'
+ * 返回: 'group~~category~~departments.0.type'
  */
 function resolveChildToParent(
   depLogicalPath: string,
   currentPath: string,
   relationship: PathRelationship
 ): string {
-  const depSegments = depLogicalPath.split('.');
-  const currentSegments = currentPath.split('.');
+  const depSegments = splitPath(depLogicalPath);
+  const currentSegments = splitPath(currentPath);
 
   // 找到父数组的索引位置（第一个数字索引）
   const parentArrayIndexPos = currentSegments.findIndex(seg => /^\d+$/.test(seg));
@@ -157,6 +215,7 @@ function resolveChildToParent(
 
 /**
  * 解析父数组到子数组的依赖
+ * 支持包含 ~~ 分隔符的逻辑路径
  * @example
  * depPath: 'departments.employees'
  * currentPath: 'departments.0.totalSalary'
@@ -167,8 +226,8 @@ function resolveParentToChild(
   currentPath: string,
   relationship: PathRelationship
 ): string {
-  const depSegments = depLogicalPath.split('.');
-  const currentSegments = currentPath.split('.');
+  const depSegments = splitPath(depLogicalPath);
+  const currentSegments = splitPath(currentPath);
 
   // 找到当前元素的索引
   const arrayIndexPos = currentSegments.findIndex(seg => /^\d+$/.test(seg));
