@@ -127,11 +127,9 @@ export function useLinkageManager({
   useEffect(() => {
     (async () => {
       const physicalFormData = { ...getValues() };
-      console.info('cyril physicalFormData: ', physicalFormData);
       // 转换为逻辑路径的数据
       const formData = transformFormData(physicalFormData);
       const states: Record<string, LinkageResult> = {};
-      console.info('cyril formData: ', JSON.stringify(formData));
 
       // 获取拓扑排序后的字段列表
       const sortedFields = dependencyGraph.topologicalSort(Object.keys(linkages));
@@ -169,8 +167,6 @@ export function useLinkageManager({
 
       // 获取受影响的字段（使用依赖图精确计算）
       const affectedFields = dependencyGraph.getAffectedFields(logicalName);
-      console.info('cyril logicalName: ', logicalName);
-      console.info('cyril affectedFields: ', affectedFields);
       if (affectedFields.length === 0) return;
 
       // 异步处理联动逻辑

@@ -17,8 +17,6 @@ export class PathResolver {
    * PathResolver.resolve('#/properties/user/age', { user: { age: 18 } }) // 18
    */
   static resolve(path: string, formData: Record<string, any>): any {
-    console.info('cyril PathResolver.resolve path: ', path);
-    console.info('cyril PathResolver.resolve formData: ', formData);
     // 如果不是 JSON Pointer 格式，直接返回字段值
     if (!path.startsWith('#/')) {
       return this.getNestedValue(formData, path);

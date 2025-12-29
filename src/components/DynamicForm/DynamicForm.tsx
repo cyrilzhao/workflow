@@ -166,7 +166,6 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
       SchemaParser.setCustomFormats(stableCustomFormats);
     }
     const parsedFields = SchemaParser.parse(schema);
-    console.info('cyril parsedFields: ', JSON.stringify(parsedFields));
 
     // 如果是嵌套表单模式且有路径前缀，为字段名添加前缀
     if (asNestedForm && pathPrefix) {
@@ -194,10 +193,6 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
   // 尝试获取父表单的 FormContext（用于嵌套表单模式）
   // 注意：useFormContext 在没有 FormProvider 时返回 null（react-hook-form 7.x）
   const parentFormContext = useFormContext();
-
-  console.info('cyril schema: ', JSON.stringify(schema));
-  console.info('cyril defaultValues: ', JSON.stringify(defaultValues));
-  console.info('cyril processedDefaultValues: ', JSON.stringify(processedDefaultValues));
 
   // 只有非嵌套表单模式才创建新的 useForm 实例
   const ownMethods = useForm({

@@ -78,10 +78,8 @@ export const CrossArrayDependencyExample: React.FC = () => {
   const linkageFunctions: Record<string, LinkageFunction> = {
     checkAdminPermission: (formData: any) => {
       const permissions = formData.permissions || [];
-      console.info('cyril permissions: ', permissions);
       // 检查是否存在管理员权限
       const hasAdminPermission = permissions.some((p: any) => p.isAdmin === true);
-      console.info('cyril hasAdminPermission: ', hasAdminPermission);
       return hasAdminPermission;
     },
   };

@@ -20,16 +20,21 @@ export type ConditionOperator =
   | 'isEmpty'
   | 'isNotEmpty';
 
-/**
- * 条件表达式
- */
-export interface ConditionExpression {
+// 单条件表达式
+interface SingleCondition {
   field: string;
   operator: ConditionOperator;
   value?: any;
+}
+
+// 逻辑组合表达式
+interface LogicalCondition {
   and?: ConditionExpression[];
   or?: ConditionExpression[];
 }
+
+// 条件表达式（联合类型）
+export type ConditionExpression = SingleCondition | LogicalCondition;
 
 /**
  * 联动效果定义

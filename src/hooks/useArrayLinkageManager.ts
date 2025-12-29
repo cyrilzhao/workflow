@@ -74,8 +74,6 @@ export function useArrayLinkageManager({
 
     return merged;
   }, [baseLinkages, dynamicLinkages, onCycleDetected, throwOnCycle]);
-  console.info('cyril baseLinkages: ', baseLinkages);
-  console.info('cyril 合并基础联动和动态联动: ', allLinkages);
 
   // 使用基础联动管理器（传递路径映射）
   const linkageStates = useBaseLinkageManager({
@@ -84,7 +82,6 @@ export function useArrayLinkageManager({
     linkageFunctions,
     pathMappings,
   });
-  console.info('cyril linkageStates: ', linkageStates);
 
   // 监听表单数据变化，动态注册数组元素的联动
   useEffect(() => {
@@ -131,11 +128,7 @@ export function useArrayLinkageManager({
         // 为每个数组元素生成联动配置
         arrayValue.forEach((_, index) => {
           const elementFieldPath = `${arrayPath}.${index}.${fieldPathInArray}`;
-          const resolvedLinkage = resolveArrayElementLinkage(
-            linkage,
-            elementFieldPath,
-            schema
-          );
+          const resolvedLinkage = resolveArrayElementLinkage(linkage, elementFieldPath, schema);
           newDynamicLinkages[elementFieldPath] = resolvedLinkage;
 
           console.log('[useArrayLinkageManager] 生成联动配置:', elementFieldPath);
