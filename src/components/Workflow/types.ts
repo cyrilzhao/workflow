@@ -42,4 +42,6 @@ export interface WorkflowProps {
   onEdgesChange?: (edges: WorkflowEdge[]) => void;
   readonly?: boolean;
   undoRedoOptions?: UndoRedoOptions;
+  onSave?: (data: { nodes: WorkflowNode[]; edges: WorkflowEdge[] }) => void;
+  onTest?: (data: { nodes: WorkflowNode[]; edges: WorkflowEdge[] }) => void;
 }

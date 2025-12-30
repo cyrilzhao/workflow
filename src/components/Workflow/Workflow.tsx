@@ -13,7 +13,7 @@ import ReactFlow, {
   ControlButton,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Undo, Redo } from 'lucide-react';
+import { Undo, Redo, Play, Save } from 'lucide-react';
 import { isEqual } from 'lodash';
 
 import { nodeTypes as defaultNodeTypes } from './nodes';
@@ -32,6 +32,8 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
   onEdgesChange: _onEdgesChangeProp,
   readonly = false,
   undoRedoOptions,
+  onSave,
+  onTest,
 }) => {
   const { enabled: undoRedoEnabled = true, maxHistorySize = 50 } = undoRedoOptions || {};
 
@@ -288,6 +290,18 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
     [screenToFlowPosition, setNodes, takeSnapshot]
   );
 
+  const handleSave = () => {
+    if (onSave) {
+      onSave({ nodes, edges });
+    }
+  };
+
+  const handleTest = () => {
+    if (onTest) {
+      onTest({ nodes, edges });
+    }
+  };
+
   return (
     <div
       className="workflow-container"
@@ -325,7 +339,17 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
           zIndex: 999,
         }}
       >
-        <Controls>
+        <Controls position="top-right">
+          {!readonly && (
+            <>
+              <ControlButton onClick={handleSave} title="保存">
+                <Save size={16} />
+              </ControlButton>
+              <ControlButton onClick={handleTest} title="测试">
+                <Play size={16} />
+              </ControlButton>
+            </>
+          )}
           {undoRedoEnabled && !readonly && (
             <>
               <ControlButton onClick={undo} disabled={!canUndo} title="撤销 (Ctrl+Z)">
