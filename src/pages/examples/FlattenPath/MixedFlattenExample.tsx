@@ -74,7 +74,7 @@ export const MixedFlattenExample: React.FC = () => {
   };
 
   const handleSubmit = (data: any) => {
-    console.log('混合使用表单数据:', data);
+    console.log('混合使用表单数据:', JSON.stringify(data));
     alert('提交成功！请查看控制台输出');
   };
 

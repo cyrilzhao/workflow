@@ -301,19 +301,28 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
 
   const onSubmitHandler = async (data: Record<string, any>) => {
     if (onSubmit) {
+      console.info('[DynamicForm] onSubmitHandler - 原始数据:', JSON.stringify(data));
+      console.info('[DynamicForm] onSubmitHandler - useFlattenPath:', useFlattenPath);
+
       // 第一步：如果使用了路径扁平化，将扁平数据转换回嵌套结构
       // 使用基于 Schema 的转换，正确恢复物理路径结构
       let processedData = useFlattenPath
         ? PathTransformer.flatToNestedWithSchema(data, schema)
         : data;
 
+      console.info('[DynamicForm] onSubmitHandler - 路径转换后:', JSON.stringify(processedData));
+
       // 第二步：解包基本类型数组（将对象数组转换回基本类型数组）
       processedData = unwrapPrimitiveArrays(processedData, schema);
+
+      console.info('[DynamicForm] onSubmitHandler - 解包数组后:', JSON.stringify(processedData));
 
       // 第三步：根据当前 schema 过滤数据，只保留 schema 中定义的字段
       const filteredData = nestedSchemaRegistry
         ? filterValueWithNestedSchemas(processedData, schema, nestedSchemaRegistry.getAllSchemas())
         : filterValueWithNestedSchemas(processedData, schema, new Map());
+
+      console.info('[DynamicForm] onSubmitHandler - 过滤后:', JSON.stringify(filteredData));
 
       await onSubmit(filteredData);
     }

@@ -338,9 +338,19 @@ export class PathTransformer {
         const logicalPath = buildLogicalPath(logicalPrefix, key, false);
 
         if (typedSchema.type === 'object' && typedSchema.properties) {
-          // 普通对象：递归处理
-          result[key] = {};
-          this.reverseTransformWithSchema(flatData, typedSchema, logicalPath, result[key]);
+          // 普通对象：检查数据是否已经是嵌套对象
+          const value = flatData[logicalPath];
+
+          if (value !== undefined && typeof value === 'object' && !Array.isArray(value)) {
+            // 数据已经是嵌套对象（如使用 nested-form widget 的字段）
+            // 但对象内部可能还有扁平化的字段，需要递归处理
+            result[key] = {};
+            this.reverseTransformWithSchema(value, typedSchema, '', result[key]);
+          } else {
+            // 数据是扁平化的，需要递归处理
+            result[key] = {};
+            this.reverseTransformWithSchema(flatData, typedSchema, logicalPath, result[key]);
+          }
         } else if (typedSchema.type === 'array') {
           // 数组字段：从 flatData 获取并反向转换数组元素
           const value = flatData[logicalPath];

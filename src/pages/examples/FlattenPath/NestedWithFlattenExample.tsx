@@ -1,7 +1,7 @@
 import React from 'react';
 import { DynamicForm } from '@/components/DynamicForm';
 import type { ExtendedJSONSchema } from '@/types/schema';
-import { Card } from '@blueprintjs/core';
+import { Card, H3 } from '@blueprintjs/core';
 
 export const NestedWithFlattenExample: React.FC = () => {
   const schema: ExtendedJSONSchema = {
@@ -180,40 +180,37 @@ export const NestedWithFlattenExample: React.FC = () => {
   };
 
   const handleSubmit = (data: any) => {
-    console.log('混合嵌套表单数据:', data);
+    console.log('混合嵌套表单数据:', JSON.stringify(data));
     alert('提交成功！请查看控制台输出');
   };
 
   return (
     <Card style={{ marginTop: '20px', maxWidth: '800px' }}>
       <h3>嵌套表单 + 路径透明化混合使用</h3>
-      <p>
-        这个示例展示了如何在多层嵌套表单中使用路径透明化：
-      </p>
+      <p>这个示例展示了如何在多层嵌套表单中使用路径透明化：</p>
       <ul>
         <li>
           <strong>基本信息</strong>：正常的嵌套表单（显示 Card 边框）
         </li>
         <li>
           <strong>API 配置</strong>：正常的嵌套表单，但内部的 "认证配置" 使用了路径透明化
-          <br />
-          - 字段显示为：<code>认证配置 - API 密钥</code>、<code>认证配置 - API 密文</code>
-          <br />
-          - 不会有多余的 Card 边框
+          <br />- 字段显示为：<code>认证配置 - API 密钥</code>、<code>认证配置 - API 密文</code>
+          <br />- 不会有多余的 Card 边框
         </li>
         <li>
           <strong>高级设置</strong>：正常的嵌套表单，但内部的 "性能配置" 使用了多层路径透明化
-          <br />
-          - 字段显示为：<code>性能配置 - TTL（秒）</code>、<code>性能配置 - 最大缓存大小（MB）</code>
-          <br />
-          - 跳过了 <code>cache</code> 和 <code>settings</code> 两层嵌套
+          <br />- 字段显示为：<code>性能配置 - TTL（秒）</code>、
+          <code>性能配置 - 最大缓存大小（MB）</code>
+          <br />- 跳过了 <code>cache</code> 和 <code>settings</code> 两层嵌套
         </li>
       </ul>
-      <DynamicForm
-        schema={schema}
-        defaultValues={defaultValues}
-        onSubmit={handleSubmit}
-      />
+      <DynamicForm schema={schema} defaultValues={defaultValues} onSubmit={handleSubmit} />
+      <Card style={{ marginTop: '20px' }}>
+        <H3>Schema 配置</H3>
+        <pre style={{ background: '#f5f5f5', padding: '10px', overflow: 'auto' }}>
+          {JSON.stringify(schema, null, 2)}
+        </pre>
+      </Card>
     </Card>
   );
 };
