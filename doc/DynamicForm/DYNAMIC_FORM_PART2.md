@@ -112,7 +112,7 @@
 
 1. **简单数组（items.enum 存在）** → 渲染为 **checkboxes** widget（多选框组）
 2. **简单数组（无 enum）** → 渲染为 **select** widget（下拉选择，默认行为）
-3. **对象数组（items.type === 'object'）** → 需要显式指定 `items.ui.widget: 'nested-form'`
+3. **对象数组（items.type === 'object'）** → 自动使用 **nested-form** widget（无需显式指定）
 
 > **核心规则**（位于 `SchemaParser.ts`）:
 > ```typescript
@@ -635,8 +635,9 @@ const [isSubmitting, setIsSubmitting] = useState(false);
 > **注意**：
 > - **array 类型字段的 widget 选择规则**：
 >   - 如果 `items.enum` 存在 → 自动使用 `checkboxes`（多选框组）
->   - 如果 `items.type === 'object'` → 必须显式指定 `items.ui.widget: 'nested-form'`
+>   - 如果 `items.type === 'object'` → 自动使用 `nested-form`（无需显式指定）
 >   - 其他情况 → 默认使用 `select`（下拉选择）
+> - **object 类型字段**自动使用 `nested-form` widget，无需显式指定
 > - `nested-form` widget 用于渲染嵌套对象和对象数组，支持静态和动态 schema
 > - 对象数组使用 `nested-form` 时，每个数组项都会渲染为独立的嵌套表单卡片
 

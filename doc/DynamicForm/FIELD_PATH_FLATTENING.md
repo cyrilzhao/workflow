@@ -396,7 +396,7 @@ export class SchemaParser {
 
 **关键点**：
 - 使用 `buildFieldPath` 方法统一处理路径生成逻辑
-- 当检测到 `flattenPath: true` 时，不会为该对象字段生成 `widget: 'nested-form'` 的配置
+- 当检测到 `flattenPath: true` 时，不会为该对象字段生成嵌套表单配置
 - 而是直接递归解析其子字段，将子字段"提升"到当前层级
 - 使用 `~~` 分隔符构建逻辑路径（如 `auth~~content~~key`），避免不同物理路径产生相同逻辑路径的冲突
 - **重要**：如果父路径在 flattenPath 链中（最后一个分隔符是 `~~`），子字段也会使用 `~~` 连接

@@ -19,6 +19,8 @@
 
 本文档描述了如何在动态表单中支持嵌套表单场景，即某个字段的值是一个对象，该字段使用自定义 Widget（内层动态表单）来编辑这个对象。
 
+**重要说明**：`type: 'object'` 的字段会自动使用 `nested-form` widget，无需显式指定 `ui.widget: 'nested-form'`。只有在需要使用自定义 widget 时才需要显式指定。
+
 ---
 
 ## 2. 应用场景
@@ -39,10 +41,8 @@
         city: { type: 'string', title: 'City' },
         zipCode: { type: 'string', title: 'Zip Code' }
       },
-      required: ['city'],
-      ui: {
-        widget: 'nested-form'
-      }
+      required: ['city']
+      // ui.widget: 'nested-form' 是可选的（object 类型的默认值）
     }
   }
 }
@@ -152,10 +152,8 @@
           name: { type: 'string', title: 'Name' },
           phone: { type: 'string', title: 'Phone' },
           email: { type: 'string', title: 'Email', format: 'email' }
-        },
-        ui: {
-          widget: 'nested-form'
         }
+        // ui.widget: 'nested-form' 是可选的（object 类型的默认值）
       }
     }
   }
@@ -504,10 +502,8 @@ const schema = {
         city: { type: 'string', title: 'City' },
         zipCode: { type: 'string', title: 'Zip Code' }
       },
-      required: ['city'],
-      ui: {
-        widget: 'nested-form'
-      }
+      required: ['city']
+      // ui.widget: 'nested-form' 是可选的（object 类型的默认值）
     }
   }
 };
@@ -526,7 +522,7 @@ const schema = {
 }
 
 // 说明：
-// - address 字段会自动渲染为 NestedFormWidget（因为 type: 'object' 且 widget: 'nested-form'）
+// - address 字段会自动渲染为 NestedFormWidget（因为 type: 'object' 默认使用 nested-form widget）
 // - 内层字段（street, city, zipCode）会自动添加路径前缀（address.street, address.city, address.zipCode）
 // - 数据通过父表单的 FormContext 自动管理，无需手动传递 value 和 onChange
 ```
@@ -1031,7 +1027,6 @@ const schema = {
       type: 'object',
       title: 'Configuration',
       ui: {
-        widget: 'nested-form',
         schemaLoader: async value => {
           // 根据产品 ID 异步加载配置 schema
           const response = await api.getProductConfigSchema(value.productId);
@@ -1054,17 +1049,11 @@ const schema = {
       title: 'Contacts',
       items: {
         type: 'object',
-        ui: {
-          widget: 'nested-form',
-          schema: {
-            type: 'object',
-            properties: {
-              name: { type: 'string', title: 'Name' },
-              email: { type: 'string', title: 'Email', format: 'email' },
-              phone: { type: 'string', title: 'Phone' },
-            },
-          },
-        },
+        properties: {
+          name: { type: 'string', title: 'Name' },
+          email: { type: 'string', title: 'Email', format: 'email' },
+          phone: { type: 'string', title: 'Phone' },
+        }
       },
     },
   },
@@ -1080,26 +1069,14 @@ const schema = {
     company: {
       type: 'object',
       title: 'Company',
-      ui: {
-        widget: 'nested-form',
-        schema: {
+      properties: {
+        name: { type: 'string', title: 'Company Name' },
+        address: {
           type: 'object',
+          title: 'Address',
           properties: {
-            name: { type: 'string', title: 'Company Name' },
-            address: {
-              type: 'object',
-              title: 'Address',
-              ui: {
-                widget: 'nested-form',
-                schema: {
-                  type: 'object',
-                  properties: {
-                    street: { type: 'string', title: 'Street' },
-                    city: { type: 'string', title: 'City' },
-                  },
-                },
-              },
-            },
+            street: { type: 'string', title: 'Street' },
+            city: { type: 'string', title: 'City' },
           },
         },
       },
@@ -1153,9 +1130,6 @@ const schema = {
         city: { type: 'string', title: 'City' },
       },
       required: ['city'], // 内层验证
-      ui: {
-        widget: 'nested-form',
-      },
     },
   },
 };

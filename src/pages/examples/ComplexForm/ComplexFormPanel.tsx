@@ -1,7 +1,7 @@
 import React from 'react';
 import { DynamicForm } from '@/components/DynamicForm';
 import type { ExtendedJSONSchema } from '@/types/schema';
-import { Card } from '@blueprintjs/core';
+import { Card, H3 } from '@blueprintjs/core';
 
 export const ComplexFormPanel: React.FC = () => {
   const schema: ExtendedJSONSchema = {
@@ -92,7 +92,6 @@ export const ComplexFormPanel: React.FC = () => {
         title: '项目详情',
         properties: {},
         ui: {
-          widget: 'nested-form',
           schemaKey: 'projectType',
           schemas: {
             research: {
@@ -166,9 +165,9 @@ export const ComplexFormPanel: React.FC = () => {
                     placeholder: 'https://example.com/prototype',
                     linkage: {
                       type: 'visibility',
-                      dependencies: ['hasPrototype'],
+                      dependencies: ['#/properties/projectDetails/properties/hasPrototype'],
                       when: {
-                        field: 'hasPrototype',
+                        field: '#/properties/projectDetails/properties/hasPrototype',
                         operator: '==',
                         value: true,
                       },
@@ -273,6 +272,13 @@ export const ComplexFormPanel: React.FC = () => {
         <li>必填字段根据条件动态变化</li>
       </ul>
       <DynamicForm schema={schema} onSubmit={handleSubmit} />
+
+      <Card style={{ marginTop: '20px' }}>
+        <H3>Schema 配置</H3>
+        <pre style={{ background: '#f5f5f5', padding: '10px', overflow: 'auto' }}>
+          {JSON.stringify(schema, null, 2)}
+        </pre>
+      </Card>
     </Card>
   );
 };

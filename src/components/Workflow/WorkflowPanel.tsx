@@ -47,6 +47,15 @@ const defaultGroups: WorkflowPanelGroup[] = [
 
 export const WorkflowPanel: React.FC<WorkflowPanelProps> = ({ groups = defaultGroups }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+
+  const toggleGroup = (groupId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCollapsedGroups(prev => ({
+      ...prev,
+      [groupId]: !prev[groupId],
+    }));
+  };
 
   const onDragStart = (event: React.DragEvent, nodeType: string) => {
     event.dataTransfer.setData('application/reactflow', nodeType);
@@ -63,21 +72,32 @@ export const WorkflowPanel: React.FC<WorkflowPanelProps> = ({ groups = defaultGr
       </div>
       <div className="workflow-panel-content">
         {groups.map(group => (
-          <div key={group.id} className="workflow-panel-group">
-            <div className="workflow-panel-group-title">{group.title}</div>
-            <div className="workflow-panel-items">
-              {group.items.map(item => (
-                <div
-                  key={item.type}
-                  className="workflow-panel-item"
-                  draggable
-                  onDragStart={event => onDragStart(event, item.type)}
-                >
-                  <div className="workflow-panel-item-icon">{item.icon || <Box size={16} />}</div>
-                  <span className="workflow-panel-item-label">{item.label}</span>
-                </div>
-              ))}
+          <div
+            key={group.id}
+            className={`workflow-panel-group ${collapsedGroups[group.id] ? 'group-collapsed' : ''}`}
+          >
+            <div className="workflow-panel-group-header" onClick={e => toggleGroup(group.id, e)}>
+              <div className="workflow-panel-group-title">{group.title}</div>
+              <div className="workflow-panel-group-toggle">
+                {collapsedGroups[group.id] ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
+              </div>
             </div>
+            {!collapsedGroups[group.id] && (
+              <div className="workflow-panel-items">
+                {group.items.map(item => (
+                  <div
+                    key={item.type}
+                    className="workflow-panel-item"
+                    draggable
+                    onDragStart={event => onDragStart(event, item.type)}
+                    title={item.label}
+                  >
+                    <div className="workflow-panel-item-icon">{item.icon || <Box size={16} />}</div>
+                    <span className="workflow-panel-item-label">{item.label}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>

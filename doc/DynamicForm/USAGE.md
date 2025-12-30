@@ -296,10 +296,7 @@ Arrays can be rendered in different ways depending on the `items` configuration:
       phone: { type: 'string', title: 'Phone' },
       email: { type: 'string', title: 'Email', format: 'email' }
     },
-    required: ['name', 'phone'],
-    ui: {
-      widget: 'nested-form'  // Required for object arrays
-    }
+    required: ['name', 'phone']
   },
   minItems: 1,
   ui: {
@@ -310,6 +307,8 @@ Arrays can be rendered in different ways depending on the `items` configuration:
 
 #### Object Fields (Nested Forms)
 
+**Note**: Object fields automatically use the `nested-form` widget by default. You only need to explicitly specify `ui.widget` if you want to use a custom widget.
+
 ```typescript
 {
   type: 'object',
@@ -319,10 +318,7 @@ Arrays can be rendered in different ways depending on the `items` configuration:
     city: { type: 'string', title: 'City' },
     zipCode: { type: 'string', title: 'Zip Code' }
   },
-  required: ['city'],
-  ui: {
-    widget: 'nested-form'
-  }
+  required: ['city']
 }
 ```
 
@@ -574,10 +570,7 @@ const schema = {
         city: { type: 'string', title: 'City' },
         zipCode: { type: 'string', title: 'Zip Code' }
       },
-      required: ['city'],
-      ui: {
-        widget: 'nested-form'
-      }
+      required: ['city']
     }
   }
 };
@@ -601,7 +594,7 @@ const schema = {
       type: 'object',
       title: 'Details',
       ui: {
-        widget: 'nested-form',
+        widget: 'nested-form',  // Explicitly specified here for clarity when using schemaKey/schemas
         schemaKey: 'userType',
         schemas: {
           personal: {
@@ -907,7 +900,8 @@ const handleSubmit = async (data: any) => {
 - Verify custom validators are registered
 
 **Q: Nested forms not displaying**
-- Add `ui.widget: 'nested-form'` to object/array fields
+- Object fields automatically use `nested-form` widget by default
+- For arrays of objects, ensure `items.type: 'object'` is set
 - Check schema structure is correct
 
 **Q: Linkage not working**
