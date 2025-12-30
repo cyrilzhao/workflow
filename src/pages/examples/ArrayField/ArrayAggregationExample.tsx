@@ -17,6 +17,7 @@ export const ArrayAggregationExample: React.FC = () => {
         title: '商品列表',
         items: {
           type: 'object',
+          title: '商品',
           properties: {
             name: {
               type: 'string',

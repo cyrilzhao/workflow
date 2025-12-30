@@ -1913,6 +1913,33 @@ console.log('动态联动配置:', dynamicLinkages);
 
 ## 9. 变更历史
 
+### v2.4 (2025-12-30)
+
+**重大变更**：相对路径解析逻辑修复
+
+1. **`transformLinkageConfigPaths` 函数修复**
+   - ✅ 修复：`isParentInFlattenChain` 判断逻辑错误
+   - ✅ 问题：之前使用 `parentPath.includes(FLATTEN_PATH_SEPARATOR)` 判断父路径是否在 flattenPath 链中
+   - ✅ 正确：应该检查父路径的**最后一个分隔符**是否是 `~~`
+   - ✅ 影响：修复了普通对象字段（未设置 flattenPath）的相对路径解析错误
+
+2. **新增辅助函数 `isLastSeparatorFlatten`**
+   - ✅ 抽取重复逻辑：检查路径的最后一个分隔符是否是 `~~`
+   - ✅ 使用位置：`transformLinkageConfigPaths` 和 `transformConditionPaths`
+   - ✅ 优势：消除重复代码，提高可维护性
+
+3. **修复示例**
+   - 路径：`region~~market~~contacts.0.auth.apiKey`
+   - 相对依赖：`./enableAuth`
+   - 错误解析：`region~~market~~contacts.0.auth~~enableAuth` ❌
+   - 正确解析：`region~~market~~contacts.0.auth.enableAuth` ✅
+   - 原因：`auth` 字段未设置 `flattenPath`，应使用 `.` 而非 `~~`
+
+4. **文档更新**
+   - 更新 `transformLinkageConfigPaths` 实现说明
+   - 新增 `isLastSeparatorFlatten` 辅助函数文档
+   - 更新相对路径解析逻辑说明
+
 ### v2.3 (2025-12-29)
 
 **重大变更**：嵌套数组联动路径解析优化
@@ -2023,7 +2050,7 @@ console.log('动态联动配置:', dynamicLinkages);
 
 ---
 
-**文档版本**: 2.3
-**最后更新**: 2025-12-29
+**文档版本**: 2.4
+**最后更新**: 2025-12-30
 **文档状态**: 已完成
 **作者**: Claude Code
