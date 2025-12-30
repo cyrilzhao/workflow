@@ -7,6 +7,7 @@ import { ErrorList } from './components/ErrorList';
 import type { DynamicFormProps } from './types';
 import { parseSchemaLinkages, transformToAbsolutePaths } from '@/utils/schemaLinkageParser';
 import { useArrayLinkageManager } from '@/hooks/useArrayLinkageManager';
+import type { LinkageConfig } from '@/types/linkage';
 import { filterValueWithNestedSchemas } from './utils/filterValueWithNestedSchemas';
 import {
   NestedSchemaProvider,

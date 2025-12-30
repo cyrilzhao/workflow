@@ -82,7 +82,58 @@ TextWidget  NestedForm  Checkbox  CustomWidget
 
 ## 3. 核心特性
 
-### 3.1 智能 Widget 选择
+### 3.1 基本类型数组的数据包装（重要）
+
+**⚠️ 关键特性**：为了避免 react-hook-form 的 `useFieldArray` 过滤掉基本类型的空值（空字符串、0、false），ArrayFieldWidget 会将基本类型包装成对象。
+
+**内部数据结构**：
+
+```typescript
+// 用户看到的是字符串输入框
+// Schema
+{
+  type: 'array',
+  items: { type: 'string' }
+}
+
+// 但内部存储为对象数组
+[
+  { value: 'tag1' },
+  { value: 'tag2' }
+]
+```
+
+**字段路径格式**：
+
+```typescript
+// 基本类型数组的字段路径会自动添加 .value 后缀
+`${arrayName}.${index}.value`
+
+// 示例
+'tags.0.value'  // 第一个标签的值
+'tags.1.value'  // 第二个标签的值
+```
+
+**表单提交时的数据转换**：
+
+```typescript
+const handleSubmit = (data: any) => {
+  // 方式 1: 转换为纯数组（推荐）
+  const pureTags = data.tags.map((item: any) => item.value);
+  console.log(pureTags); // ['tag1', 'tag2']
+
+  // 方式 2: 在后端接收时进行解包处理
+};
+```
+
+**为什么需要包装？**
+- react-hook-form 的 useFieldArray 在处理基本类型时，会过滤掉"假值"（空字符串、0、false）
+- 包装成对象后，即使 value 为空，对象本身也不会被过滤
+- 这确保了数组项的稳定性和可编辑性
+
+---
+
+### 3.2 智能 Widget 选择
 
 根据 `items` 的配置自动选择最合适的渲染方式：
 
@@ -104,7 +155,7 @@ TextWidget  NestedForm  Checkbox  CustomWidget
 // → ColorWidget (for each item)
 ```
 
-### 3.2 完整的数组操作
+### 3.3 完整的数组操作
 
 - ✅ 添加元素
 - ✅ 删除元素
@@ -139,7 +190,7 @@ TextWidget  NestedForm  Checkbox  CustomWidget
 - ✅ 避免按钮突然出现或消失造成的困惑
 - ✅ 提供一致的用户界面体验
 
-### 3.3 两种渲染模式
+### 3.4 两种渲染模式
 
 #### 模式 1：静态模式（Static Mode）
 
@@ -267,7 +318,7 @@ TextWidget  NestedForm  Checkbox  CustomWidget
 
 ---
 
-### 3.4 与 react-hook-form 深度集成
+### 3.5 与 react-hook-form 深度集成
 
 使用 `useFieldArray` hook 管理数组状态：
 
@@ -283,6 +334,12 @@ const { fields, append, remove, move } = useFieldArray({
 ## 4. 类型定义和接口设计
 
 ### 4.1 组件 Props 定义
+
+**重要说明**：
+
+数组特有配置（如 `arrayMode`、`showAddButton`、`addButtonText` 等）**不是通过 Props 直接传递的**，而是通过 `schema.ui` 配置传递。ArrayFieldWidget 内部会从 `schema.ui` 中读取这些配置。
+
+**实际的 Props 接口**：
 
 ```typescript
 // src/components/DynamicForm/widgets/ArrayFieldWidget.tsx
@@ -307,23 +364,30 @@ export interface ArrayFieldWidgetProps extends FieldWidgetProps {
   disabled?: boolean;
   readonly?: boolean;
 
-  // 数组特有配置
-  arrayMode?: 'dynamic' | 'static'; // 渲染模式
-  showAddButton?: boolean; // 是否显示添加按钮
-  showRemoveButton?: boolean; // 是否显示删除按钮
-  showMoveButtons?: boolean; // 是否显示移动按钮
-  enableDragSort?: boolean; // 是否启用拖拽排序
-
-  // 自定义文本
-  addButtonText?: string; // 添加按钮文本
-  removeButtonText?: string; // 删除按钮文本
-  emptyText?: string; // 空数组提示文本
-
-  // 布局配置
-  itemLayout?: 'vertical' | 'horizontal' | 'inline';
-  itemClassName?: string;
-  itemStyle?: React.CSSProperties;
+  // 布局配置（继承自父级或全局配置）
+  layout?: 'vertical' | 'horizontal' | 'inline';
+  labelWidth?: number | string;
 }
+```
+
+**数组特有配置通过 schema.ui 传递**：
+
+```typescript
+// 使用示例
+const schema = {
+  type: 'array',
+  items: { type: 'string' },
+  minItems: 1,
+  maxItems: 5,
+  ui: {
+    // 这些配置在 schema.ui 中定义
+    arrayMode: 'dynamic',
+    showAddButton: true,
+    addButtonText: '添加项',
+    emptyText: '暂无数据',
+    // ... 其他配置
+  }
+};
 ```
 
 ### 4.2 扩展的 UIConfig 类型
