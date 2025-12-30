@@ -30,6 +30,18 @@ export const BasicFormPanel: React.FC = () => {
           placeholder: 'example@email.com',
         },
       },
+      website: {
+        type: 'string',
+        title: '个人网站',
+        format: 'uri',
+        ui: {
+          widget: 'url',
+          placeholder: 'https://example.com',
+          errorMessages: {
+            format: '请输入有效的 URL 地址',
+          },
+        },
+      },
       phone: {
         type: 'string',
         title: '手机号',

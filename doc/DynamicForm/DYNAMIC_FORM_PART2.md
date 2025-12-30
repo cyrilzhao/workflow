@@ -99,6 +99,8 @@
 
 #### 5.1.4 数组类型 (array)
 
+> **详细文档**：完整的数组字段设计请参考 [ArrayFieldWidget 设计文档](./ARRAY_FIELD_WIDGET.md)
+
 **支持的验证规则**:
 
 - `minItems`: 最小项数
@@ -108,41 +110,15 @@
 
 **渲染逻辑**:
 
-数组字段的渲染方式由 `items` 的配置决定：
+所有数组字段统一使用 `ArrayFieldWidget` 处理，内部根据 `items` 配置自动选择渲染方式：
 
-1. **简单数组（items.enum 存在）** → 渲染为 **checkboxes** widget（多选框组）
-2. **简单数组（无 enum）** → 渲染为 **select** widget（下拉选择，默认行为）
-3. **对象数组（items.type === 'object'）** → 自动使用 **nested-form** widget（无需显式指定）
+1. **枚举数组（items.enum 存在）** → 多选框组（checkboxes）
+2. **对象数组（items.type === 'object'）** → 嵌套表单（nested-form）
+3. **基本类型数组** → 对应的基础 widget（如 text、number）
 
-> **核心规则**（位于 `SchemaParser.ts`）:
-> ```typescript
-> if (type === 'array') {
->   if (schema.items && typeof schema.items === 'object') {
->     const items = schema.items as ExtendedJSONSchema;
->     if (items.enum) return 'checkboxes';
->   }
->   return 'select';  // 默认渲染为 select
-> }
-> ```
+> **重要提示**：基本类型数组（如字符串数组）在内部会被包装成对象格式 `[{value: 'x'}]`，提交时需要转换。详见 [ArrayFieldWidget 文档](./ARRAY_FIELD_WIDGET.md)。
 
-**示例 1: 简单字符串数组（默认渲染为 select）**:
-
-```json
-{
-  "type": "array",
-  "title": "标签",
-  "items": {
-    "type": "string"
-  },
-  "minItems": 1,
-  "maxItems": 5,
-  "uniqueItems": true
-}
-```
-
-> **注意**: 此配置会渲染为 HTML `<select>` 下拉菜单，但由于 items 没有定义可选值（enum），实际使用时可能需要补充 enum 或使用其他 widget。
-
-**示例 2: 枚举数组（渲染为 checkboxes）**:
+**快速示例**:
 
 ```json
 {
@@ -150,19 +126,14 @@
   "title": "兴趣爱好",
   "items": {
     "type": "string",
-    "enum": ["reading", "sports", "music", "travel"],
-    "enumNames": ["阅读", "运动", "音乐", "旅行"]
+    "enum": ["reading", "sports", "music"],
+    "enumNames": ["阅读", "运动", "音乐"]
   },
-  "uniqueItems": true,
-  "ui": {
-    "widget": "checkboxes"
-  }
+  "uniqueItems": true
 }
 ```
 
-> **说明**: 当 `items.enum` 存在时，系统会自动推断使用 checkboxes widget，也可以显式指定。
-
-**示例 3: 对象数组（需要显式指定 nested-form）**:
+**对象数组示例**:
 
 ```json
 {
@@ -175,10 +146,7 @@
       "phone": { "type": "string", "title": "电话" },
       "email": { "type": "string", "title": "邮箱" }
     },
-    "required": ["name", "phone"],
-    "ui": {
-      "widget": "nested-form"
-    }
+    "required": ["name", "phone"]
   },
   "minItems": 1,
   "ui": {
@@ -187,87 +155,18 @@
 }
 ```
 
-> **重要**: 对象数组必须在 `items.ui.widget` 中显式指定 `"nested-form"`，否则会使用默认的 select widget 导致渲染错误。
+> **说明**: 对象数组会自动为每个数组项渲染独立的嵌套表单卡片，支持动态添加/删除。
 
 **数组特定的 UI 配置**:
 
-| 属性 | 类型 | 说明 | 适用场景 |
-|------|------|------|---------|
-| `addButtonText` | `string` | 添加按钮的文本 | 对象数组（nested-form） |
-| `widget` | `string` | 强制指定 widget 类型 | 覆盖默认推断逻辑 |
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `addButtonText` | `string` | 添加按钮的文本 |
+| `arrayMode` | `'dynamic' \| 'static'` | 渲染模式（dynamic: 可增删，static: 固定） |
+| `showAddButton` | `boolean` | 是否显示添加按钮 |
+| `showRemoveButton` | `boolean` | 是否显示删除按钮 |
 
-**完整的对象数组示例**:
-
-```json
-{
-  "type": "array",
-  "title": "联系人列表",
-  "items": {
-    "type": "object",
-    "properties": {
-      "name": {
-        "type": "string",
-        "title": "姓名",
-        "ui": {
-          "placeholder": "请输入姓名"
-        }
-      },
-      "phone": {
-        "type": "string",
-        "title": "电话",
-        "ui": {
-          "placeholder": "请输入电话号码"
-        }
-      },
-      "email": {
-        "type": "string",
-        "title": "邮箱",
-        "format": "email",
-        "ui": {
-          "placeholder": "请输入邮箱地址"
-        }
-      },
-      "address": {
-        "type": "object",
-        "title": "地址",
-        "properties": {
-          "city": {
-            "type": "string",
-            "title": "城市",
-            "ui": {
-              "placeholder": "请输入城市"
-            }
-          },
-          "street": {
-            "type": "string",
-            "title": "街道",
-            "ui": {
-              "placeholder": "请输入街道地址"
-            }
-          }
-        },
-        "required": ["city"]
-      }
-    },
-    "required": ["name", "phone"],
-    "ui": {
-      "widget": "nested-form"
-    }
-  },
-  "minItems": 1,
-  "ui": {
-    "addButtonText": "添加联系人"
-  }
-}
-```
-
-**渲染效果**:
-- 每个联系人都是一个独立的嵌套表单卡片
-- 支持动态添加/删除联系人
-- 每个联系人的地址信息也是嵌套对象
-- 支持独立的验证规则（姓名和电话为必填项）
-
-> **参考示例**: 完整的对象数组示例请查看 `/src/pages/examples/NestedForm/ArrayNestedExample.tsx`
+更多数组字段的配置选项、渲染模式、数据包装机制和最佳实践，请查看 [ArrayFieldWidget 完整文档](./ARRAY_FIELD_WIDGET.md)。
 
 #### 5.1.5 对象类型 (object)
 
@@ -647,6 +546,11 @@ const [isSubmitting, setIsSubmitting] = useState(false);
 
 字段路径透明化用于解决深层嵌套参数显示冗余的问题。当后端接口参数嵌套较深时，可以通过配置跳过中间层级，直接展示目标字段。
 
+**核心特点**：
+- 设置了 `flattenPath: true` 的对象字段**不会渲染 Card 组件**，避免多余的边框和 padding
+- 使用 `~~` 分隔符构建逻辑路径（如 `auth~~content~~key`）
+- 提交时自动将扁平数据转换为嵌套结构
+
 **配置属性**：
 
 | 属性            | 类型      | 说明                                                      |
@@ -654,31 +558,20 @@ const [isSubmitting, setIsSubmitting] = useState(false);
 | `flattenPath`   | `boolean` | 是否对该对象字段进行路径扁平化，跳过该层级直接展示子字段  |
 | `flattenPrefix` | `boolean` | 是否在扁平化后的字段标签前添加当前字段的 `title` 作为前缀 |
 
-**基础示例**：
+**快速示例**：
 
 ```json
 {
-  "type": "object",
-  "properties": {
-    "auth": {
-      "type": "object",
-      "title": "认证配置",
-      "ui": {
-        "flattenPath": true,
-        "flattenPrefix": true
-      },
-      "properties": {
-        "content": {
-          "type": "object",
-          "ui": {
-            "flattenPath": true
-          },
-          "properties": {
-            "key": {
-              "type": "string",
-              "title": "密钥"
-            }
-          }
+  "auth": {
+    "type": "object",
+    "title": "认证配置",
+    "ui": { "flattenPath": true, "flattenPrefix": true },
+    "properties": {
+      "content": {
+        "type": "object",
+        "ui": { "flattenPath": true },
+        "properties": {
+          "key": { "type": "string", "title": "密钥" }
         }
       }
     }
@@ -686,16 +579,9 @@ const [isSubmitting, setIsSubmitting] = useState(false);
 }
 ```
 
-**渲染效果**：
+**效果**：表单显示 `认证配置 - 密钥`，提交数据 `{ auth: { content: { key: 'xxx' } } }`
 
-- 表单显示：`认证配置 - 密钥`
-- 提交数据：`{ auth: { content: { key: 'xxx' } } }`
-
-**适用场景**：
-
-- 后端接口参数嵌套深度超过 2 层
-- 中间层级没有实际业务意义
-- 用户只需要关注最内层的实际字段
+更多使用场景、实现原理和最佳实践，请查看 [完整文档](./FIELD_PATH_FLATTENING.md)。
 
 ### 5.4 条件验证（Conditional Validation）
 

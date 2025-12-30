@@ -70,6 +70,8 @@ export interface UIConfig {
   removeButtonText?: string; // 删除按钮文本
   emptyText?: string; // 空数组提示文本
   itemLayout?: 'vertical' | 'horizontal' | 'inline'; // 数组项布局
+  itemClassName?: string; // 数组项自定义类名
+  itemStyle?: React.CSSProperties; // 数组项自定义样式
 
   [key: string]: any; // 支持其他自定义属性
 }
@@ -120,7 +122,8 @@ export type WidgetType =
   | 'range'
   | 'color'
   | 'file'
-  | 'nested-form'; // 嵌套表单组件
+  | 'nested-form' // 嵌套表单组件
+  | 'array'; // 数组字段组件
 
 /**
  * 字段配置
@@ -194,11 +197,13 @@ export interface DynamicFormProps {
   // UI 配置
   layout?: 'vertical' | 'horizontal' | 'inline';
   labelWidth?: number | string; // 全局标签宽度（仅 horizontal layout 下生效）
+  showErrorList?: boolean; // 是否显示错误列表
   showSubmitButton?: boolean; // 是否显示提交按钮
   renderAsForm?: boolean; // 是否渲染为 <form> 标签（默认 true）
 
   // 表单行为
   validateMode?: 'onSubmit' | 'onBlur' | 'onChange' | 'all';
+  reValidateMode?: 'onSubmit' | 'onBlur' | 'onChange'; // 重新验证模式
 
   // 样式
   className?: string;
@@ -209,6 +214,12 @@ export interface DynamicFormProps {
   disabled?: boolean;
   readonly?: boolean;
   pathPrefix?: string; // 路径前缀（用于嵌套表单）
+  /**
+   * 是否作为嵌套表单运行
+   * - true: 复用父表单的 FormContext，不创建新的 useForm，字段直接注册到父表单
+   * - false: 创建独立的 useForm 实例（默认）
+   */
+  asNestedForm?: boolean;
 }
 
 /**
@@ -226,6 +237,7 @@ export interface FieldWidgetProps {
   onChange?: (value: any) => void;
   onBlur?: () => void;
   options?: FieldOption[];
+  schema?: ExtendedJSONSchema; // 完整的字段 schema（包含 ui 配置）
   [key: string]: any;
 }
 ```
@@ -311,14 +323,81 @@ export class SchemaParser {
    * 设置自定义格式验证器
    */
   static setCustomFormats(formats: Record<string, (value: string) => boolean>) {
-    // 设置自定义格式验证器
+    this.customFormats = formats;
+  }
+
+  /**
+   * 构建字段路径（支持 flattenPath 的 ~~ 分隔符）
+   * @param parentPath - 父级路径
+   * @param fieldName - 当前字段名
+   * @param isFlattenPath - 当前字段是否设置了 flattenPath: true
+   * @returns 构建的字段路径
+   *
+   * 规则：
+   * 1. 如果父路径的最后一段是 flattenPath（以 ~~ 结尾或整个路径都是 flattenPath），
+   *    则子字段也使用 ~~ 连接（无论子字段是否是 flattenPath）
+   * 2. 如果当前字段是 flattenPath，使用 ~~ 连接
+   * 3. 否则使用 . 连接
+   *
+   * 示例：
+   * - buildFieldPath('', 'region', true) → 'region'
+   * - buildFieldPath('region', 'market', true) → 'region~~market'
+   * - buildFieldPath('region~~market', 'contacts', false) → 'region~~market~~contacts'
+   * - buildFieldPath('region~~market~~contacts.0', 'category', true) → 'region~~market~~contacts.0~~category'
+   */
+  static buildFieldPath(
+    parentPath: string,
+    fieldName: string,
+    isFlattenPath: boolean
+  ): string {
+    if (!parentPath) {
+      return fieldName;
+    }
+
+    // 检查父路径的最后一个分隔符类型
+    const lastDotIndex = parentPath.lastIndexOf('.');
+    const lastSepIndex = parentPath.lastIndexOf('~~');
+
+    // 如果最后一个分隔符是 ~~，说明父级在 flattenPath 链中
+    const isParentInFlattenChain = lastSepIndex > lastDotIndex;
+
+    // 规则：如果父级在 flattenPath 链中，或当前字段是 flattenPath，使用 ~~
+    if (isParentInFlattenChain || isFlattenPath) {
+      return `${parentPath}~~${fieldName}`;
+    }
+
+    // 否则使用 .
+    return `${parentPath}.${fieldName}`;
   }
 
   /**
    * 检查 schema 中是否使用了路径扁平化
    */
   static hasFlattenPath(schema: ExtendedJSONSchema): boolean {
-    // 递归检查 schema 中是否有 flattenPath 配置
+    if (schema.type !== 'object' || !schema.properties) {
+      return false;
+    }
+
+    const properties = schema.properties;
+
+    for (const key of Object.keys(properties)) {
+      const property = properties[key];
+      if (!property || typeof property === 'boolean') continue;
+
+      const fieldSchema = property as ExtendedJSONSchema;
+
+      // 如果当前字段使用了 flattenPath
+      if (fieldSchema.type === 'object' && fieldSchema.ui?.flattenPath) {
+        return true;
+      }
+
+      // 递归检查子字段
+      if (fieldSchema.type === 'object' && this.hasFlattenPath(fieldSchema)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**
@@ -341,10 +420,15 @@ export class SchemaParser {
       if (!property || typeof property === 'boolean') continue;
 
       const fieldSchema = property as ExtendedJSONSchema;
-      const currentPath = parentPath ? `${parentPath}.${key}` : key;
+
+      // 检查当前字段是否设置了 flattenPath
+      const isFlattenPath = fieldSchema.type === 'object' && fieldSchema.ui?.flattenPath;
+
+      // 使用 buildFieldPath 方法正确处理 flattenPath 的路径
+      const currentPath = this.buildFieldPath(parentPath, key, isFlattenPath);
 
       // 检查是否需要路径扁平化
-      if (fieldSchema.type === 'object' && fieldSchema.ui?.flattenPath) {
+      if (isFlattenPath) {
         // 确定是否需要添加前缀
         const newPrefixLabel = fieldSchema.ui.flattenPrefix && fieldSchema.title
           ? (prefixLabel ? `${prefixLabel} - ${fieldSchema.title}` : fieldSchema.title)
@@ -356,7 +440,8 @@ export class SchemaParser {
           labelWidth: fieldSchema.ui.labelWidth ?? inheritedUI?.labelWidth,
         };
 
-        // 递归解析子字段，跳过当前层级，但传递 UI 配置
+        // 递归解析子字段，传递当前路径（已经包含 ~~ 分隔符）
+        // currentPath 已经通过 buildFieldPath 正确计算，无需重复构建
         const nestedFields = this.parse(fieldSchema, {
           parentPath: currentPath,
           prefixLabel: newPrefixLabel,
@@ -445,6 +530,7 @@ export class SchemaParser {
       if (schema.format === 'email') return 'email';
       if (schema.format === 'date') return 'date';
       if (schema.format === 'date-time') return 'datetime';
+      if (schema.format === 'time') return 'time';
       if (schema.enum) return 'select';
       if (schema.maxLength && schema.maxLength > 100) return 'textarea';
       return 'text';
@@ -459,11 +545,9 @@ export class SchemaParser {
     }
 
     if (type === 'array') {
-      if (schema.items && typeof schema.items === 'object') {
-        const items = schema.items as ExtendedJSONSchema;
-        if (items.enum) return 'checkboxes';
-      }
-      return 'select';
+      // 所有数组类型统一使用 ArrayFieldWidget 处理
+      // ArrayFieldWidget 内部会根据 items.enum 自动判断渲染模式（static/dynamic）
+      return 'array';
     }
 
     if (type === 'object') {
@@ -476,9 +560,9 @@ export class SchemaParser {
   /**
    * 获取验证规则
    */
-  private static getValidationRules(
+  static getValidationRules(
     schema: ExtendedJSONSchema,
-    required: boolean
+    required: boolean = false
   ): ValidationRules {
     const rules: ValidationRules = {};
     const errorMessages = schema.ui?.errorMessages || {};
@@ -488,9 +572,18 @@ export class SchemaParser {
     }
 
     if (schema.minLength) {
-      rules.minLength = {
-        value: schema.minLength,
-        message: errorMessages.minLength || `最小长度为 ${schema.minLength} 个字符`,
+      // react-hook-form 的 minLength 规则默认不会对空值进行校验，
+      // 这里使用自定义 validate 规则，确保空值也会触发 minLength 校验
+      rules.validate = rules.validate || {};
+      rules.validate.minLength = (value: any) => {
+        if (value === null || value === undefined) {
+          return errorMessages.minLength || `最小长度为 ${schema.minLength} 个字符`;
+        }
+        const strValue = String(value);
+        if (strValue.length < schema.minLength!) {
+          return errorMessages.minLength || `最小长度为 ${schema.minLength} 个字符`;
+        }
+        return true;
       };
     }
 
@@ -523,11 +616,23 @@ export class SchemaParser {
     }
 
     // 处理 format 验证
-    if (schema.format === 'email') {
-      rules.pattern = {
-        value: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
-        message: errorMessages.format || '请输入有效的邮箱地址',
-      };
+    if (schema.format) {
+      // 优先使用自定义格式验证器
+      if (this.customFormats[schema.format]) {
+        const formatName = schema.format;
+        rules.validate = rules.validate || {};
+        rules.validate[formatName] = (value: string) => {
+          if (!value) return true; // 空值由 required 规则处理
+          const isValid = this.customFormats[formatName](value);
+          return isValid || errorMessages.format || `${formatName} 格式不正确`;
+        };
+      } else if (schema.format === 'email') {
+        // 内置邮箱格式验证
+        rules.pattern = {
+          value: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+          message: errorMessages.format || '请输入有效的邮箱地址',
+        };
+      }
     }
 
     return rules;

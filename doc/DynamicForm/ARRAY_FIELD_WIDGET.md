@@ -1,5 +1,47 @@
 # ArrayFieldWidget 通用数组组件设计方案
 
+## ⚠️ 重要提示
+
+### 基本类型数组的数据格式
+
+由于 react-hook-form 的 `useFieldArray` 会过滤掉基本类型的空值（空字符串、0、false），ArrayFieldWidget 会将基本类型包装成对象格式：
+
+**表单内部存储格式**：
+```typescript
+// 用户看到的是字符串输入框，但内部存储为：
+[
+  { value: 'tag1' },
+  { value: 'tag2' }
+]
+```
+
+**字段路径格式**：
+```typescript
+// 基本类型数组的字段路径会自动添加 .value 后缀
+'tags.0.value'  // 第一个标签的值
+'tags.1.value'  // 第二个标签的值
+```
+
+**提交时需要转换**：
+```typescript
+const handleSubmit = (data: any) => {
+  // 方式 1: 转换为纯数组（推荐）
+  const pureTags = data.tags.map((item: any) => item.value);
+  console.log(pureTags); // ['tag1', 'tag2']
+
+  // 方式 2: 在后端接收时进行解包处理
+};
+```
+
+**为什么需要包装？**
+- react-hook-form 的 useFieldArray 在处理基本类型时，会过滤掉"假值"
+- 包装成对象后，即使 value 为空，对象本身也不会被过滤
+- 这确保了数组项的稳定性和可编辑性
+
+详见第 3.1 节和第 6.1 节。
+
+---
+
 ## 目录
 
 1. [概述](#1-概述)

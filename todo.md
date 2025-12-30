@@ -87,8 +87,8 @@
 
 - [x] 路径透明化 - 混合使用：部分透明化 + 部分正常嵌套 - basicInfo 提交时是空对象
 - [x] 关于字段联动，是不是可能存在更复杂的拓扑结构，当前架构是否能覆盖
+- [x] 将 Nested-form 作为 object 类型字段的默认渲染组件，不需要显式配置
 - [ ] 支持基于 CodeMirror 功能的表达式输入组件
-- [ ] 将 Nested-form 作为 object 类型字段的默认渲染组件，不需要显式配置
 - [ ] 添加自定义 nested form widget 的代码示例
 - [ ] NestedFormWidget 字段不支持渲染 array 类型的字段，需要新增一个 ArrayFieldWidget 组件，专门用于 array 类型字段的默认渲染
 - [ ] 补充使用 schemaLoader 的代码示例

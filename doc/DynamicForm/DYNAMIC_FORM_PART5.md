@@ -77,62 +77,97 @@ const handleChange = (data: any) => {
 #### 8.2.1 自定义字段组件
 
 ```typescript
+import React, { forwardRef } from 'react';
+import { Controller, useFormContext } from 'react-hook-form';
+import type { FieldWidgetProps } from '@/components/DynamicForm/types';
+
 // 自定义日期选择器
-const CustomDatePicker: React.FC<FieldWidgetProps> = forwardRef(
-  ({ name, value, onChange, ...props }, ref) => {
+export const CustomDatePicker = forwardRef<HTMLInputElement, FieldWidgetProps>(
+  ({ name, schema, disabled, readonly }, ref) => {
+    const { control } = useFormContext();
+
     return (
-      <input
-        ref={ref}
-        type="date"
+      <Controller
         name={name}
-        value={value}
-        onChange={onChange}
-        className="custom-date-picker"
-        {...props}
+        control={control}
+        render={({ field }) => (
+          <input
+            {...field}
+            ref={ref}
+            type="date"
+            disabled={disabled}
+            readOnly={readonly}
+            className="custom-date-picker"
+          />
+        )}
       />
     );
   }
 );
 
-// 使用自定义组件
-const customWidgets = {
-  'custom-date': CustomDatePicker,
+CustomDatePicker.displayName = 'CustomDatePicker';
+
+// 注册自定义组件
+import { FieldRegistry } from '@/components/DynamicForm/core/FieldRegistry';
+FieldRegistry.register('custom-date', CustomDatePicker);
+
+// 在 Schema 中使用
+const schema = {
+  type: 'object',
+  properties: {
+    birthDate: {
+      type: 'string',
+      title: '出生日期',
+      ui: {
+        widget: 'custom-date'
+      }
+    }
+  }
 };
 
 <DynamicForm
   schema={schema}
-  widgets={customWidgets}
   onSubmit={handleSubmit}
 />
 ```
 
-#### 8.2.2 复杂嵌套表单
+**说明**：
+- 使用 `forwardRef` 正确定义 Widget 组件
+- 使用 `Controller` 集成 react-hook-form
+- 通过 `FieldRegistry.register()` 注册自定义组件
+
+**更多自定义 Widget 开发指南，请参考**：[Widget 开发文档](./WIDGET_DEVELOPMENT.md)（待补充）
+
+#### 8.2.2 嵌套表单
 
 ```typescript
-const complexSchema = {
+// 简单的嵌套对象
+const schema = {
   type: 'object',
   properties: {
-    personalInfo: {
+    user: {
       type: 'object',
-      title: '个人信息',
+      title: '用户信息',
       properties: {
         name: { type: 'string', title: '姓名' },
-        age: { type: 'integer', title: '年龄' },
+        email: { type: 'string', title: '邮箱', format: 'email' },
       },
     },
+  },
+};
+
+// 对象数组
+const arraySchema = {
+  type: 'object',
+  properties: {
     contacts: {
       type: 'array',
-      title: '联系方式',
+      title: '联系人',
       items: {
         type: 'object',
         properties: {
-          type: {
-            type: 'string',
-            title: '类型',
-            enum: ['phone', 'email'],
-            enumNames: ['电话', '邮箱'],
-          },
-          value: { type: 'string', title: '值' },
+          name: { type: 'string', title: '姓名' },
+          phone: { type: 'string', title: '电话' },
         },
       },
     },
@@ -140,104 +175,55 @@ const complexSchema = {
 };
 ```
 
-#### 8.2.3 布局方式与层级继承
+**说明**：
+- `type: 'object'` 的字段会自动使用 `nested-form` widget
+- 数组中的对象也会自动渲染为嵌套表单
+
+**更多嵌套表单场景，请参考**：
+- [嵌套表单设计](./NESTED_FORM.md) - 动态 Schema、异步加载等高级特性
+- [数组字段 Widget](./ARRAY_FIELD_WIDGET.md) - 数组操作、验证等详细说明
+
+#### 8.2.3 布局配置
 
 ```typescript
 // 全局配置布局方式
-const layoutExample = () => {
-  return (
-    <DynamicForm
-      schema={schema}
-      layout="vertical"  // 全局默认垂直布局
-      onSubmit={handleSubmit}
-    />
-  );
-};
+<DynamicForm
+  schema={schema}
+  layout="vertical"  // 可选: vertical | horizontal | inline
+  labelWidth={120}   // 水平布局时的标签宽度
+  onSubmit={handleSubmit}
+/>
 
-// 字段级配置布局方式（层级继承）
-const nestedLayoutSchema = {
+// 字段级配置（会继承到嵌套字段）
+const schema = {
   type: 'object',
-  ui: {
-    layout: 'horizontal'  // 该对象下的字段使用水平布局
-  },
   properties: {
-    username: {
-      type: 'string',
-      title: '用户名'
-      // 继承父级的 horizontal 布局
-    },
-    address: {
+    user: {
       type: 'object',
-      title: '地址信息',
+      title: '用户信息',
       ui: {
-        layout: 'vertical'  // 覆盖父级，该对象下的字段使用垂直布局
+        layout: 'horizontal',  // 该对象下的字段使用水平布局
+        labelWidth: 100
       },
       properties: {
-        city: {
-          type: 'string',
-          title: '城市'
-          // 继承 address 的 vertical 布局
-        },
-        street: {
-          type: 'string',
-          title: '街道'
-          // 继承 address 的 vertical 布局
-        }
+        name: { type: 'string', title: '姓名' },
+        email: { type: 'string', title: '邮箱' }
       }
     }
   }
 };
 ```
 
-#### 8.2.4 水平布局与标签宽度
+**说明**：
+- 支持 `vertical`（垂直）、`horizontal`（水平）、`inline`（内联）三种布局
+- 布局配置会自动继承到嵌套字段
+- 子字段可以覆盖父级的布局配置
+
+#### 8.2.4 字段联动
 
 ```typescript
-// 全局配置标签宽度
-const horizontalFormExample = () => {
-  return (
-    <DynamicForm
-      schema={schema}
-      layout="horizontal"
-      labelWidth={120}  // 全局标签宽度 120px
-      onSubmit={handleSubmit}
-    />
-  );
-};
-
-// 字段级配置标签宽度
-const customLabelWidthSchema = {
-  type: 'object',
-  properties: {
-    username: {
-      type: 'string',
-      title: '用户名',
-      ui: {
-        labelWidth: 100  // 该字段标签宽度 100px
-      }
-    },
-    email: {
-      type: 'string',
-      title: '电子邮箱地址',
-      ui: {
-        labelWidth: 150  // 该字段标签宽度 150px
-      }
-    },
-    description: {
-      type: 'string',
-      title: '描述',
-      ui: {
-        widget: 'textarea'
-        // 不设置 labelWidth，使用全局配置
-      }
-    }
-  }
-};
-```
-
-#### 8.2.4 条件显示字段
-
-```typescript
-const conditionalSchema = {
+// 基础的显示/隐藏联动
+const schema = {
   type: 'object',
   properties: {
     hasAddress: {
@@ -247,23 +233,64 @@ const conditionalSchema = {
     address: {
       type: 'string',
       title: '详细地址',
-    },
-  },
-  dependencies: {
-    hasAddress: {
-      oneOf: [
-        {
-          properties: {
-            hasAddress: { const: true },
-            address: { minLength: 1 },
-          },
-          required: ['address'],
-        },
-      ],
+      ui: {
+        linkage: {
+          type: 'visibility',
+          dependencies: ['#/properties/hasAddress'],
+          when: {
+            field: '#/properties/hasAddress',
+            operator: '==',
+            value: true
+          }
+        }
+      }
     },
   },
 };
+
+// 值联动（自动计算）
+const calcSchema = {
+  type: 'object',
+  properties: {
+    price: { type: 'number', title: '单价' },
+    quantity: { type: 'number', title: '数量' },
+    total: {
+      type: 'number',
+      title: '总价',
+      ui: {
+        readonly: true,
+        linkage: {
+          type: 'value',
+          dependencies: ['#/properties/price', '#/properties/quantity'],
+          fulfill: {
+            function: 'calculateTotal'
+          }
+        }
+      }
+    }
+  }
+};
+
+const linkageFunctions = {
+  calculateTotal: (formData: any) => {
+    return (formData.price || 0) * (formData.quantity || 0);
+  }
+};
+
+<DynamicForm
+  schema={calcSchema}
+  linkageFunctions={linkageFunctions}
+  onSubmit={handleSubmit}
+/>
 ```
+
+**说明**：
+- 支持显示/隐藏、禁用/启用、只读、值联动、动态选项等多种联动类型
+- 使用 JSON Pointer 格式引用字段（`#/properties/fieldName`）
+
+**更多联动场景，请参考**：
+- [UI 联动设计](./UI_LINKAGE_DESIGN.md) - 完整的联动配置和高级场景
+- [数组字段联动](./ARRAY_FIELD_LINKAGE.md) - 数组元素内部的联动处理
 
 ### 8.3 集成到项目
 
@@ -463,6 +490,58 @@ const schema = {
 type FormData = FromSchema<typeof schema>;
 // { username: string; age?: number }
 ```
+
+---
+
+## 文档修订记录
+
+**版本**: 2.0
+**最后更新**: 2025-12-30
+**文档状态**: 已优化
+
+### 主要修订内容
+
+本次修订主要目的是将文档从技术深度文档转变为简洁的使用指南，避免与专题文档重复。
+
+#### 1. 修正代码示例（8.2.1 节）
+- **问题**: 自定义 Widget 示例中 `forwardRef` 使用不正确，缺少 `Controller` 集成
+- **修复**: 重写示例，使用正确的 TypeScript 类型定义，添加 `Controller` 集成和 `FieldRegistry` 注册
+
+#### 2. 简化嵌套表单内容（8.2.2 节）
+- **删除**: 复杂的嵌套表单示例（对象数组、动态 Schema 等）
+- **保留**: 基础的嵌套对象示例
+- **添加**: 指向专题文档的引用链接
+  - [嵌套表单设计](./NESTED_FORM.md) - 动态 Schema、异步加载等高级特性
+  - [数组字段 Widget](./ARRAY_FIELD_WIDGET.md) - 数组操作、验证等详细说明
+
+#### 3. 整合布局配置（8.2.3 节）
+- **合并**: 将布局和标签宽度配置整合到一个章节
+- **简化**: 删除过于详细的配置说明，保留基础示例
+
+#### 4. 简化字段联动内容（8.2.4 节）
+- **删除**: 重复的 8.2.4 节（原有两个同编号章节）
+- **简化**: 只保留基础的显示/隐藏联动和值联动示例
+- **添加**: 指向专题文档的引用链接
+  - [UI 联动设计](./UI_LINKAGE_DESIGN.md) - 完整的联动配置和高级场景
+  - [数组字段联动](./ARRAY_FIELD_LINKAGE.md) - 数组元素内部的联动处理
+
+#### 5. 保留实用内容（8.3-8.4 节）
+- **8.3 集成到项目**: 保留安装依赖、项目配置、全局注册等基础集成步骤
+- **8.4 最佳实践**: 保留 Schema 设计原则、性能优化、错误处理、类型安全等实用建议
+
+### 文档定位
+
+本文档现在专注于：
+- ✅ 基础使用示例和快速入门
+- ✅ 常见场景的简单示例
+- ✅ 项目集成步骤
+- ✅ 最佳实践建议
+- ✅ 指向专题文档的引用
+
+不再包含：
+- ❌ 深入的技术实现细节
+- ❌ 复杂的高级场景示例
+- ❌ 与专题文档重复的内容
 
 ---
 
