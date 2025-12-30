@@ -585,8 +585,8 @@ import { Undo, Redo } from 'lucide-react';
 
 ### 键盘快捷键
 
-- **Undo**: `Ctrl+Z` (Windows/Linux) 或 `Cmd+Z` (macOS)
-- **Redo**: `Ctrl+R` (Windows/Linux) 或 `Cmd+R` (macOS)
+- **Undo（撤销）**: `Ctrl+Z` (Windows/Linux) 或 `Cmd+Z` (macOS)
+- **Redo（重做）**: `Ctrl+R` (Windows/Linux) 或 `Cmd+R` (macOS)
 
 ### 配置选项
 
@@ -598,14 +598,29 @@ interface WorkflowProps {
   undoRedoOptions?: {
     enabled?: boolean;        // 是否启用，默认 true
     maxHistorySize?: number;  // 最大历史记录数，默认 50
-    debounceMs?: number;      // 防抖延迟，默认 500ms
   };
 }
+```
+
+**使用示例**：
+
+```tsx
+<Workflow
+  initialNodes={nodes}
+  initialEdges={edges}
+  undoRedoOptions={{
+    enabled: true,
+    maxHistorySize: 100,  // 增加历史记录容量
+  }}
+/>
 ```
 
 ### 注意事项
 
 1. **只读模式**：当 `readonly={true}` 时，undo/redo 功能自动禁用
-2. **性能考虑**：对于大型工作流（节点数 > 100），建议增加 `debounceMs` 或减少 `maxHistorySize`
+2. **性能考虑**：对于大型工作流（节点数 > 100），建议减少 `maxHistorySize` 以降低内存占用
 3. **状态同步**：undo/redo 会同时回退 nodes 和 edges，保持状态一致性
-4. **副作用处理**：节点配置的修改如果涉及外部 API 调用，需要在业务层面处理撤销逻辑
+4. **UI 状态过滤**：选中节点、拖拽等 UI 状态变化不会触发历史记录
+5. **深度比较**：使用 `lodash.isEqual` 进行状态比较，确保只有实质性修改才会记录历史
+6. **副作用处理**：节点配置的修改如果涉及外部 API 调用，需要在业务层面处理撤销逻辑
+7. **初始状态**：组件挂载时会自动记录初始状态，确保第一次操作后可以撤销
