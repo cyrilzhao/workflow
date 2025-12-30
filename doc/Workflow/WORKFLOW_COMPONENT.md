@@ -246,9 +246,10 @@ Workflow 组件支持撤销（Undo）和重做（Redo）功能，允许用户回
 
 1. **快照式状态管理**：在关键操作点保存完整的 nodes 和 edges 状态快照
 2. **双栈历史记录**：维护 past（历史栈）和 future（未来栈）两个状态数组
-3. **防抖优化**：对频繁的状态变更（如拖拽）进行防抖处理，避免产生过多历史记录
-4. **操作分组**：将相关的小操作合并为单个可撤销步骤
-5. **内存限制**：限制历史记录的最大数量，防止内存溢出
+3. **事件驱动记录**：在操作完成时记录历史，而非监听状态变化
+4. **统一状态管理**：nodes 和 edges 作为一个整体进行历史记录，确保状态一致性
+5. **智能过滤**：过滤 UI 状态（如 `selected`、`dragging`），只记录实质性修改
+6. **内存限制**：限制历史记录的最大数量，防止内存溢出
 
 ### 技术实现
 
@@ -265,7 +266,6 @@ interface HistoryState<T> {
 
 interface UseUndoRedoOptions {
   maxHistorySize?: number;  // 最大历史记录数，默认 50
-  debounceMs?: number;       // 防抖延迟，默认 500ms
 }
 
 function useUndoRedo<T>(
@@ -278,17 +278,41 @@ function useUndoRedo<T>(
     future: [],
   });
 
-  // 设置新状态（带防抖）
-  const setState = useMemo(
-    () => debounce((newState: T) => {
-      setHistory(prev => ({
-        past: [...prev.past, prev.present].slice(-maxHistorySize),
+  // 用于防止在 undo/redo 时记录历史
+  const isUndoRedoRef = useRef(false);
+
+  // 设置新状态
+  const set = useCallback((newState: T, checkpoint = true) => {
+    // 如果正在执行 undo/redo，不记录历史
+    if (isUndoRedoRef.current) {
+      setHistory(prev => ({ ...prev, present: newState }));
+      return;
+    }
+
+    // 如果不需要记录检查点，只更新当前状态
+    if (!checkpoint) {
+      setHistory(prev => ({ ...prev, present: newState }));
+      return;
+    }
+
+    setHistory(prev => {
+      // 检查状态是否真的发生了变化
+      if (JSON.stringify(prev.present) === JSON.stringify(newState)) {
+        return prev;
+      }
+
+      const newPast = [...prev.past, prev.present];
+      const trimmedPast = newPast.length > maxHistorySize
+        ? newPast.slice(newPast.length - maxHistorySize)
+        : newPast;
+
+      return {
+        past: trimmedPast,
         present: newState,
-        future: [],
-      }));
-    }, debounceMs),
-    []
-  );
+        future: [], // 新操作会清空 future
+      };
+    });
+  }, [maxHistorySize]);
 
   // 撤销
   const undo = useCallback(() => {
@@ -296,12 +320,14 @@ function useUndoRedo<T>(
       if (prev.past.length === 0) return prev;
       const previous = prev.past[prev.past.length - 1];
       const newPast = prev.past.slice(0, prev.past.length - 1);
+      isUndoRedoRef.current = true;
       return {
         past: newPast,
         present: previous,
         future: [prev.present, ...prev.future],
       };
     });
+    setTimeout(() => { isUndoRedoRef.current = false; }, 0);
   }, []);
 
   // 重做
@@ -310,17 +336,21 @@ function useUndoRedo<T>(
       if (prev.future.length === 0) return prev;
       const next = prev.future[0];
       const newFuture = prev.future.slice(1);
+      isUndoRedoRef.current = true;
       return {
         past: [...prev.past, prev.present],
         present: next,
         future: newFuture,
       };
     });
+    setTimeout(() => { isUndoRedoRef.current = false; }, 0);
   }, []);
 
   return {
-    state: history.present,
-    setState,
+    present: history.present,
+    past: history.past,
+    future: history.future,
+    set,
     undo,
     redo,
     canUndo: history.past.length > 0,
@@ -340,50 +370,151 @@ function useUndoRedo<T>(
 
 ```typescript
 const WorkflowContent: React.FC<WorkflowProps> = (props) => {
-  // 使用 useUndoRedo 管理 nodes 和 edges
-  const {
-    state: nodesState,
-    setState: setNodesState,
-    undo: undoNodes,
-    redo: redoNodes,
-    canUndo: canUndoNodes,
-    canRedo: canRedoNodes,
-  } = useUndoRedo(initialNodes, { maxHistorySize: 50, debounceMs: 500 });
+  const { enabled: undoRedoEnabled = true, maxHistorySize = 50 } = undoRedoOptions || {};
 
-  const {
-    state: edgesState,
-    setState: setEdgesState,
-    undo: undoEdges,
-    redo: redoEdges,
-    canUndo: canUndoEdges,
-    canRedo: canRedoEdges,
-  } = useUndoRedo(initialEdges, { maxHistorySize: 50, debounceMs: 500 });
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
-  // 同步 undo/redo（nodes 和 edges 需要同步）
+  // 使用统一的历史管理（nodes 和 edges 作为一个整体）
+  const workflowHistory = useUndoRedo<{ nodes: WorkflowNode[]; edges: typeof initialEdges }>(
+    { nodes: initialNodes, edges: initialEdges },
+    { maxHistorySize }
+  );
+
+  // 用于标记是否正在执行 undo/redo，避免记录历史
+  const isUndoingRef = React.useRef(false);
+
+  // 使用 ref 保存最新的 nodes 和 edges，避免 takeSnapshot 依赖它们
+  const nodesRef = React.useRef(nodes);
+  const edgesRef = React.useRef(edges);
+
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
+
+  useEffect(() => {
+    edgesRef.current = edges;
+  }, [edges]);
+
+  // 记录初始状态（只在组件挂载时执行一次）
+  const isInitializedRef = React.useRef(false);
+  useEffect(() => {
+    if (!isInitializedRef.current && undoRedoEnabled && !readonly) {
+      workflowHistory.set({ nodes, edges }, true);
+      isInitializedRef.current = true;
+    }
+  }, [undoRedoEnabled, readonly, nodes, edges, workflowHistory]);
+
+  // 辅助函数：记录当前状态到历史
+  const takeSnapshot = useCallback(() => {
+    if (!undoRedoEnabled || readonly || isUndoingRef.current) return;
+
+    const currentNodes = nodesRef.current;
+    const currentEdges = edgesRef.current;
+
+    // 过滤掉 UI 状态属性（selected, dragging 等），只比较实质性属性
+    const cleanNodes = currentNodes.map(node => {
+      const { selected, dragging, ...rest } = node as any;
+      return rest;
+    });
+
+    // 检查是否与当前历史状态相同（只比较实质性属性）
+    const lastState = workflowHistory.present;
+    if (lastState) {
+      const lastCleanNodes = lastState.nodes.map(node => {
+        const { selected, dragging, ...rest } = node as any;
+        return rest;
+      });
+
+      // 使用 lodash.isEqual 进行深度比较
+      if (isEqual(cleanNodes, lastCleanNodes) && isEqual(currentEdges, lastState.edges)) {
+        return;
+      }
+    }
+
+    workflowHistory.set({ nodes: currentNodes, edges: currentEdges });
+  }, [undoRedoEnabled, readonly, workflowHistory]);
+
+  // 在操作完成时记录历史
+  const onConnect = useCallback((params: Connection | Edge) => {
+    setEdges(eds => addEdge(params, eds));
+    setTimeout(() => takeSnapshot(), 0);
+  }, [setEdges, takeSnapshot]);
+
+  const onNodesDelete = useCallback(() => {
+    setTimeout(() => takeSnapshot(), 0);
+  }, [takeSnapshot]);
+
+  const onEdgesDelete = useCallback(() => {
+    setTimeout(() => takeSnapshot(), 0);
+  }, [takeSnapshot]);
+
+  const onNodeDragStop = useCallback(() => {
+    takeSnapshot();
+  }, [takeSnapshot]);
+
+  const handleSaveNodeConfig = (nodeId: string, data: any) => {
+    setNodes(nds =>
+      nds.map(node => {
+        if (node.id === nodeId) {
+          return { ...node, data: { ...node.data, ...data } };
+        }
+        return node;
+      })
+    );
+    setTimeout(() => takeSnapshot(), 0);
+  };
+
+  const onDrop = useCallback((event: React.DragEvent) => {
+    // ... 添加新节点逻辑
+    setNodes(nds => nds.concat(newNode));
+    setTimeout(() => takeSnapshot(), 0);
+  }, [screenToFlowPosition, setNodes, takeSnapshot]);
+
+  // 撤销和重做
   const undo = useCallback(() => {
-    undoNodes();
-    undoEdges();
-  }, [undoNodes, undoEdges]);
+    if (!undoRedoEnabled || readonly || !workflowHistory.canUndo) return;
+
+    const prevState = workflowHistory.past[workflowHistory.past.length - 1];
+    isUndoingRef.current = true;
+
+    workflowHistory.undo();
+
+    if (prevState) {
+      setNodes(prevState.nodes);
+      setEdges(prevState.edges);
+    }
+
+    setTimeout(() => {
+      isUndoingRef.current = false;
+    }, 300);
+  }, [undoRedoEnabled, readonly, workflowHistory, setNodes, setEdges]);
 
   const redo = useCallback(() => {
-    redoNodes();
-    redoEdges();
-  }, [redoNodes, redoEdges]);
+    if (!undoRedoEnabled || readonly || !workflowHistory.canRedo) return;
 
-  const canUndo = canUndoNodes || canUndoEdges;
-  const canRedo = canRedoNodes || canRedoEdges;
+    const nextState = workflowHistory.future[0];
+    isUndoingRef.current = true;
 
-  // 监听 nodes/edges 变化，更新历史记录
-  useEffect(() => {
-    setNodesState(nodes);
-  }, [nodes, setNodesState]);
+    workflowHistory.redo();
 
-  useEffect(() => {
-    setEdgesState(edges);
-  }, [edges, setEdgesState]);
+    if (nextState) {
+      setNodes(nextState.nodes);
+      setEdges(nextState.edges);
+    }
+
+    setTimeout(() => {
+      isUndoingRef.current = false;
+    }, 300);
+  }, [undoRedoEnabled, readonly, workflowHistory, setNodes, setEdges]);
+
+  const canUndo = undoRedoEnabled && !readonly && workflowHistory.canUndo;
+  const canRedo = undoRedoEnabled && !readonly && workflowHistory.canRedo;
 
   // 键盘快捷键
   useEffect(() => {
+    if (!undoRedoEnabled || readonly) return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
       // Undo: Ctrl+Z / Cmd+Z
       if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
@@ -396,9 +527,10 @@ const WorkflowContent: React.FC<WorkflowProps> = (props) => {
         redo();
       }
     };
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo]);
+  }, [undo, redo, undoRedoEnabled, readonly]);
 
   // ...
 };
@@ -412,26 +544,44 @@ const WorkflowContent: React.FC<WorkflowProps> = (props) => {
 import { Controls, ControlButton } from 'reactflow';
 import { Undo, Redo } from 'lucide-react';
 
-<Controls>
-  <ControlButton onClick={undo} disabled={!canUndo} title="撤销 (Ctrl+Z)">
-    <Undo size={16} />
-  </ControlButton>
-  <ControlButton onClick={redo} disabled={!canRedo} title="重做 (Ctrl+R)">
-    <Redo size={16} />
-  </ControlButton>
-</Controls>
+<ReactFlow
+  nodes={nodes}
+  edges={edges}
+  onNodesChange={handleNodesChange}
+  onEdgesChange={onEdgesChange}
+  onConnect={readonly ? undefined : onConnect}
+  onNodesDelete={readonly ? undefined : onNodesDelete}
+  onEdgesDelete={readonly ? undefined : onEdgesDelete}
+  onNodeDragStop={readonly ? undefined : onNodeDragStop}
+  // ...
+>
+  <Controls>
+    {undoRedoEnabled && !readonly && (
+      <>
+        <ControlButton onClick={undo} disabled={!canUndo} title="撤销 (Ctrl+Z)">
+          <Undo size={16} />
+        </ControlButton>
+        <ControlButton onClick={redo} disabled={!canRedo} title="重做 (Ctrl+R)">
+          <Redo size={16} />
+        </ControlButton>
+      </>
+    )}
+  </Controls>
+  <MiniMap />
+  <Background gap={12} size={1} />
+</ReactFlow>
 ```
 
 ### 支持的操作
 
 以下操作会被记录到历史中，支持 undo/redo：
 
-- 添加节点（拖拽或编程方式）
-- 删除节点
-- 移动节点位置
-- 添加连线
-- 删除连线
-- 修改节点配置（通过配置弹窗）
+- **添加节点**：通过拖拽面板节点到画布（`onDrop` 事件）
+- **删除节点**：选中节点后按 Delete 键或通过其他方式删除（`onNodesDelete` 事件）
+- **移动节点位置**：拖拽节点到新位置（`onNodeDragStop` 事件）
+- **添加连线**：连接两个节点的 Handle（`onConnect` 事件）
+- **删除连线**：选中连线后按 Delete 键或通过其他方式删除（`onEdgesDelete` 事件）
+- **修改节点配置**：双击节点打开配置弹窗并保存（`handleSaveNodeConfig` 函数）
 
 ### 键盘快捷键
 
