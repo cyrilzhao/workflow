@@ -6,7 +6,6 @@ import { FormField } from './layout/FormField';
 import { ErrorList } from './components/ErrorList';
 import type { DynamicFormProps } from './types';
 import { parseSchemaLinkages, transformToAbsolutePaths } from '@/utils/schemaLinkageParser';
-import { useLinkageManager } from '@/hooks/useLinkageManager';
 import { useArrayLinkageManager } from '@/hooks/useArrayLinkageManager';
 import { filterValueWithNestedSchemas } from './utils/filterValueWithNestedSchemas';
 import {
@@ -23,36 +22,6 @@ import '@blueprintjs/core/lib/css/blueprint.css';
 const EMPTY_LINKAGE_FUNCTIONS = {};
 const EMPTY_WIDGETS = {};
 const EMPTY_CUSTOM_FORMATS = {};
-
-/**
- * 检查 schema 是否包含数组字段（递归检查所有嵌套层级）
- */
-function hasArrayFields(schema: any): boolean {
-  if (!schema) return false;
-
-  // 检查当前 schema 是否是数组类型
-  if (schema.type === 'array') {
-    return true;
-  }
-
-  // 递归检查 properties 中的所有字段
-  if (schema.properties) {
-    for (const fieldSchema of Object.values(schema.properties)) {
-      if (typeof fieldSchema === 'object' && hasArrayFields(fieldSchema)) {
-        return true;
-      }
-    }
-  }
-
-  // 检查数组的 items（虽然已经在上面检测到数组了，但为了完整性）
-  if (schema.items && typeof schema.items === 'object') {
-    if (hasArrayFields(schema.items)) {
-      return true;
-    }
-  }
-
-  return false;
-}
 
 /**
  * 检查字段是否应该被隐藏（包括检查父级路径的联动状态）
@@ -208,6 +177,8 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
   const linkageStateContext = useLinkageStateContext();
 
   // 解析 schema 中的联动配置（包含路径映射）
+  // 解析 schema 中的联动配置
+  // 分层计算策略：遇到数组字段时停止递归，数组元素内部由 NestedFormWidget 独立处理
   const {
     linkages: rawLinkages,
     pathMappings,
@@ -262,36 +233,25 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
     return rawLinkages;
   }, [rawLinkages, asNestedForm, pathPrefix, linkageStateContext?.parentLinkageStates]);
 
-  // 检查是否包含数组字段
-  const hasArrays = useMemo(() => hasArrayFields(schema), [schema]);
-
-  // 根据是否有父级 Context 决定使用哪个联动管理器
-  // 分层计算
-  // - 顶层 DynamicForm：使用 useArrayLinkageManager 处理数组联动
-  // - 嵌套 DynamicForm：使用 useLinkageManager 计算自己范围内的联动
+  // 统一使用 useArrayLinkageManager 处理所有联动
+  // useArrayLinkageManager 已增强，可以同时处理：
+  // - 数组元素的联动（动态实例化）
+  // - 普通字段的联动（直接处理）
   const formToUse = linkageStateContext?.form || methods;
 
   // 获取联动函数：优先使用自己的，否则从 Context 继承
   const effectiveLinkageFunctions =
     linkageFunctions || linkageStateContext?.linkageFunctions || EMPTY_LINKAGE_FUNCTIONS;
 
-  // 顶层且有数组字段时使用 useArrayLinkageManager，否则使用 useLinkageManager
-  // useArrayLinkageManager 会动态实例化数组元素的联动配置
-  const ownLinkageStates =
-    hasArrays && !asNestedForm
-      ? useArrayLinkageManager({
-          form: formToUse,
-          baseLinkages: linkages,
-          linkageFunctions: effectiveLinkageFunctions,
-          schema, // 传递 schema 用于 JSON Pointer 路径解析
-          pathMappings, // 传递路径映射用于路径转换
-        })
-      : useLinkageManager({
-          form: formToUse,
-          linkages,
-          linkageFunctions: effectiveLinkageFunctions,
-          pathMappings, // 传递路径映射用于路径转换
-        });
+  // 统一使用 useArrayLinkageManager 处理所有联动（包括数组和非数组）
+  // useArrayLinkageManager 已增强，可以同时处理数组元素联动和普通字段联动
+  const ownLinkageStates = useArrayLinkageManager({
+    form: formToUse,
+    baseLinkages: linkages,
+    linkageFunctions: effectiveLinkageFunctions,
+    schema, // 传递 schema 用于 JSON Pointer 路径解析和数组检测
+    pathMappings, // 传递路径映射用于路径转换
+  });
 
   // 合并父级和自己的联动状态
   const linkageStates = useMemo(() => {
@@ -366,16 +326,16 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
           const linkageState = linkageStates[field.name];
 
           // 调试日志：检查字段联动状态
-          if (asNestedForm) {
-            console.log(
-              '[DynamicForm renderFields] 嵌套表单字段:',
-              JSON.stringify({
-                fieldName: field.name,
-                linkageState,
-                allLinkageStates: linkageStates,
-              })
-            );
-          }
+          // if (asNestedForm) {
+          //   console.log(
+          //     '[DynamicForm renderFields] 嵌套表单字段:',
+          //     JSON.stringify({
+          //       fieldName: field.name,
+          //       linkageState,
+          //       allLinkageStates: linkageStates,
+          //     })
+          //   );
+          // }
 
           // 如果联动状态指定不可见，则不渲染该字段
           // 需要检查字段自身和所有父级路径的联动状态（支持 flattenPath 场景）

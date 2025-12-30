@@ -1,4 +1,5 @@
 import type { ExtendedJSONSchema, LinkageConfig } from '@/types/schema';
+import { SchemaParser } from '@/components/DynamicForm';
 
 /**
  * 路径透明化分隔符
@@ -18,13 +19,20 @@ function isInFlattenPathChain(parentPath: string): boolean {
 }
 
 /**
+ * 检查路径的最后一个分隔符是否是 ~~
+ * @param path - 要检查的路径
+ * @returns 如果最后一个分隔符是 ~~，返回 true；否则返回 false
+ */
+function isLastSeparatorFlatten(path: string): boolean {
+  const lastDotPos = path.lastIndexOf('.');
+  const lastSeparatorPos = path.lastIndexOf(FLATTEN_PATH_SEPARATOR);
+  return lastSeparatorPos > lastDotPos;
+}
+
+/**
  * 统一的逻辑路径生成函数
  */
-function buildLogicalPath(
-  parentPath: string,
-  fieldName: string,
-  isFlattenPath: boolean
-): string {
+function buildLogicalPath(parentPath: string, fieldName: string, isFlattenPath: boolean): string {
   if (!parentPath) {
     return fieldName;
   }
@@ -76,6 +84,14 @@ export interface ParsedLinkages {
  *
  * 注意：所有类型的联动（包括 value、visibility、disabled、readonly、options 等）都统一在 linkages 中返回，
  * 由 useLinkageManager 统一处理。
+ *
+ * 分层计算策略：
+ * - 解析所有字段的联动配置，但在遇到数组字段时停止递归
+ * - 数组字段本身的联动会被收集，但数组元素内部的字段不会被解析
+ * - 数组元素内部的联动由 NestedFormWidget 创建的子 DynamicForm 独立解析
+ * - 这样每层 DynamicForm 只负责自己这一层的联动，实现真正的分层计算
+ *
+ * @param schema - JSON Schema
  */
 export function parseSchemaLinkages(schema: ExtendedJSONSchema): ParsedLinkages {
   const linkages: Record<string, LinkageConfig> = {};
@@ -199,27 +215,19 @@ function parseSchemaRecursive(
     }
 
     // 递归处理数组元素
+    // 关键：在遇到数组字段时停止递归，不解析数组元素内部的字段
+    // 数组元素内部的联动由 NestedFormWidget 创建的子 DynamicForm 独立解析
     if (typedSchema.type === 'array' && typedSchema.items) {
-      const itemsSchema = typedSchema.items as ExtendedJSONSchema;
-      if (itemsSchema.type === 'object' && itemsSchema.properties) {
-        console.log(
-          '[parseSchemaRecursive] 处理数组元素:',
-          JSON.stringify({
-            fieldName,
-            logicalPath,
-            physicalPath,
-          })
-        );
-        parseSchemaRecursive(
-          itemsSchema,
+      console.log(
+        '[parseSchemaRecursive] 遇到数组字段，停止递归（数组元素内部由 NestedFormWidget 处理）:',
+        JSON.stringify({
+          fieldName,
           logicalPath,
           physicalPath,
-          linkages,
-          pathMappings,
-          currentSkippedSegments,
-          onFlattenPathUsed
-        );
-      }
+        })
+      );
+      // 不递归解析数组元素内部，直接返回
+      // 数组字段本身的联动配置已经在上面收集了
     }
   });
 }
@@ -281,13 +289,18 @@ export function logicalToPhysicalPath(logicalPath: string, pathMappings: PathMap
 /**
  * 将联动配置的字段路径转换为绝对路径
  * @param linkages - 原始联动配置（相对路径）
- * @param pathPrefix - 路径前缀（如 'contacts.0'）
+ * @param pathPrefix - 路径前缀（如 'contacts.0' 或 'region~~market~~contacts.0'）
  * @returns 转换后的联动配置（绝对路径）
  *
  * @example
  * // 输入：{ 'companyName': {...}, 'department': {...} }
  * // pathPrefix: 'contacts.0'
  * // 输出：{ 'contacts.0.companyName': {...}, 'contacts.0.department': {...} }
+ *
+ * @example
+ * // 输入：{ 'category~~group~~vipLevel': {...} }
+ * // pathPrefix: 'region~~market~~contacts.0'
+ * // 输出：{ 'region~~market~~contacts.0.category~~group~~vipLevel': {...} }
  */
 export function transformToAbsolutePaths(
   linkages: Record<string, LinkageConfig>,
@@ -300,10 +313,14 @@ export function transformToAbsolutePaths(
   const result: Record<string, LinkageConfig> = {};
 
   Object.entries(linkages).forEach(([fieldPath, linkage]) => {
+    // 构建绝对路径：pathPrefix 和 fieldPath 之间始终使用 . 连接
+    // 因为 pathPrefix 是数组元素路径（如 region~~market~~contacts.0）
+    // fieldPath 是元素内部的字段路径（如 category~~group~~vipLevel）
     const absolutePath = fieldPath ? `${pathPrefix}.${fieldPath}` : pathPrefix;
 
     // 深拷贝联动配置并转换内部的路径引用
-    const transformedLinkage = transformLinkageConfigPaths(linkage, pathPrefix);
+    // 传递 absolutePath 作为完整字段路径，用于相对路径解析
+    const transformedLinkage = transformLinkageConfigPaths(linkage, pathPrefix, absolutePath);
 
     result[absolutePath] = transformedLinkage;
   });
@@ -315,18 +332,74 @@ export function transformToAbsolutePaths(
  * 转换联动配置内部的路径引用
  * @param linkage - 原始联动配置
  * @param pathPrefix - 路径前缀
+ * @param fieldPath - 当前字段的完整路径（用于相对路径解析）
  * @returns 转换后的联动配置
  */
-function transformLinkageConfigPaths(linkage: LinkageConfig, pathPrefix: string): LinkageConfig {
+function transformLinkageConfigPaths(
+  linkage: LinkageConfig,
+  pathPrefix: string,
+  fieldPath: string
+): LinkageConfig {
   const result = { ...linkage };
 
   // 转换 dependencies 中的相对路径
   if (result.dependencies) {
     result.dependencies = result.dependencies.map(dep => {
       if (dep.startsWith('./')) {
-        // 相对路径：./fieldName -> pathPrefix.fieldName
+        // 相对路径：使用 resolveRelativePath 正确处理 ~~ 分隔符
         const fieldName = dep.slice(2);
-        return `${pathPrefix}.${fieldName}`;
+        // 从 fieldPath 中提取父路径
+        const lastDotPos = fieldPath.lastIndexOf('.');
+        const lastSeparatorPos = fieldPath.lastIndexOf(FLATTEN_PATH_SEPARATOR);
+
+        console.log(
+          '[transformLinkageConfigPaths] 处理相对路径:',
+          JSON.stringify({
+            dep,
+            fieldPath,
+            fieldName,
+            lastDotPos,
+            lastSeparatorPos,
+          })
+        );
+
+        let parentPath: string;
+        let isParentInFlattenChain: boolean;
+
+        if (lastDotPos === -1 && lastSeparatorPos === -1) {
+          // 没有分隔符，直接返回字段名
+          return fieldName;
+        }
+
+        // 找到实际最后一个分隔符
+        if (lastSeparatorPos > lastDotPos) {
+          // 最后一个分隔符是 ~~
+          parentPath = fieldPath.substring(0, lastSeparatorPos);
+          isParentInFlattenChain = true;
+        } else {
+          // 最后一个分隔符是 .
+          parentPath = fieldPath.substring(0, lastDotPos);
+          // 检查父路径的最后一个分隔符是否是 ~~
+          isParentInFlattenChain = isLastSeparatorFlatten(parentPath);
+        }
+
+        // 使用 SchemaParser.buildFieldPath 构建正确的路径
+        const resolvedPath = SchemaParser.buildFieldPath(
+          parentPath,
+          fieldName,
+          isParentInFlattenChain
+        );
+
+        console.log(
+          '[transformLinkageConfigPaths] 相对路径解析结果:',
+          JSON.stringify({
+            parentPath,
+            isParentInFlattenChain,
+            resolvedPath,
+          })
+        );
+
+        return resolvedPath;
       }
       // 绝对路径（JSON Pointer）保持不变
       return dep;
@@ -335,7 +408,7 @@ function transformLinkageConfigPaths(linkage: LinkageConfig, pathPrefix: string)
 
   // 转换 when 条件中的路径
   if (result.when && typeof result.when === 'object') {
-    result.when = transformConditionPaths(result.when, pathPrefix);
+    result.when = transformConditionPaths(result.when, pathPrefix, fieldPath);
   }
 
   return result;
@@ -344,25 +417,65 @@ function transformLinkageConfigPaths(linkage: LinkageConfig, pathPrefix: string)
 /**
  * 递归转换条件表达式中的路径
  */
-function transformConditionPaths(condition: any, pathPrefix: string): any {
+function transformConditionPaths(condition: any, pathPrefix: string, fieldPath: string): any {
   const result = { ...condition };
 
   // 转换 field 字段
   if (result.field && typeof result.field === 'string') {
     if (result.field.startsWith('./')) {
-      // 相对路径：./fieldName -> pathPrefix.fieldName
+      // 相对路径：使用与 dependencies 相同的逻辑处理 ~~ 分隔符
       const fieldName = result.field.slice(2);
-      result.field = `${pathPrefix}.${fieldName}`;
+      const lastDotPos = fieldPath.lastIndexOf('.');
+      const lastSeparatorPos = fieldPath.lastIndexOf(FLATTEN_PATH_SEPARATOR);
+
+      console.log(
+        '[transformConditionPaths] 处理相对路径:',
+        JSON.stringify({
+          originalField: result.field,
+          fieldPath,
+          fieldName,
+          lastDotPos,
+          lastSeparatorPos,
+        })
+      );
+
+      let parentPath: string;
+      let isParentInFlattenChain: boolean;
+
+      if (lastDotPos === -1 && lastSeparatorPos === -1) {
+        result.field = fieldName;
+      } else {
+        // 找到实际最后一个分隔符
+        if (lastSeparatorPos > lastDotPos) {
+          parentPath = fieldPath.substring(0, lastSeparatorPos);
+          isParentInFlattenChain = true;
+        } else {
+          parentPath = fieldPath.substring(0, lastDotPos);
+          // 检查父路径的最后一个分隔符是否是 ~~
+          isParentInFlattenChain = isLastSeparatorFlatten(parentPath);
+        }
+
+        result.field = SchemaParser.buildFieldPath(parentPath, fieldName, isParentInFlattenChain);
+
+        console.log(
+          '[transformConditionPaths] 相对路径解析结果:',
+          JSON.stringify({
+            parentPath,
+            isParentInFlattenChain,
+            resolvedField: result.field,
+          })
+        );
+      }
     }
     // 绝对路径（JSON Pointer）保持不变
   }
 
   // 递归处理 and/or
   if (result.and && Array.isArray(result.and)) {
-    result.and = result.and.map((c: any) => transformConditionPaths(c, pathPrefix));
+    result.and = result.and.map((c: any) => transformConditionPaths(c, pathPrefix, fieldPath));
   }
   if (result.or && Array.isArray(result.or)) {
-    result.or = result.or.map((c: any) => transformConditionPaths(c, pathPrefix));
+    result.or = result.or.map((c: any) => transformConditionPaths(c, pathPrefix, fieldPath));
   }
 
   return result;

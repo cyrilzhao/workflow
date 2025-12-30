@@ -1276,7 +1276,7 @@ resolveRelativePath('../type', 'departments.0.employees.1.techStack');
 ```typescript
 /**
  * 解析依赖路径为运行时绝对路径
- * @param depPath - 依赖路径（相对路径或 JSON Pointer）
+ * @param depPath - 依赖路径（相对路径、JSON Pointer 或运行时路径）
  * @param currentPath - 当前字段的完整路径（如 'contacts.0.companyName'）
  * @param schema - Schema 对象（用于识别数组字段）
  * @returns 解析后的绝对路径
@@ -1296,7 +1296,10 @@ export function resolveDependencyPath(
     return resolveJsonPointerDependency(depPath, currentPath, schema);
   }
 
-  throw new Error(`不支持的路径格式: ${depPath}`);
+  // 3. 已经是运行时的绝对路径（如 contacts.0.type），直接返回
+  // 这种情况发生在联动配置已经被实例化后再次调用 resolveArrayElementLinkage 时
+  console.log('[resolveDependencyPath] 路径已是运行时格式，直接返回:', depPath);
+  return depPath;
 }
 
 /**
@@ -1635,30 +1638,44 @@ export function useArrayLinkageManager({
 
       // 遍历基础联动配置，找出数组相关的联动
       Object.entries(baseLinkages).forEach(([fieldPath, linkage]) => {
-        if (!isArrayElementPath(fieldPath) && fieldPath.includes('.')) {
-          const parts = fieldPath.split('.');
-
-          for (let i = 0; i < parts.length - 1; i++) {
-            const possibleArrayPath = parts.slice(0, i + 1).join('.');
-            const value = getNestedValue(formData, possibleArrayPath);
-
-            if (Array.isArray(value)) {
-              const fieldPathInArray = parts.slice(i + 1).join('.');
-
-              value.forEach((_, index) => {
-                const elementFieldPath = `${possibleArrayPath}.${index}.${fieldPathInArray}`;
-                const resolvedLinkage = resolveArrayElementLinkage(
-                  linkage,
-                  elementFieldPath,
-                  schema
-                );
-                newDynamicLinkages[elementFieldPath] = resolvedLinkage;
-              });
-
-              break;
-            }
-          }
+        // 如果路径已经包含数字索引（已实例化的联动），需要解析内部的 JSON Pointer 路径
+        if (isArrayElementPath(fieldPath)) {
+          console.log('[useArrayLinkageManager] 路径已实例化，解析内部路径:', fieldPath);
+          // 调用 resolveArrayElementLinkage 来解析 when.field 等内部的 JSON Pointer 路径
+          const resolvedLinkage = resolveArrayElementLinkage(linkage, fieldPath, schema);
+          newDynamicLinkages[fieldPath] = resolvedLinkage;
+          return;
         }
+
+        // 使用 schema 查找路径中的数组字段
+        const arrayInfo = findArrayInPath(fieldPath, schema);
+
+        if (!arrayInfo) {
+          console.log('[useArrayLinkageManager] 路径中未找到数组，作为普通字段处理:', fieldPath);
+          // 非数组字段的联动直接添加到 newDynamicLinkages
+          newDynamicLinkages[fieldPath] = linkage;
+          return;
+        }
+
+        const { arrayPath, fieldPathInArray } = arrayInfo;
+
+        // 从 formData 中获取数组值
+        const arrayValue = formData[arrayPath];
+
+        if (!Array.isArray(arrayValue)) {
+          return;
+        }
+
+        // 为每个数组元素生成联动配置
+        arrayValue.forEach((_, index) => {
+          const elementFieldPath = `${arrayPath}.${index}.${fieldPathInArray}`;
+          const resolvedLinkage = resolveArrayElementLinkage(
+            linkage,
+            elementFieldPath,
+            schema
+          );
+          newDynamicLinkages[elementFieldPath] = resolvedLinkage;
+        });
       });
 
       setDynamicLinkages(newDynamicLinkages);
@@ -1674,12 +1691,17 @@ export function useArrayLinkageManager({
 **工作流程**：
 
 1. **监听表单数据**：使用 `watch()` 监听所有字段变化
-2. **识别数组字段**：遍历基础联动配置，找出数组相关的联动
-3. **实例化联动配置**：为每个数组元素生成具体的联动配置
-4. **解析相对路径**：将相对路径转换为绝对路径
-5. **循环依赖检测**：在合并联动配置时检测循环依赖
-6. **合并联动配置**：将动态生成的联动配置与基础联动配置合并
-7. **执行联动逻辑**：使用基础联动管理器按拓扑顺序执行联动
+2. **处理已实例化的联动**：
+   - 检查路径是否包含数字索引（如 `departments.0.employees.0.techStack`）
+   - 如果是，调用 `resolveArrayElementLinkage` 解析内部的 JSON Pointer 路径
+   - 这确保了嵌套数组联动中的 `when.field` 等路径被正确解析
+3. **识别数组字段**：使用 `findArrayInPath` 查找路径中的数组字段
+4. **处理非数组字段**：如果路径中没有数组，直接添加到动态联动配置
+5. **实例化数组联动**：为每个数组元素生成具体的联动配置
+6. **解析路径**：调用 `resolveArrayElementLinkage` 解析相对路径和 JSON Pointer
+7. **循环依赖检测**：在合并联动配置时检测循环依赖
+8. **合并联动配置**：将动态生成的联动配置与基础联动配置合并
+9. **执行联动逻辑**：使用基础联动管理器按拓扑顺序执行联动
 
 ### 6.4 集成到 DynamicForm
 
@@ -1891,6 +1913,30 @@ console.log('动态联动配置:', dynamicLinkages);
 
 ## 9. 变更历史
 
+### v2.3 (2025-12-29)
+
+**重大变更**：嵌套数组联动路径解析优化
+
+1. **`resolveDependencyPath` 函数增强**
+   - ✅ 新增：支持运行时绝对路径（如 `contacts.0.type`）
+   - ✅ 修复：已实例化的联动配置再次解析时不会报错
+   - ✅ 优化：三种路径格式统一处理（相对路径、JSON Pointer、运行时路径）
+
+2. **`useArrayLinkageManager` 优化**
+   - ✅ 新增：处理已实例化的联动配置（路径包含数字索引）
+   - ✅ 修复：嵌套数组联动中 `when.field` 的 JSON Pointer 路径正确解析
+   - ✅ 优化：统一处理数组和非数组字段的联动配置
+
+3. **嵌套数组联动修复**
+   - ✅ 修复：子数组元素依赖父数组元素字段时，路径解析错误的问题
+   - ✅ 修复：`departments.0.employees.0.techStack` 依赖 `departments.0.type` 现在正常工作
+   - ✅ 优化：分层计算方案与路径解析完美配合
+
+4. **文档更新**
+   - 更新 `resolveDependencyPath` 函数实现说明
+   - 更新 `useArrayLinkageManager` 工作流程
+   - 新增已实例化联动配置的处理说明
+
 ### v2.2 (2025-12-28)
 
 **重大变更**：拓扑排序和循环依赖检测优化
@@ -1977,7 +2023,7 @@ console.log('动态联动配置:', dynamicLinkages);
 
 ---
 
-**文档版本**: 2.2
-**最后更新**: 2025-12-28
+**文档版本**: 2.3
+**最后更新**: 2025-12-29
 **文档状态**: 已完成
 **作者**: Claude Code

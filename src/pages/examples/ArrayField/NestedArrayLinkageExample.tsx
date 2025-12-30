@@ -27,12 +27,16 @@ export const NestedArrayLinkageExample: React.FC = () => {
               title: '部门类型',
               enum: ['tech', 'sales', 'hr'],
               enumNames: ['技术部', '销售部', '人力资源部'],
+              ui: {
+                placeholder: '请选择部门类型',
+              },
             },
             employees: {
               type: 'array',
               title: '员工列表',
               items: {
                 type: 'object',
+                title: '员工',
                 properties: {
                   name: {
                     type: 'string',

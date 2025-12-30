@@ -113,23 +113,36 @@ export function resolveRelativePath(relativePath: string, currentPath: string): 
 
   const fieldName = relativePath.slice(2);
 
-  // 找到最后一个分隔符的位置（. 或 ~~）
-  const lastDotPos = currentPath.lastIndexOf('.');
-  const lastSeparatorPos = currentPath.lastIndexOf(FLATTEN_PATH_SEPARATOR);
+  // 找到实际最后一个分隔符的位置（. 或 ~~）
+  // 需要从后往前扫描，找到最后出现的分隔符
+  let lastSeparatorPos = -1;
+  let lastSeparatorType: '.' | '~~' | null = null;
 
-  // 取较大的位置作为最后一个分隔符
-  const lastPos = Math.max(lastDotPos, lastSeparatorPos);
+  // 从后往前扫描
+  for (let i = currentPath.length - 1; i >= 0; i--) {
+    // 检查是否是 ~~ 分隔符（需要检查当前位置和前一个位置）
+    if (i > 0 && currentPath[i - 1] === '~' && currentPath[i] === '~') {
+      lastSeparatorPos = i - 1; // ~~ 的起始位置
+      lastSeparatorType = '~~';
+      break;
+    }
+    // 检查是否是 . 分隔符
+    if (currentPath[i] === '.') {
+      lastSeparatorPos = i;
+      lastSeparatorType = '.';
+      break;
+    }
+  }
 
-  if (lastPos === -1) {
+  if (lastSeparatorPos === -1) {
     return fieldName;
   }
 
   // 获取父路径
-  const parentPath = currentPath.substring(0, lastPos);
+  const parentPath = currentPath.substring(0, lastSeparatorPos);
 
-  // 复用 SchemaParser.buildFieldPath 的逻辑来构建路径
   // 判断是否在 flattenPath 链中（如果最后一个分隔符是 ~~）
-  const isParentInFlattenChain = lastSeparatorPos > lastDotPos;
+  const isParentInFlattenChain = lastSeparatorType === '~~';
 
   // 使用 SchemaParser.buildFieldPath 来构建路径，确保逻辑一致
   return SchemaParser.buildFieldPath(parentPath, fieldName, isParentInFlattenChain);
@@ -313,7 +326,10 @@ export function resolveDependencyPath(
     return resolveJsonPointerDependency(depPath, currentPath, schema);
   }
 
-  throw new Error(`不支持的路径格式: ${depPath}`);
+  // 3. 已经是运行时的绝对路径（如 contacts.0.type），直接返回
+  // 这种情况发生在联动配置已经被实例化后再次调用 resolveArrayElementLinkage 时
+  console.log('[resolveDependencyPath] 路径已是运行时格式，直接返回:', depPath);
+  return depPath;
 }
 
 /**
@@ -362,11 +378,21 @@ function resolveConditionPaths(
   schema?: ExtendedJSONSchema
 ): any {
   const resolved = { ...condition };
+  console.info('cyril resolved: ', resolved);
 
   // 解析 field 字段
   if (resolved.field) {
+    const originalField = resolved.field;
     if (schema) {
       resolved.field = resolveDependencyPath(resolved.field, currentPath, schema);
+      console.log(
+        '[resolveConditionPaths] 解析条件字段路径:',
+        JSON.stringify({
+          originalField,
+          currentPath,
+          resolvedField: resolved.field,
+        })
+      );
     } else if (resolved.field.startsWith('./')) {
       resolved.field = resolveRelativePath(resolved.field, currentPath);
     }

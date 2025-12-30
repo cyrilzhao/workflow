@@ -41,7 +41,16 @@ export class ConditionEvaluator {
     fieldPath: string
   ): any {
     // 使用 PathResolver 支持 JSON Pointer 格式
-    return PathResolver.resolve(fieldPath, formData);
+    const value = PathResolver.resolve(fieldPath, formData);
+    console.log(
+      '[ConditionEvaluator.getFieldValue] 获取字段值:',
+      JSON.stringify({
+        fieldPath,
+        value,
+        formDataKeys: Object.keys(formData),
+      })
+    );
+    return value;
   }
 
   /**
