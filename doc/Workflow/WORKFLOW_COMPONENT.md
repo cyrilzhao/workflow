@@ -235,3 +235,227 @@ Workflow 组件使用 SCSS 进行样式管理。
 - `NodeConfigModal.scss`: 弹窗样式
 
 如需修改节点样式，可覆盖 `.workflow-node` 类及其子元素。
+
+## Undo/Redo 功能设计
+
+### 概述
+
+Workflow 组件支持撤销（Undo）和重做（Redo）功能，允许用户回退或重新应用对工作流的修改操作。该功能基于快照（Snapshot）机制实现，记录节点和连线的历史状态。
+
+### 设计原则
+
+1. **快照式状态管理**：在关键操作点保存完整的 nodes 和 edges 状态快照
+2. **双栈历史记录**：维护 past（历史栈）和 future（未来栈）两个状态数组
+3. **防抖优化**：对频繁的状态变更（如拖拽）进行防抖处理，避免产生过多历史记录
+4. **操作分组**：将相关的小操作合并为单个可撤销步骤
+5. **内存限制**：限制历史记录的最大数量，防止内存溢出
+
+### 技术实现
+
+#### 1. 自定义 Hook：useUndoRedo
+
+创建 `useUndoRedo` hook 来封装 undo/redo 逻辑：
+
+```typescript
+interface HistoryState<T> {
+  past: T[];
+  present: T;
+  future: T[];
+}
+
+interface UseUndoRedoOptions {
+  maxHistorySize?: number;  // 最大历史记录数，默认 50
+  debounceMs?: number;       // 防抖延迟，默认 500ms
+}
+
+function useUndoRedo<T>(
+  initialState: T,
+  options?: UseUndoRedoOptions
+) {
+  const [history, setHistory] = useState<HistoryState<T>>({
+    past: [],
+    present: initialState,
+    future: [],
+  });
+
+  // 设置新状态（带防抖）
+  const setState = useMemo(
+    () => debounce((newState: T) => {
+      setHistory(prev => ({
+        past: [...prev.past, prev.present].slice(-maxHistorySize),
+        present: newState,
+        future: [],
+      }));
+    }, debounceMs),
+    []
+  );
+
+  // 撤销
+  const undo = useCallback(() => {
+    setHistory(prev => {
+      if (prev.past.length === 0) return prev;
+      const previous = prev.past[prev.past.length - 1];
+      const newPast = prev.past.slice(0, prev.past.length - 1);
+      return {
+        past: newPast,
+        present: previous,
+        future: [prev.present, ...prev.future],
+      };
+    });
+  }, []);
+
+  // 重做
+  const redo = useCallback(() => {
+    setHistory(prev => {
+      if (prev.future.length === 0) return prev;
+      const next = prev.future[0];
+      const newFuture = prev.future.slice(1);
+      return {
+        past: [...prev.past, prev.present],
+        present: next,
+        future: newFuture,
+      };
+    });
+  }, []);
+
+  return {
+    state: history.present,
+    setState,
+    undo,
+    redo,
+    canUndo: history.past.length > 0,
+    canRedo: history.future.length > 0,
+    clearHistory: () => setHistory({
+      past: [],
+      present: history.present,
+      future: [],
+    }),
+  };
+}
+```
+
+#### 2. 集成到 Workflow 组件
+
+在 `Workflow.tsx` 中集成 undo/redo 功能：
+
+```typescript
+const WorkflowContent: React.FC<WorkflowProps> = (props) => {
+  // 使用 useUndoRedo 管理 nodes 和 edges
+  const {
+    state: nodesState,
+    setState: setNodesState,
+    undo: undoNodes,
+    redo: redoNodes,
+    canUndo: canUndoNodes,
+    canRedo: canRedoNodes,
+  } = useUndoRedo(initialNodes, { maxHistorySize: 50, debounceMs: 500 });
+
+  const {
+    state: edgesState,
+    setState: setEdgesState,
+    undo: undoEdges,
+    redo: redoEdges,
+    canUndo: canUndoEdges,
+    canRedo: canRedoEdges,
+  } = useUndoRedo(initialEdges, { maxHistorySize: 50, debounceMs: 500 });
+
+  // 同步 undo/redo（nodes 和 edges 需要同步）
+  const undo = useCallback(() => {
+    undoNodes();
+    undoEdges();
+  }, [undoNodes, undoEdges]);
+
+  const redo = useCallback(() => {
+    redoNodes();
+    redoEdges();
+  }, [redoNodes, redoEdges]);
+
+  const canUndo = canUndoNodes || canUndoEdges;
+  const canRedo = canRedoNodes || canRedoEdges;
+
+  // 监听 nodes/edges 变化，更新历史记录
+  useEffect(() => {
+    setNodesState(nodes);
+  }, [nodes, setNodesState]);
+
+  useEffect(() => {
+    setEdgesState(edges);
+  }, [edges, setEdgesState]);
+
+  // 键盘快捷键
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Undo: Ctrl+Z / Cmd+Z
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+        e.preventDefault();
+        undo();
+      }
+      // Redo: Ctrl+R / Cmd+R
+      if ((e.metaKey || e.ctrlKey) && e.key === 'r') {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo]);
+
+  // ...
+};
+```
+
+#### 3. UI 控制按钮
+
+在 React Flow 的 Controls 面板中添加 Undo/Redo 按钮：
+
+```typescript
+import { Controls, ControlButton } from 'reactflow';
+import { Undo, Redo } from 'lucide-react';
+
+<Controls>
+  <ControlButton onClick={undo} disabled={!canUndo} title="撤销 (Ctrl+Z)">
+    <Undo size={16} />
+  </ControlButton>
+  <ControlButton onClick={redo} disabled={!canRedo} title="重做 (Ctrl+R)">
+    <Redo size={16} />
+  </ControlButton>
+</Controls>
+```
+
+### 支持的操作
+
+以下操作会被记录到历史中，支持 undo/redo：
+
+- 添加节点（拖拽或编程方式）
+- 删除节点
+- 移动节点位置
+- 添加连线
+- 删除连线
+- 修改节点配置（通过配置弹窗）
+
+### 键盘快捷键
+
+- **Undo**: `Ctrl+Z` (Windows/Linux) 或 `Cmd+Z` (macOS)
+- **Redo**: `Ctrl+R` (Windows/Linux) 或 `Cmd+R` (macOS)
+
+### 配置选项
+
+可以通过 `WorkflowProps` 扩展配置 undo/redo 行为：
+
+```typescript
+interface WorkflowProps {
+  // ... 现有属性
+  undoRedoOptions?: {
+    enabled?: boolean;        // 是否启用，默认 true
+    maxHistorySize?: number;  // 最大历史记录数，默认 50
+    debounceMs?: number;      // 防抖延迟，默认 500ms
+  };
+}
+```
+
+### 注意事项
+
+1. **只读模式**：当 `readonly={true}` 时，undo/redo 功能自动禁用
+2. **性能考虑**：对于大型工作流（节点数 > 100），建议增加 `debounceMs` 或减少 `maxHistorySize`
+3. **状态同步**：undo/redo 会同时回退 nodes 和 edges，保持状态一致性
+4. **副作用处理**：节点配置的修改如果涉及外部 API 调用，需要在业务层面处理撤销逻辑

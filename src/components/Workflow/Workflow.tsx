@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import ReactFlow, {
   Controls,
   Background,
@@ -10,14 +10,18 @@ import ReactFlow, {
   type Edge,
   ReactFlowProvider,
   useReactFlow,
+  ControlButton,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
+import { Undo, Redo } from 'lucide-react';
+import { isEqual } from 'lodash';
 
 import { nodeTypes as defaultNodeTypes } from './nodes';
 import type { WorkflowProps, WorkflowNode } from './types';
 import './Workflow.scss';
 import { WorkflowPanel } from './WorkflowPanel';
 import { NodeConfigModal } from './NodeConfigModal';
+import { useUndoRedo } from './useUndoRedo';
 
 const WorkflowContent: React.FC<WorkflowProps> = ({
   initialNodes = [],
@@ -27,16 +31,86 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
   onNodesChange: onNodesChangeProp,
   onEdgesChange: _onEdgesChangeProp,
   readonly = false,
+  undoRedoOptions,
 }) => {
+  const { enabled: undoRedoEnabled = true, maxHistorySize = 50 } = undoRedoOptions || {};
+
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [selectedNode, setSelectedNode] = React.useState<WorkflowNode | null>(null);
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const { screenToFlowPosition } = useReactFlow();
 
+  // 初始化 undo/redo 功能（将 nodes 和 edges 作为一个整体管理）
+  const workflowHistory = useUndoRedo<{ nodes: WorkflowNode[]; edges: typeof initialEdges }>(
+    { nodes: initialNodes, edges: initialEdges },
+    { maxHistorySize }
+  );
+
+  // 用于标记是否正在执行 undo/redo，避免记录历史
+  const isUndoingRef = React.useRef(false);
+
+  // 使用 ref 保存最新的 nodes 和 edges，避免 takeSnapshot 依赖它们
+  const nodesRef = React.useRef(nodes);
+  const edgesRef = React.useRef(edges);
+
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
+
+  useEffect(() => {
+    edgesRef.current = edges;
+  }, [edges]);
+
+  // 记录初始状态（只在组件挂载时执行一次）
+  const isInitializedRef = React.useRef(false);
+  useEffect(() => {
+    if (!isInitializedRef.current && undoRedoEnabled && !readonly) {
+      // 立即记录初始状态
+      workflowHistory.set({ nodes, edges }, true);
+      isInitializedRef.current = true;
+    }
+  }, [undoRedoEnabled, readonly, nodes, edges, workflowHistory]);
+
+  // 辅助函数：记录当前状态到历史
+  const takeSnapshot = useCallback(() => {
+    if (!undoRedoEnabled || readonly || isUndoingRef.current) return;
+
+    // 使用 ref 获取最新的 nodes 和 edges
+    const currentNodes = nodesRef.current;
+    const currentEdges = edgesRef.current;
+
+    // 过滤掉 UI 状态属性（selected, dragging 等），只比较实质性属性
+    const cleanNodes = currentNodes.map(node => {
+      const { selected, dragging, ...rest } = node as any;
+      return rest;
+    });
+
+    // 检查是否与当前历史状态相同（只比较实质性属性）
+    const lastState = workflowHistory.present;
+    if (lastState) {
+      const lastCleanNodes = lastState.nodes.map(node => {
+        const { selected, dragging, ...rest } = node as any;
+        return rest;
+      });
+
+      // 使用 lodash.isEqual 进行深度比较
+      if (isEqual(cleanNodes, lastCleanNodes) && isEqual(currentEdges, lastState.edges)) {
+        return;
+      }
+    }
+
+    workflowHistory.set({ nodes: currentNodes, edges: currentEdges });
+  }, [undoRedoEnabled, readonly, workflowHistory]);
+
+  // 连接节点时记录历史
   const onConnect = useCallback(
-    (params: Connection | Edge) => setEdges(eds => addEdge(params, eds)),
-    [setEdges]
+    (params: Connection | Edge) => {
+      setEdges(eds => addEdge(params, eds));
+      // 延迟记录，确保状态已更新
+      setTimeout(() => takeSnapshot(), 0);
+    },
+    [setEdges, takeSnapshot]
   );
 
   const mergedNodeTypes = React.useMemo(
@@ -46,6 +120,86 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
     }),
     [nodeTypes]
   );
+
+  // 同步 undo/redo（nodes 和 edges 需要同步操作）
+  const undo = useCallback(() => {
+    console.info('cyril undoRedoEnabled: ', undoRedoEnabled);
+    console.info('cyril readonly: ', readonly);
+    console.info('cyril workflowHistory.canUndo: ', workflowHistory.canUndo);
+    if (!undoRedoEnabled || readonly || !workflowHistory.canUndo) return;
+
+    // 先获取历史状态
+    const prevState = workflowHistory.past[workflowHistory.past.length - 1];
+    console.info('cyril workflowHistory: ', JSON.stringify(workflowHistory));
+    console.info('cyril prevState: ', JSON.stringify(prevState));
+
+    // 设置标志，防止记录历史
+    isUndoingRef.current = true;
+
+    // 执行 undo
+    workflowHistory.undo();
+
+    // 应用历史状态
+    if (prevState) {
+      setNodes(prevState.nodes);
+      setEdges(prevState.edges);
+    }
+
+    // 延长标志持续时间，确保所有状态更新完成
+    setTimeout(() => {
+      isUndoingRef.current = false;
+    }, 300);
+  }, [undoRedoEnabled, readonly, workflowHistory, setNodes, setEdges]);
+
+  const redo = useCallback(() => {
+    if (!undoRedoEnabled || readonly || !workflowHistory.canRedo) return;
+
+    // 先获取未来状态
+    const nextState = workflowHistory.future[0];
+
+    // 设置标志，防止记录历史
+    isUndoingRef.current = true;
+
+    // 执行 redo
+    workflowHistory.redo();
+
+    // 应用未来状态
+    if (nextState) {
+      setNodes(nextState.nodes);
+      setEdges(nextState.edges);
+    }
+
+    // 延长标志持续时间，确保所有状态更新完成
+    setTimeout(() => {
+      isUndoingRef.current = false;
+    }, 300);
+  }, [undoRedoEnabled, readonly, workflowHistory, setNodes, setEdges]);
+
+  const canUndo = undoRedoEnabled && !readonly && workflowHistory.canUndo;
+  const canRedo = undoRedoEnabled && !readonly && workflowHistory.canRedo;
+
+  // 键盘快捷键支持
+  useEffect(() => {
+    if (!undoRedoEnabled || readonly) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Undo: Ctrl+Z / Cmd+Z
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+        e.preventDefault();
+        console.info('cyril undo');
+        undo();
+      }
+      // Redo: Ctrl+R / Cmd+R
+      if ((e.metaKey || e.ctrlKey) && e.key === 'r') {
+        e.preventDefault();
+        console.info('cyril redo');
+        redo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo, undoRedoEnabled, readonly]);
 
   // Wrap onNodesChange to sync with parent if needed
   const handleNodesChange = useCallback(
@@ -61,6 +215,21 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
     },
     [onNodesChange, onNodesChangeProp]
   );
+
+  // 节点删除时记录历史
+  const onNodesDelete = useCallback(() => {
+    setTimeout(() => takeSnapshot(), 0);
+  }, [takeSnapshot]);
+
+  // 连线删除时记录历史
+  const onEdgesDelete = useCallback(() => {
+    setTimeout(() => takeSnapshot(), 0);
+  }, [takeSnapshot]);
+
+  // 节点拖拽结束时记录历史
+  const onNodeDragStop = useCallback(() => {
+    takeSnapshot();
+  }, [takeSnapshot]);
 
   const onNodeDoubleClick = useCallback(
     (_: React.MouseEvent, node: WorkflowNode) => {
@@ -80,6 +249,8 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
         return node;
       })
     );
+    // 延迟记录，确保状态已更新
+    setTimeout(() => takeSnapshot(), 0);
   };
 
   const onDragOver = useCallback((event: React.DragEvent) => {
@@ -111,8 +282,10 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
       };
 
       setNodes(nds => nds.concat(newNode));
+      // 延迟记录，确保状态已更新
+      setTimeout(() => takeSnapshot(), 0);
     },
-    [screenToFlowPosition, setNodes]
+    [screenToFlowPosition, setNodes, takeSnapshot]
   );
 
   return (
@@ -135,6 +308,9 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
         onNodesChange={handleNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={readonly ? undefined : onConnect}
+        onNodesDelete={readonly ? undefined : onNodesDelete}
+        onEdgesDelete={readonly ? undefined : onEdgesDelete}
+        onNodeDragStop={readonly ? undefined : onNodeDragStop}
         nodeTypes={mergedNodeTypes}
         fitView
         onNodeDoubleClick={onNodeDoubleClick}
@@ -149,7 +325,18 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
           zIndex: 999,
         }}
       >
-        <Controls />
+        <Controls>
+          {undoRedoEnabled && !readonly && (
+            <>
+              <ControlButton onClick={undo} disabled={!canUndo} title="撤销 (Ctrl+Z)">
+                <Undo size={16} />
+              </ControlButton>
+              <ControlButton onClick={redo} disabled={!canRedo} title="重做 (Ctrl+R)">
+                <Redo size={16} />
+              </ControlButton>
+            </>
+          )}
+        </Controls>
         <MiniMap />
         <Background gap={12} size={1} />
       </ReactFlow>
