@@ -1,6 +1,13 @@
-import React, { forwardRef, useMemo } from 'react';
+import React, { forwardRef, useMemo, useState } from 'react';
 import { useFormContext, useFieldArray, Controller } from 'react-hook-form';
-import { Button, Card, Tooltip, Checkbox } from '@blueprintjs/core';
+import {
+  Button,
+  Card,
+  Tooltip,
+  Checkbox,
+  Popover,
+  PopoverInteractionKind,
+} from '@blueprintjs/core';
 import type { FieldWidgetProps } from '../types';
 import type { ExtendedJSONSchema, WidgetType } from '@/types/schema';
 import { FieldRegistry } from '../core/FieldRegistry';
@@ -322,6 +329,37 @@ export const ArrayFieldWidget = forwardRef<HTMLDivElement, ArrayFieldWidgetProps
 ArrayFieldWidget.displayName = 'ArrayFieldWidget';
 
 /**
+ * 删除确认 Popover 内容组件
+ */
+interface DeleteConfirmPopoverProps {
+  onConfirm: () => void;
+  onCancel: () => void;
+  itemIndex: number;
+}
+
+const DeleteConfirmPopover: React.FC<DeleteConfirmPopoverProps> = ({
+  onConfirm,
+  onCancel,
+  itemIndex,
+}) => {
+  return (
+    <div style={{ padding: '10px', maxWidth: '250px' }}>
+      <div style={{ marginBottom: '10px', fontSize: '14px' }}>
+        确定要删除第 {itemIndex + 1} 项吗？
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+        <Button small onClick={onCancel}>
+          取消
+        </Button>
+        <Button small intent="danger" onClick={onConfirm}>
+          删除
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+/**
  * ArrayItem 状态映射
  */
 interface ArrayItemStatusMap {
@@ -364,6 +402,20 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
     control,
     formState: { errors },
   } = useFormContext();
+
+  // 删除确认 Popover 的状态
+  const [isDeletePopoverOpen, setIsDeletePopoverOpen] = useState(false);
+
+  // 处理删除确认
+  const handleConfirmDelete = () => {
+    setIsDeletePopoverOpen(false);
+    onRemove?.();
+  };
+
+  // 处理取消删除
+  const handleCancelDelete = () => {
+    setIsDeletePopoverOpen(false);
+  };
 
   // 根据 schema 获取对应的 Widget
   const itemWidget = useMemo(() => determineItemWidget(schema), [schema]);
@@ -426,20 +478,39 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
                 </Tooltip>
               )}
               {onRemove && (
-                <Tooltip
-                  content={statusMap?.isAtMinLimit ? '已达到最小数量限制' : ''}
-                  disabled={!statusMap?.isAtMinLimit}
+                <Popover
+                  content={
+                    <DeleteConfirmPopover
+                      onConfirm={handleConfirmDelete}
+                      onCancel={handleCancelDelete}
+                      itemIndex={index}
+                    />
+                  }
+                  isOpen={isDeletePopoverOpen}
+                  onInteraction={nextOpenState => {
+                    // 如果按钮被禁用，不允许打开 Popover
+                    if (disabled || statusMap?.isAtMinLimit) {
+                      return;
+                    }
+                    setIsDeletePopoverOpen(nextOpenState);
+                  }}
+                  interactionKind={PopoverInteractionKind.CLICK}
+                  placement="top"
                 >
-                  <Button
-                    icon="trash"
-                    minimal
-                    small
-                    intent="danger"
-                    onClick={onRemove}
-                    disabled={disabled || statusMap?.isAtMinLimit}
-                    title="删除"
-                  />
-                </Tooltip>
+                  <Tooltip
+                    content={statusMap?.isAtMinLimit ? '已达到最小数量限制' : ''}
+                    disabled={!statusMap?.isAtMinLimit}
+                  >
+                    <Button
+                      icon="trash"
+                      minimal
+                      small
+                      intent="danger"
+                      disabled={disabled || statusMap?.isAtMinLimit}
+                      title="删除"
+                    />
+                  </Tooltip>
+                </Popover>
               )}
             </div>
           )}
@@ -553,20 +624,39 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
             </Tooltip>
           )}
           {onRemove && (
-            <Tooltip
-              content={statusMap?.isAtMinLimit ? '已达到最小数量限制' : ''}
-              disabled={!statusMap?.isAtMinLimit}
+            <Popover
+              content={
+                <DeleteConfirmPopover
+                  onConfirm={handleConfirmDelete}
+                  onCancel={handleCancelDelete}
+                  itemIndex={index}
+                />
+              }
+              isOpen={isDeletePopoverOpen}
+              onInteraction={nextOpenState => {
+                // 如果按钮被禁用，不允许打开 Popover
+                if (disabled || statusMap?.isAtMinLimit) {
+                  return;
+                }
+                setIsDeletePopoverOpen(nextOpenState);
+              }}
+              interactionKind={PopoverInteractionKind.CLICK}
+              placement="top"
             >
-              <Button
-                icon="trash"
-                minimal
-                small
-                intent="danger"
-                onClick={onRemove}
-                disabled={disabled || statusMap?.isAtMinLimit}
-                title="删除"
-              />
-            </Tooltip>
+              <Tooltip
+                content={statusMap?.isAtMinLimit ? '已达到最小数量限制' : ''}
+                disabled={!statusMap?.isAtMinLimit}
+              >
+                <Button
+                  icon="trash"
+                  minimal
+                  small
+                  intent="danger"
+                  disabled={disabled || statusMap?.isAtMinLimit}
+                  title="删除"
+                />
+              </Tooltip>
+            </Popover>
           )}
         </div>
       )}
