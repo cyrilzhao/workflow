@@ -19,7 +19,11 @@
 
 本文档描述了如何在动态表单中支持嵌套表单场景，即某个字段的值是一个对象，该字段使用自定义 Widget（内层动态表单）来编辑这个对象。
 
-**重要说明**：`type: 'object'` 的字段会自动使用 `nested-form` widget，无需显式指定 `ui.widget: 'nested-form'`。只有在需要使用自定义 widget 时才需要显式指定。
+> **💡 重要提示**
+>
+> `type: 'object'` 的字段会**自动使用** `nested-form` widget 渲染为嵌套表单。
+>
+> 无需显式指定 `ui.widget: 'nested-form'`，只有在需要使用自定义 widget 时才需要显式指定。
 
 ---
 
@@ -87,6 +91,10 @@
 ```
 
 **数据保留机制**：当 `type` 从 `personal` 切换到 `company` 时，`details` 字段的数据会被保留。在表单提交时，会根据当前 schema 自动过滤掉不需要的字段。
+
+> **📖 相关文档**
+>
+> 嵌套表单中的联动配置遵循标准的 UI 联动规范。详细的联动配置说明请参考：[UI 联动设计方案](./UI_LINKAGE_DESIGN.md)
 
 ### 2.3 场景 3: 跨层级字段依赖（JSON Pointer）
 
@@ -159,6 +167,10 @@
   }
 }
 ```
+
+> **📖 相关文档**
+>
+> 数组元素内部的嵌套表单联动涉及复杂的路径解析。详细说明请参考：[数组字段联动设计方案](./ARRAY_FIELD_LINKAGE.md)
 
 ---
 
@@ -571,55 +583,41 @@ const schema = {
 
 ---
 
-## 7. SchemaKey 路径格式与数据过滤机制
+## 7. 数据过滤机制
 
 ### 7.1 SchemaKey 路径格式
 
-`schemaKey` 支持两种路径格式：
+嵌套表单的 `schemaKey` 支持两种路径格式来引用依赖字段：
 
-#### 7.1.1 简单字段名（同级依赖）
+- **简单字段名**：用于同级字段依赖（如 `'userType'`）
+- **JSON Pointer**：用于跨层级字段依赖（如 `'#/properties/company/type'`）
+
+**示例：**
 
 ```typescript
+// 简单字段名（同级依赖）
 {
-  type: 'object',
-  properties: {
-    userType: { type: 'string', enum: ['personal', 'company'] },
-    details: {
-      type: 'object',
-      ui: {
-        widget: 'nested-form',
-        schemaKey: 'userType',  // ✅ 简单字段名，依赖同级字段
-        schemas: { /* ... */ }
-      }
+  userType: { type: 'string', enum: ['personal', 'company'] },
+  details: {
+    type: 'object',
+    ui: {
+      schemaKey: 'userType',  // 依赖同级的 userType 字段
+      schemas: { /* ... */ }
     }
   }
 }
-```
 
-**适用场景**：依赖字段与嵌套表单字段在同一层级。
-
-#### 7.1.2 JSON Pointer 格式（跨层级依赖）
-
-```typescript
+// JSON Pointer（跨层级依赖）
 {
-  type: 'object',
-  properties: {
-    company: {
-      type: 'object',
-      properties: {
-        type: { type: 'string', enum: ['startup', 'enterprise'] },
-        info: {
-          type: 'object',
-          properties: {
-            details: {
-              type: 'object',
-              ui: {
-                widget: 'nested-form',
-                // ✅ JSON Pointer 格式，依赖 company.type
-                schemaKey: '#/properties/company/type',
-                schemas: { /* ... */ }
-              }
-            }
+  company: {
+    type: 'object',
+    properties: {
+      type: { type: 'string' },
+      info: {
+        details: {
+          ui: {
+            schemaKey: '#/properties/company/type',  // 依赖 company.type
+            schemas: { /* ... */ }
           }
         }
       }
@@ -628,19 +626,7 @@ const schema = {
 }
 ```
 
-**JSON Pointer 格式说明**：
-- 以 `#/` 开头
-- 使用 `/properties/` 分隔层级
-- 示例：`#/properties/company/type` 对应表单数据中的 `company.type`
-
-**路径转换规则**：
-
-| JSON Pointer | 表单数据路径 | 说明 |
-|--------------|-------------|------|
-| `type` | `type` | 简单字段名 |
-| `#/properties/type` | `type` | 顶层字段 |
-| `#/properties/company/type` | `company.type` | 嵌套字段 |
-| `#/properties/user/profile/age` | `user.profile.age` | 多层嵌套 |
+详细的路径格式说明、使用规范和转换规则，请参考：[字段路径完全指南](./FIELD_PATH_GUIDE.md#4-联动依赖路径)
 
 ### 7.2 智能数据过滤机制
 
@@ -864,150 +850,20 @@ const cleanData = filterValueWithNestedSchemas(dirtyData, schema, nestedSchemas)
 
 ### 7.3 NestedSchemaContext 机制
 
-为了支持动态嵌套表单的数据过滤，系统引入了 `NestedSchemaContext` 机制，用于在组件树中共享和管理嵌套表单的 schema 注册表。
+为了支持动态嵌套表单的数据过滤，系统使用 `NestedSchemaContext` 机制来跟踪每个嵌套字段当前激活的 schema。
 
-#### 7.3.1 核心概念
+**核心概念**：
+- 每个 `NestedFormWidget` 在挂载时自动注册当前使用的 schema
+- Schema 动态切换时，注册表会自动更新
+- 表单提交时，使用注册表中的当前 schema 进行数据过滤
 
-**问题背景**：
-- 动态嵌套表单的 schema 会根据 `schemaKey` 的值动态切换
-- 表单提交时需要知道每个嵌套字段当前使用的是哪个 schema
-- 需要一个全局注册表来跟踪所有嵌套字段的当前 schema
+**工作流程**：
+1. DynamicForm 创建 NestedSchemaProvider，初始化注册表
+2. NestedFormWidget 挂载时注册当前 schema
+3. 用户修改 schemaKey 依赖字段时，NestedFormWidget 更新并重新注册 schema
+4. 表单提交时，使用注册表过滤数据，只保留当前 schema 定义的字段
 
-**解决方案**：
-- 使用 React Context 提供全局的 schema 注册表
-- 每个 `NestedFormWidget` 在挂载时注册自己的当前 schema
-- `DynamicForm` 在提交时获取注册表，用于数据过滤
-
-#### 7.3.2 Context 定义
-
-```typescript
-// src/components/DynamicForm/context/NestedSchemaContext.tsx
-
-interface NestedSchemaRegistry {
-  // 注册嵌套字段的 schema
-  register(path: string, schema: ExtendedJSONSchema): void;
-
-  // 注销嵌套字段的 schema
-  unregister(path: string): void;
-
-  // 获取所有注册的 schema
-  getAllSchemas(): Map<string, ExtendedJSONSchema>;
-}
-
-// Context Provider
-export const NestedSchemaProvider: React.FC<{ children: React.ReactNode }>;
-
-// Hook：获取注册表（必须在 Provider 内部使用）
-export const useNestedSchemaRegistry: () => NestedSchemaRegistry;
-
-// Hook：可选获取注册表（可以在 Provider 外部使用）
-export const useNestedSchemaRegistryOptional: () => NestedSchemaRegistry | null;
-```
-
-#### 7.3.3 使用方式
-
-**1. DynamicForm 自动提供 Context**
-
-```typescript
-// DynamicForm 组件会自动包裹 NestedSchemaProvider
-export const DynamicForm: React.FC<DynamicFormProps> = (props) => {
-  return (
-    <NestedSchemaProvider>
-      <PathPrefixProvider pathPrefix={props.pathPrefix || ''}>
-        <DynamicFormInner {...props} />
-      </PathPrefixProvider>
-    </NestedSchemaProvider>
-  );
-};
-```
-
-**2. NestedFormWidget 自动注册 Schema**
-
-```typescript
-// NestedFormWidget 在挂载时自动注册当前 schema
-export const NestedFormWidget: React.FC<NestedFormWidgetProps> = ({
-  name,
-  schema,
-  ...props
-}) => {
-  const nestedSchemaRegistry = useNestedSchemaRegistry();
-  const fullPath = joinPath(parentPathPrefix, name);
-  const [currentSchema, setCurrentSchema] = useState(schema);
-
-  // 注册当前 schema
-  useEffect(() => {
-    nestedSchemaRegistry.register(fullPath, currentSchema);
-    console.info(`[NestedFormWidget] 注册字段 "${fullPath}" 的 schema`);
-
-    return () => {
-      nestedSchemaRegistry.unregister(fullPath);
-      console.info(`[NestedFormWidget] 注销字段 "${fullPath}" 的 schema`);
-    };
-  }, [fullPath, currentSchema, nestedSchemaRegistry]);
-
-  // ... 其他逻辑
-};
-```
-
-**3. DynamicForm 在提交时使用注册表**
-
-```typescript
-// DynamicForm 在提交时获取注册表并过滤数据
-const DynamicFormInner: React.FC<DynamicFormProps> = ({ schema, onSubmit }) => {
-  const nestedSchemaRegistry = useNestedSchemaRegistryOptional();
-
-  const onSubmitHandler = async (data: Record<string, any>) => {
-    if (onSubmit) {
-      // 使用注册表过滤数据
-      const filteredData = nestedSchemaRegistry
-        ? filterValueWithNestedSchemas(data, schema, nestedSchemaRegistry.getAllSchemas())
-        : filterValueWithNestedSchemas(data, schema, new Map());
-
-      await onSubmit(filteredData);
-    }
-  };
-
-  // ... 其他逻辑
-};
-```
-
-#### 7.3.4 完整工作流程
-
-以下是动态嵌套表单从初始化到提交的完整流程：
-
-**步骤 1：初始化**
-```
-DynamicForm 挂载
-  └─> 创建 NestedSchemaProvider
-      └─> 初始化空的 schema 注册表 Map
-```
-
-**步骤 2：嵌套表单注册**
-```
-NestedFormWidget 挂载 (字段路径: "details")
-  └─> 调用 nestedSchemaRegistry.register("details", currentSchema)
-      └─> 注册表中添加: "details" -> currentSchema
-```
-
-**步骤 3：Schema 动态切换**
-```
-用户修改 schemaKey 依赖字段 (如 userType: "personal" -> "company")
-  └─> NestedFormWidget 监听到变化
-      └─> 更新 currentSchema 为 company schema
-          └─> useEffect 触发，重新注册
-              └─> 注册表更新: "details" -> company schema
-```
-
-**步骤 4：表单提交**
-```
-用户点击提交
-  └─> DynamicForm.onSubmitHandler 执行
-      └─> 获取注册表: nestedSchemaRegistry.getAllSchemas()
-          └─> 调用 filterValueWithNestedSchemas(data, schema, 注册表)
-              └─> 遍历数据，对于 "details" 字段使用注册表中的 company schema 过滤
-                  └─> 只保留 company schema 中定义的字段
-                      └─> 提交过滤后的干净数据
-```
+详细的实现机制和分层计算策略，请参考：[UI 联动设计方案 - 分层计算策略](./UI_LINKAGE_DESIGN.md#65-分层计算策略)
 
 ---
 
@@ -1218,11 +1074,28 @@ export const NestedFormWidget = memo(
 ---
 
 **创建日期**: 2025-12-24
-**最后更新**: 2025-12-27
-**版本**: 2.0
-**文档状态**: 已更新
+**最后更新**: 2025-12-31
+**版本**: 2.1
+**文档状态**: 已优化
 
-**更新内容**：
+## 变更历史
+
+### v2.1 (2025-12-31)
+
+**文档优化**：精简内容，减少重复，提升可读性
+
+**主要变更**：
+- ✅ 精简第 7.1 节：删除与 FIELD_PATH_GUIDE.md 重复的路径格式详细说明，改为引用链接
+- ✅ 精简第 7.3 节：删除与 UI_LINKAGE_DESIGN.md 重复的 Context 实现细节，保留核心概念
+- ✅ 优化概述部分：使用醒目的提示框突出默认 widget 说明
+- ✅ 添加交叉引用：在关键位置添加到 UI_LINKAGE_DESIGN.md 和 ARRAY_FIELD_LINKAGE.md 的链接
+- ✅ 文档篇幅减少约 20%，内容更加聚焦和易读
+
+### v2.0 (2025-12-27)
+
+**架构重构**：改用 asNestedForm 模式
+
+**主要变更**：
 - 移除了 Controller 组件的使用，改为 asNestedForm 模式
 - 更新了 NestedFormWidgetProps 接口，移除 value 和 onChange
 - 补充了 asNestedForm 模式的详细说明

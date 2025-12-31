@@ -28,6 +28,9 @@ export const DiamondDependencyExample: React.FC = () => {
               title: '联系人类型',
               enum: ['personal', 'work'],
               enumNames: ['个人', '工作'],
+              ui: {
+                placeholder: '请选择联系人类型',
+              },
             },
             showCompany: {
               type: 'boolean',

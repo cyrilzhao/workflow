@@ -1,5 +1,6 @@
 import type { ExtendedJSONSchema, LinkageConfig } from '@/types/schema';
 import { SchemaParser } from '@/components/DynamicForm';
+import { isInFlattenPathChain, isLastSeparatorFlatten } from './pathTransformer';
 
 /**
  * 路径透明化分隔符
@@ -10,24 +11,6 @@ import { SchemaParser } from '@/components/DynamicForm';
  * - 逻辑路径: group~~category~~contacts
  */
 export const FLATTEN_PATH_SEPARATOR = '~~';
-
-/**
- * 判断父级路径是否在 flattenPath 链中
- */
-function isInFlattenPathChain(parentPath: string): boolean {
-  return parentPath.includes(FLATTEN_PATH_SEPARATOR);
-}
-
-/**
- * 检查路径的最后一个分隔符是否是 ~~
- * @param path - 要检查的路径
- * @returns 如果最后一个分隔符是 ~~，返回 true；否则返回 false
- */
-function isLastSeparatorFlatten(path: string): boolean {
-  const lastDotPos = path.lastIndexOf('.');
-  const lastSeparatorPos = path.lastIndexOf(FLATTEN_PATH_SEPARATOR);
-  return lastSeparatorPos > lastDotPos;
-}
 
 /**
  * 统一的逻辑路径生成函数
@@ -103,14 +86,16 @@ export function parseSchemaLinkages(schema: ExtendedJSONSchema): ParsedLinkages 
     hasFlattenPath = hasFlattenPath || used;
   });
 
-  console.log(
-    '[parseSchemaLinkages] 解析完成:',
-    JSON.stringify({
-      linkagesCount: Object.keys(linkages).length,
-      pathMappingsCount: pathMappings.length,
-      hasFlattenPath,
-    })
-  );
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(
+      '[parseSchemaLinkages] 解析完成:',
+      JSON.stringify({
+        linkagesCount: Object.keys(linkages).length,
+        pathMappingsCount: pathMappings.length,
+        hasFlattenPath,
+      })
+    );
+  }
 
   return { linkages, pathMappings, hasFlattenPath };
 }

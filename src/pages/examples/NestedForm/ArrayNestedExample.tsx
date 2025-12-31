@@ -19,6 +19,7 @@ export const ArrayNestedExample: React.FC = () => {
         title: '联系人列表',
         items: {
           type: 'object',
+          title: '联系人',
           properties: {
             name: {
               type: 'string',

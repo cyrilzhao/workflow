@@ -590,10 +590,16 @@ PathResolver.getNestedValue({ user: { age: 25 } }, 'user.age');
 
 ### 7.2 PathTransformer
 
-用于路径透明化场景的数据转换：
+用于路径透明化场景的数据转换和路径工具：
 
 ```typescript
-import { PathTransformer } from '@/utils/pathTransformer';
+import {
+  PathTransformer,
+  splitPath,
+  rebuildPath,
+  isInFlattenPathChain,
+  isLastSeparatorFlatten
+} from '@/utils/pathTransformer';
 
 // 基于 Schema 的输入转换（推荐）
 PathTransformer.nestedToFlatWithSchema(nestedData, schema);
@@ -604,7 +610,30 @@ PathTransformer.flatToNestedWithSchema(flatData, schema);
 // 简单转换（不支持 flattenPath）
 PathTransformer.nestedToFlat(nestedData);
 PathTransformer.flatToNested(flatData);
+
+// 路径拆分工具（统一处理 . 和 ~~ 分隔符）
+splitPath('group~~category.contacts');
+// → ['group', 'category', 'contacts']
+
+// 路径重建工具（保留原始分隔符类型）
+const parts = splitPath('group~~category.contacts');
+rebuildPath('group~~category.contacts', parts, 2);
+// → 'group~~category'
+
+// 判断是否在 flattenPath 链中
+isInFlattenPathChain('group~~category~~contacts');  // true
+isInFlattenPathChain('user.name');  // false
+
+// 检查最后一个分隔符类型
+isLastSeparatorFlatten('group~~category~~contacts');  // true
+isLastSeparatorFlatten('group~~category.contacts');   // false
 ```
+
+**重构改进**：
+- ✅ 导出了公共路径工具函数，避免代码重复
+- ✅ `splitPath` 统一处理 `.` 和 `~~` 两种分隔符
+- ✅ `rebuildPath` 保留原始路径的分隔符类型
+- ✅ 路径判断函数可在多个模块中复用
 
 ### 7.3 schemaLinkageParser
 
@@ -616,9 +645,8 @@ import {
   physicalToLogicalPath,
   logicalToPhysicalPath,
   transformToAbsolutePaths,
-  buildLogicalPath,
-  buildPhysicalPath,
-  isInFlattenPathChain
+  isInFlattenPathChain,
+  isLastSeparatorFlatten
 } from '@/utils/schemaLinkageParser';
 
 // 解析 Schema
@@ -631,19 +659,20 @@ physicalToLogicalPath('group.category.contacts.0', pathMappings);
 logicalToPhysicalPath('group~~category~~contacts.0', pathMappings);
 // → 'group.category.contacts.0'
 
-// 统一的路径生成函数（推荐）
-buildLogicalPath('auth~~content', 'key', false);
-// → 'auth~~content~~key'  // 父级在 flattenPath 链中，自动使用 ~~ 分隔符
-
-buildLogicalPath('user', 'name', false);
-// → 'user.name'  // 普通路径，使用 . 分隔符
-
-buildPhysicalPath('auth.content', 'key');
-// → 'auth.content.key'  // 物理路径始终使用 . 分隔符
-
 // 转换为绝对路径（用于嵌套表单）
 transformToAbsolutePaths(linkages, 'contacts.0');
+
+// 判断是否在 flattenPath 链中（从 pathTransformer 导入）
+isInFlattenPathChain('group~~category~~contacts');  // true
+
+// 检查最后一个分隔符类型（从 pathTransformer 导入）
+isLastSeparatorFlatten('group~~category~~contacts');  // true
 ```
+
+**重构改进**：
+- ✅ 移除了重复的路径工具函数定义
+- ✅ 统一从 `pathTransformer` 导入公共路径工具
+- ✅ 简化了代码结构，提高可维护性
 
 ### 7.4 arrayLinkageHelper
 

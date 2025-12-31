@@ -6,8 +6,84 @@ import { FLATTEN_PATH_SEPARATOR } from './schemaLinkageParser';
  * @param parentPath - 父级路径
  * @returns 如果父级路径包含 ~~ 分隔符，说明在 flattenPath 链中
  */
-function isInFlattenPathChain(parentPath: string): boolean {
+export function isInFlattenPathChain(parentPath: string): boolean {
   return parentPath.includes(FLATTEN_PATH_SEPARATOR);
+}
+
+/**
+ * 检查路径的最后一个分隔符是否是 ~~
+ * @param path - 要检查的路径
+ * @returns 如果最后一个分隔符是 ~~，返回 true；否则返回 false
+ */
+export function isLastSeparatorFlatten(path: string): boolean {
+  const lastDotPos = path.lastIndexOf('.');
+  const lastSeparatorPos = path.lastIndexOf(FLATTEN_PATH_SEPARATOR);
+  return lastSeparatorPos > lastDotPos;
+}
+
+/**
+ * 拆分路径为各个部分，同时处理 '.' 和 '~~' 两种分隔符
+ * @param fieldPath - 字段路径，如 'group~~category.contacts'
+ * @returns 路径各部分的数组，如 ['group', 'category', 'contacts']
+ */
+export function splitPath(fieldPath: string): string[] {
+  const parts: string[] = [];
+  let currentPart = '';
+
+  for (let i = 0; i < fieldPath.length; i++) {
+    // 检查是否是 ~~ 分隔符
+    if (fieldPath[i] === '~' && fieldPath[i + 1] === '~') {
+      if (currentPart) {
+        parts.push(currentPart);
+        currentPart = '';
+      }
+      i++; // 跳过第二个 ~
+    } else if (fieldPath[i] === '.') {
+      if (currentPart) {
+        parts.push(currentPart);
+        currentPart = '';
+      }
+    } else {
+      currentPart += fieldPath[i];
+    }
+  }
+  if (currentPart) {
+    parts.push(currentPart);
+  }
+
+  return parts;
+}
+
+/**
+ * 重建路径，保留原始的分隔符类型
+ * @param fieldPath - 原始路径
+ * @param parts - 路径各部分
+ * @param endIndex - 结束索引（不包含）
+ * @returns 重建的路径
+ */
+export function rebuildPath(fieldPath: string, parts: string[], endIndex: number): string {
+  let rebuiltPath = '';
+  let pathIndex = 0;
+
+  for (let i = 0; i < endIndex; i++) {
+    const part = parts[i];
+
+    if (rebuiltPath) {
+      // 找到原始路径中这个 part 之前的分隔符
+      const nextPartStart = fieldPath.indexOf(part, pathIndex);
+      if (nextPartStart > pathIndex) {
+        const separator = fieldPath.substring(pathIndex, nextPartStart);
+        rebuiltPath += separator;
+      }
+      rebuiltPath += part;
+      pathIndex = nextPartStart + part.length;
+    } else {
+      rebuiltPath = part;
+      pathIndex = part.length;
+    }
+  }
+
+  return rebuiltPath;
 }
 
 /**
