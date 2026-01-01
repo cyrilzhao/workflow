@@ -28,7 +28,7 @@
 - [x] 当 flattenPath: true 时，中间层级不会渲染成 NestedFormWidget 和 Card，只有真正需要分组的字段才会显示 Card 边框
 - [ ] 完善 DYNAMIC_FORM_PART2 文档中表单校验 JSON Schema 的内容
   - [x] 5.4.6, 5.4.7 下方需要补充含义说明
-  - [ ] 5.4.1 提到的 dependencies 是不是只能用于必填校验
+  - [x] 5.4.1 提到的 dependencies 是不是只能用于必填校验
   - [ ] if-else 分支判断和 anyOf/allOf/oneOf 判断中都只提到 required 校验，能否支持其他的校验方式（如 minLength, pattern 等）
   - [ ] 5.5.3 跨字段验证里为什么 schema 中还需要定义 "dependencies": ["password"]
   - [ ] 自定义格式和自定义关键字验证代码示例中的 Ajv 起到什么作用
@@ -88,6 +88,7 @@
 - [x] 路径透明化 - 混合使用：部分透明化 + 部分正常嵌套 - basicInfo 提交时是空对象
 - [x] 关于字段联动，是不是可能存在更复杂的拓扑结构，当前架构是否能覆盖
 - [x] 将 Nested-form 作为 object 类型字段的默认渲染组件，不需要显式配置
+- [ ] 支持配置 schema 的组件
 - [ ] 支持基于 CodeMirror 功能的表达式输入组件
 - [ ] 添加自定义 nested form widget 的代码示例
 - [ ] NestedFormWidget 字段不支持渲染 array 类型的字段，需要新增一个 ArrayFieldWidget 组件，专门用于 array 类型字段的默认渲染

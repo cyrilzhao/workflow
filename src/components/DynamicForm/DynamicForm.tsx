@@ -307,7 +307,7 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
         data,
         schema,
         useFlattenPath,
-        nestedSchemaRegistry,
+        nestedSchemaRegistry || undefined,
         true // 需要过滤数据
       );
 

@@ -1,5 +1,6 @@
 import type { ExtendedJSONSchema } from '@/types/schema';
 import { FLATTEN_PATH_SEPARATOR } from './schemaLinkageParser';
+import { SchemaParser } from '@/components/DynamicForm/core/SchemaParser';
 
 /**
  * 判断父级路径是否在 flattenPath 链中
@@ -19,6 +20,55 @@ export function isLastSeparatorFlatten(path: string): boolean {
   const lastDotPos = path.lastIndexOf('.');
   const lastSeparatorPos = path.lastIndexOf(FLATTEN_PATH_SEPARATOR);
   return lastSeparatorPos > lastDotPos;
+}
+
+/**
+ * 解析相对路径为绝对路径（仅支持同级字段）
+ * 支持包含 ~~ 分隔符的逻辑路径
+ * @param relativePath - 相对路径（如 './type'）
+ * @param currentPath - 当前字段的完整路径（如 'contacts.0.companyName' 或 'group~~category~~contacts.0.companyName'）
+ * @returns 解析后的绝对路径（如 'contacts.0.type' 或 'group~~category~~contacts.0~~type'）
+ */
+export function resolveRelativePath(relativePath: string, currentPath: string): string {
+  if (!relativePath.startsWith('./')) {
+    throw new Error(`不支持的相对路径格式: ${relativePath}。只允许使用 './fieldName' 引用同级字段`);
+  }
+
+  const fieldName = relativePath.slice(2);
+
+  // 找到实际最后一个分隔符的位置（. 或 ~~）
+  // 需要从后往前扫描，找到最后出现的分隔符
+  let lastSeparatorPos = -1;
+  let lastSeparatorType: '.' | '~~' | null = null;
+
+  // 从后往前扫描
+  for (let i = currentPath.length - 1; i >= 0; i--) {
+    // 检查是否是 ~~ 分隔符（需要检查当前位置和前一个位置）
+    if (i > 0 && currentPath[i - 1] === '~' && currentPath[i] === '~') {
+      lastSeparatorPos = i - 1; // ~~ 的起始位置
+      lastSeparatorType = '~~';
+      break;
+    }
+    // 检查是否是 . 分隔符
+    if (currentPath[i] === '.') {
+      lastSeparatorPos = i;
+      lastSeparatorType = '.';
+      break;
+    }
+  }
+
+  if (lastSeparatorPos === -1) {
+    return fieldName;
+  }
+
+  // 获取父路径
+  const parentPath = currentPath.substring(0, lastSeparatorPos);
+
+  // 判断是否在 flattenPath 链中（如果最后一个分隔符是 ~~）
+  const isParentInFlattenChain = lastSeparatorType === '~~';
+
+  // 使用 SchemaParser.buildFieldPath 来构建路径，确保逻辑一致
+  return SchemaParser.buildFieldPath(parentPath, fieldName, isParentInFlattenChain);
 }
 
 /**

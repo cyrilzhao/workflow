@@ -50,11 +50,7 @@ export class SchemaParser {
    * - buildFieldPath('region~~market~~contacts.0~~category', 'group', true) → 'region~~market~~contacts.0~~category~~group'
    * - buildFieldPath('region~~market~~contacts.0~~category~~group', 'name', false) → 'region~~market~~contacts.0~~category~~group~~name'
    */
-  static buildFieldPath(
-    parentPath: string,
-    fieldName: string,
-    isFlattenPath: boolean
-  ): string {
+  static buildFieldPath(parentPath: string, fieldName: string, isFlattenPath: boolean): string {
     if (!parentPath) {
       return fieldName;
     }
@@ -130,13 +126,13 @@ export class SchemaParser {
       const isFlattenPath = fieldSchema.type === 'object' && fieldSchema.ui?.flattenPath;
 
       // 使用 buildFieldPath 方法正确处理 flattenPath 的路径
-      const currentPath = this.buildFieldPath(parentPath, key, isFlattenPath);
+      const currentPath = this.buildFieldPath(parentPath, key, isFlattenPath || false);
 
       // 检查是否需要路径扁平化
       if (isFlattenPath) {
         // 确定是否需要添加前缀
         const newPrefixLabel =
-          fieldSchema.ui.flattenPrefix && fieldSchema.title
+          fieldSchema.ui?.flattenPrefix && fieldSchema.title
             ? prefixLabel
               ? `${prefixLabel} - ${fieldSchema.title}`
               : fieldSchema.title
@@ -144,8 +140,8 @@ export class SchemaParser {
 
         // 准备要继承的 UI 配置（父级配置 + 当前层级配置）
         const newInheritedUI = {
-          layout: fieldSchema.ui.layout ?? inheritedUI?.layout,
-          labelWidth: fieldSchema.ui.labelWidth ?? inheritedUI?.labelWidth,
+          layout: fieldSchema.ui?.layout ?? inheritedUI?.layout,
+          labelWidth: fieldSchema.ui?.labelWidth ?? inheritedUI?.labelWidth,
         };
 
         // 递归解析子字段，传递当前路径（已经包含 ~~ 分隔符）

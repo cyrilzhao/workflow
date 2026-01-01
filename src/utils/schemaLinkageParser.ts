@@ -1,6 +1,10 @@
 import type { ExtendedJSONSchema, LinkageConfig } from '@/types/schema';
 import { SchemaParser } from '@/components/DynamicForm';
-import { isInFlattenPathChain, isLastSeparatorFlatten } from './pathTransformer';
+import {
+  isInFlattenPathChain,
+  isLastSeparatorFlatten,
+  resolveRelativePath,
+} from './pathTransformer';
 
 /**
  * 路径透明化分隔符
@@ -147,7 +151,7 @@ function parseSchemaRecursive(
     }
 
     // 使用统一的路径生成函数
-    const logicalPath = buildLogicalPath(logicalParentPath, fieldName, shouldSkipInPath);
+    const logicalPath = buildLogicalPath(logicalParentPath, fieldName, shouldSkipInPath || false);
     const physicalPath = buildPhysicalPath(physicalParentPath, fieldName);
     const currentSkippedSegments = shouldSkipInPath ? [...skippedSegments, fieldName] : [];
 
@@ -331,55 +335,20 @@ function transformLinkageConfigPaths(
   if (result.dependencies) {
     result.dependencies = result.dependencies.map(dep => {
       if (dep.startsWith('./')) {
-        // 相对路径：使用 resolveRelativePath 正确处理 ~~ 分隔符
-        const fieldName = dep.slice(2);
-        // 从 fieldPath 中提取父路径
-        const lastDotPos = fieldPath.lastIndexOf('.');
-        const lastSeparatorPos = fieldPath.lastIndexOf(FLATTEN_PATH_SEPARATOR);
-
+        // 相对路径：使用统一的 resolveRelativePath 函数
         console.log(
           '[transformLinkageConfigPaths] 处理相对路径:',
           JSON.stringify({
             dep,
             fieldPath,
-            fieldName,
-            lastDotPos,
-            lastSeparatorPos,
           })
         );
 
-        let parentPath: string;
-        let isParentInFlattenChain: boolean;
-
-        if (lastDotPos === -1 && lastSeparatorPos === -1) {
-          // 没有分隔符，直接返回字段名
-          return fieldName;
-        }
-
-        // 找到实际最后一个分隔符
-        if (lastSeparatorPos > lastDotPos) {
-          // 最后一个分隔符是 ~~
-          parentPath = fieldPath.substring(0, lastSeparatorPos);
-          isParentInFlattenChain = true;
-        } else {
-          // 最后一个分隔符是 .
-          parentPath = fieldPath.substring(0, lastDotPos);
-          // 检查父路径的最后一个分隔符是否是 ~~
-          isParentInFlattenChain = isLastSeparatorFlatten(parentPath);
-        }
-
-        // 使用 SchemaParser.buildFieldPath 构建正确的路径
-        const resolvedPath = SchemaParser.buildFieldPath(
-          parentPath,
-          fieldName,
-          isParentInFlattenChain
-        );
+        const resolvedPath = resolveRelativePath(dep, fieldPath);
 
         console.log(
           '[transformLinkageConfigPaths] 相对路径解析结果:',
           JSON.stringify({
-            parentPath,
-            isParentInFlattenChain,
             resolvedPath,
           })
         );
@@ -408,49 +377,23 @@ function transformConditionPaths(condition: any, pathPrefix: string, fieldPath: 
   // 转换 field 字段
   if (result.field && typeof result.field === 'string') {
     if (result.field.startsWith('./')) {
-      // 相对路径：使用与 dependencies 相同的逻辑处理 ~~ 分隔符
-      const fieldName = result.field.slice(2);
-      const lastDotPos = fieldPath.lastIndexOf('.');
-      const lastSeparatorPos = fieldPath.lastIndexOf(FLATTEN_PATH_SEPARATOR);
-
+      // 相对路径：使用统一的 resolveRelativePath 函数
       console.log(
         '[transformConditionPaths] 处理相对路径:',
         JSON.stringify({
           originalField: result.field,
           fieldPath,
-          fieldName,
-          lastDotPos,
-          lastSeparatorPos,
         })
       );
 
-      let parentPath: string;
-      let isParentInFlattenChain: boolean;
+      result.field = resolveRelativePath(result.field, fieldPath);
 
-      if (lastDotPos === -1 && lastSeparatorPos === -1) {
-        result.field = fieldName;
-      } else {
-        // 找到实际最后一个分隔符
-        if (lastSeparatorPos > lastDotPos) {
-          parentPath = fieldPath.substring(0, lastSeparatorPos);
-          isParentInFlattenChain = true;
-        } else {
-          parentPath = fieldPath.substring(0, lastDotPos);
-          // 检查父路径的最后一个分隔符是否是 ~~
-          isParentInFlattenChain = isLastSeparatorFlatten(parentPath);
-        }
-
-        result.field = SchemaParser.buildFieldPath(parentPath, fieldName, isParentInFlattenChain);
-
-        console.log(
-          '[transformConditionPaths] 相对路径解析结果:',
-          JSON.stringify({
-            parentPath,
-            isParentInFlattenChain,
-            resolvedField: result.field,
-          })
-        );
-      }
+      console.log(
+        '[transformConditionPaths] 相对路径解析结果:',
+        JSON.stringify({
+          resolvedField: result.field,
+        })
+      );
     }
     // 绝对路径（JSON Pointer）保持不变
   }

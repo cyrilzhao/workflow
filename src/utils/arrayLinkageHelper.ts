@@ -2,6 +2,7 @@ import type { LinkageConfig } from '@/types/linkage';
 import type { ExtendedJSONSchema } from '@/types/schema';
 import { FLATTEN_PATH_SEPARATOR, type PathMapping } from './schemaLinkageParser';
 import { SchemaParser } from '@/components/DynamicForm/core/SchemaParser';
+import { resolveRelativePath } from './pathTransformer';
 
 /**
  * 数组联动辅助工具
@@ -97,55 +98,6 @@ export function parseJsonPointer(pointer: string): string {
   const logicalSegments = segments.filter(s => s !== 'properties' && s !== 'items');
 
   return logicalSegments.join('.');
-}
-
-/**
- * 解析相对路径为绝对路径（仅支持同级字段）
- * 支持包含 ~~ 分隔符的逻辑路径
- * @param relativePath - 相对路径（如 './type'）
- * @param currentPath - 当前字段的完整路径（如 'contacts.0.companyName' 或 'group~~category~~contacts.0.companyName'）
- * @returns 解析后的绝对路径（如 'contacts.0.type' 或 'group~~category~~contacts.0~~type'）
- */
-export function resolveRelativePath(relativePath: string, currentPath: string): string {
-  if (!relativePath.startsWith('./')) {
-    throw new Error(`不支持的相对路径格式: ${relativePath}。只允许使用 './fieldName' 引用同级字段`);
-  }
-
-  const fieldName = relativePath.slice(2);
-
-  // 找到实际最后一个分隔符的位置（. 或 ~~）
-  // 需要从后往前扫描，找到最后出现的分隔符
-  let lastSeparatorPos = -1;
-  let lastSeparatorType: '.' | '~~' | null = null;
-
-  // 从后往前扫描
-  for (let i = currentPath.length - 1; i >= 0; i--) {
-    // 检查是否是 ~~ 分隔符（需要检查当前位置和前一个位置）
-    if (i > 0 && currentPath[i - 1] === '~' && currentPath[i] === '~') {
-      lastSeparatorPos = i - 1; // ~~ 的起始位置
-      lastSeparatorType = '~~';
-      break;
-    }
-    // 检查是否是 . 分隔符
-    if (currentPath[i] === '.') {
-      lastSeparatorPos = i;
-      lastSeparatorType = '.';
-      break;
-    }
-  }
-
-  if (lastSeparatorPos === -1) {
-    return fieldName;
-  }
-
-  // 获取父路径
-  const parentPath = currentPath.substring(0, lastSeparatorPos);
-
-  // 判断是否在 flattenPath 链中（如果最后一个分隔符是 ~~）
-  const isParentInFlattenChain = lastSeparatorType === '~~';
-
-  // 使用 SchemaParser.buildFieldPath 来构建路径，确保逻辑一致
-  return SchemaParser.buildFieldPath(parentPath, fieldName, isParentInFlattenChain);
 }
 
 /**
@@ -311,18 +263,22 @@ function resolveJsonPointerDependency(
  * @param schema - Schema 对象（用于识别数组字段）
  * @returns 解析后的绝对路径
  */
-export function resolveDependencyPath(
-  depPath: string,
-  currentPath: string,
-  schema: ExtendedJSONSchema
-): string {
+export function resolveDependencyPath({
+  depPath,
+  currentPath,
+  schema,
+}: {
+  depPath: string;
+  currentPath: string;
+  schema?: ExtendedJSONSchema;
+}): string {
   // 1. 相对路径：同级字段
   if (depPath.startsWith('./')) {
     return resolveRelativePath(depPath, currentPath);
   }
 
   // 2. JSON Pointer：绝对路径
-  if (depPath.startsWith('#/')) {
+  if (depPath.startsWith('#/') && schema) {
     return resolveJsonPointerDependency(depPath, currentPath, schema);
   }
 
@@ -336,7 +292,7 @@ export function resolveDependencyPath(
  * 为数组元素的联动配置解析路径
  * @param linkage - 原始联动配置
  * @param currentPath - 当前字段的完整路径
- * @param schema - Schema 对象
+ * @param schema - Schema 对象（可选，当 depPath 为绝对路径时必填）
  * @returns 解析后的联动配置
  */
 export function resolveArrayElementLinkage(
@@ -348,16 +304,12 @@ export function resolveArrayElementLinkage(
 
   // 解析 dependencies 中的路径
   if (resolved.dependencies) {
-    resolved.dependencies = resolved.dependencies.map(dep => {
-      // 如果有 schema，使用完整的路径解析
-      if (schema) {
-        return resolveDependencyPath(dep, currentPath, schema);
-      }
-      // 否则只处理相对路径（向后兼容）
-      if (dep.startsWith('./')) {
-        return resolveRelativePath(dep, currentPath);
-      }
-      return dep;
+    resolved.dependencies = resolved.dependencies.map(depPath => {
+      return resolveDependencyPath({
+        depPath,
+        currentPath,
+        schema,
+      });
     });
   }
 
@@ -384,7 +336,7 @@ function resolveConditionPaths(
   if (resolved.field) {
     const originalField = resolved.field;
     if (schema) {
-      resolved.field = resolveDependencyPath(resolved.field, currentPath, schema);
+      resolved.field = resolveDependencyPath({ depPath: resolved.field, currentPath, schema });
       console.log(
         '[resolveConditionPaths] 解析条件字段路径:',
         JSON.stringify({
