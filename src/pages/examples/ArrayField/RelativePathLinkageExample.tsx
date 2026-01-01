@@ -72,7 +72,7 @@ export const RelativePathLinkageExample: React.FC = () => {
     contacts: [
       {
         name: '张三',
-        type: 'personal',
+        type: 'work',
         phone: '13800138000',
       },
     ],

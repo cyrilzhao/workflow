@@ -9,10 +9,9 @@ export const SelectWidget = forwardRef<HTMLSelectElement, FieldWidgetProps>(
   ) => {
     return (
       <HTMLSelect
-        elementRef={ref}
+        ref={ref}
         name={name}
         disabled={disabled || readonly}
-        intent={error ? 'danger' : 'none'}
         fill
         value={value ?? ''}
         onChange={e => onChange?.(e.target.value)}

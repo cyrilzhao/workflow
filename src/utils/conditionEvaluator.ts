@@ -13,24 +13,26 @@ export class ConditionEvaluator {
     formData: Record<string, any>
   ): boolean {
     // 处理逻辑组合 - and
-    if (condition.and) {
+    if ('and' in condition && condition.and) {
       return condition.and.every(c => this.evaluate(c, formData));
     }
 
     // 处理逻辑组合 - or
-    if (condition.or) {
+    if ('or' in condition && condition.or) {
       return condition.or.some(c => this.evaluate(c, formData));
     }
 
-    // 获取字段值
-    const fieldValue = this.getFieldValue(formData, condition.field);
+    // 单条件求值
+    if ('field' in condition) {
+      const fieldValue = this.getFieldValue(formData, condition.field);
+      return this.evaluateOperator(
+        fieldValue,
+        condition.operator,
+        condition.value
+      );
+    }
 
-    // 根据操作符求值
-    return this.evaluateOperator(
-      fieldValue,
-      condition.operator,
-      condition.value
-    );
+    return false;
   }
 
   /**
@@ -41,16 +43,7 @@ export class ConditionEvaluator {
     fieldPath: string
   ): any {
     // 使用 PathResolver 支持 JSON Pointer 格式
-    const value = PathResolver.resolve(fieldPath, formData);
-    console.log(
-      '[ConditionEvaluator.getFieldValue] 获取字段值:',
-      JSON.stringify({
-        fieldPath,
-        value,
-        formDataKeys: Object.keys(formData),
-      })
-    );
-    return value;
+    return PathResolver.resolve(fieldPath, formData);
   }
 
   /**

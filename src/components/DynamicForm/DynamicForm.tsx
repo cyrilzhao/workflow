@@ -8,6 +8,7 @@ import type { DynamicFormProps } from './types';
 import { parseSchemaLinkages, transformToAbsolutePaths } from '@/utils/schemaLinkageParser';
 import { useArrayLinkageManager } from '@/hooks/useArrayLinkageManager';
 import type { LinkageConfig } from '@/types/linkage';
+import type { ExtendedJSONSchema } from '@/types/schema';
 import { filterValueWithNestedSchemas } from './utils/filterValueWithNestedSchemas';
 import {
   NestedSchemaProvider,
@@ -41,9 +42,7 @@ function transformFormData(
   shouldFilter: boolean = false
 ): Record<string, any> {
   // 第一步：如果使用了路径扁平化，将扁平数据转换回嵌套结构
-  let processedData = useFlattenPath
-    ? PathTransformer.flatToNestedWithSchema(data, schema)
-    : data;
+  let processedData = useFlattenPath ? PathTransformer.flatToNestedWithSchema(data, schema) : data;
 
   // 第二步：解包基本类型数组
   processedData = unwrapPrimitiveArrays(processedData, schema);
@@ -197,6 +196,8 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
     let linkages = rawLinkages;
     if (asNestedForm && pathPrefix) {
       const transformed = transformToAbsolutePaths(rawLinkages, pathPrefix);
+      console.info('cyril rawLinkages: ', rawLinkages);
+      console.info('cyril transformed: ', transformed);
 
       // 如果有父级联动状态，过滤掉已经在父级计算过的联动
       if (linkageStateContext?.parentLinkageStates) {
@@ -245,6 +246,8 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
     methods,
   ]);
 
+  console.info('cyril processedLinkages: ', processedLinkages);
+
   // 步骤3: 计算自己的联动状态
   const ownLinkageStates = useArrayLinkageManager({
     form: formToUse,
@@ -273,6 +276,8 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
     }
     return ownLinkageStates;
   }, [linkageStateContext?.parentLinkageStates, ownLinkageStates, pathPrefix]);
+
+  console.info('cyril linkageStates: ', linkageStates);
 
   const {
     handleSubmit,
