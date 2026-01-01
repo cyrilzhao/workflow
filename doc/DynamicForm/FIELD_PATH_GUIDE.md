@@ -27,11 +27,11 @@
 
 ### 1.2 路径的三个维度
 
-| 维度 | 说明 | 示例 |
-|------|------|------|
-| **表单数据路径** | 用于 react-hook-form 的字段注册和数据访问 | `contacts.0.name` |
-| **联动依赖路径** | 用于 Schema 中配置字段间的依赖关系 | `./type` 或 `#/properties/enableVip` |
-| **物理/逻辑路径** | 路径透明化场景下的两种路径表示 | 物理: `group.category.contacts`<br>逻辑: `group~~category~~contacts` |
+| 维度              | 说明                                      | 示例                                                                 |
+| ----------------- | ----------------------------------------- | -------------------------------------------------------------------- |
+| **表单数据路径**  | 用于 react-hook-form 的字段注册和数据访问 | `contacts.0.name`                                                    |
+| **联动依赖路径**  | 用于 Schema 中配置字段间的依赖关系        | `./type` 或 `#/properties/enableVip`                                 |
+| **物理/逻辑路径** | 路径透明化场景下的两种路径表示            | 物理: `group.category.contacts`<br>逻辑: `group~~category~~contacts` |
 
 ---
 
@@ -39,14 +39,14 @@
 
 ### 2.1 路径格式速查表
 
-| 路径格式 | 语法 | 使用场景 | 示例 |
-|----------|------|----------|------|
-| **点号路径** | `a.b.c` | 表单数据访问、字段注册 | `user.address.city` |
-| **数组索引路径** | `a.0.b` | 数组元素字段访问 | `contacts.0.name` |
-| **相对路径** | `./field` | 数组元素内部联动 | `./type` |
-| **JSON Pointer** | `#/properties/...` | 跨层级联动依赖 | `#/properties/enableVip` |
-| **逻辑路径** | 使用 `~~` 分隔 flattenPath 层级 | Schema 字段定义 | `group~~category~~contacts` |
-| **物理路径** | 完整数据路径 | 实际数据存储 | `group.category.contacts` |
+| 路径格式         | 语法                            | 使用场景               | 示例                        |
+| ---------------- | ------------------------------- | ---------------------- | --------------------------- |
+| **点号路径**     | `a.b.c`                         | 表单数据访问、字段注册 | `user.address.city`         |
+| **数组索引路径** | `a.0.b`                         | 数组元素字段访问       | `contacts.0.name`           |
+| **相对路径**     | `./field`                       | 数组元素内部联动       | `./type`                    |
+| **JSON Pointer** | `#/properties/...`              | 跨层级联动依赖         | `#/properties/enableVip`    |
+| **逻辑路径**     | 使用 `~~` 分隔 flattenPath 层级 | Schema 字段定义        | `group~~category~~contacts` |
+| **物理路径**     | 完整数据路径                    | 实际数据存储           | `group.category.contacts`   |
 
 ### 2.2 路径格式对比
 
@@ -75,19 +75,19 @@ properties:                    {                             dependencies:
 
 ```typescript
 // 简单字段
-'name'           // → formData.name
+'name'; // → formData.name
 
 // 嵌套对象
-'user.name'      // → formData.user.name
-'user.address.city'  // → formData.user.address.city
+'user.name'; // → formData.user.name
+'user.address.city'; // → formData.user.address.city
 
 // 数组元素
-'contacts.0'         // → formData.contacts[0]
-'contacts.0.name'    // → formData.contacts[0].name
-'contacts.1.phone'   // → formData.contacts[1].phone
+'contacts.0'; // → formData.contacts[0]
+'contacts.0.name'; // → formData.contacts[0].name
+'contacts.1.phone'; // → formData.contacts[1].phone
 
 // 嵌套数组
-'departments.0.employees.1.name'  // → formData.departments[0].employees[1].name
+'departments.0.employees.1.name'; // → formData.departments[0].employees[1].name
 ```
 
 ### 3.2 数组索引路径
@@ -102,9 +102,9 @@ function isArrayElementPath(path: string): boolean {
 }
 
 // 示例
-isArrayElementPath('contacts.0.name')  // true
-isArrayElementPath('contacts.name')    // false
-isArrayElementPath('items.2.details.0.value')  // true
+isArrayElementPath('contacts.0.name'); // true
+isArrayElementPath('contacts.name'); // false
+isArrayElementPath('items.2.details.0.value'); // true
 ```
 
 ### 3.3 提取数组信息
@@ -174,6 +174,7 @@ function extractArrayInfo(path: string) {
 ```
 
 **限制**：
+
 - ✅ 只支持 `./fieldName` 格式
 - ❌ 不支持 `../fieldName`（父级相对路径）
 - ❌ 不支持 `../../fieldName`（祖父级相对路径）
@@ -186,9 +187,9 @@ function extractArrayInfo(path: string) {
 
 ```typescript
 // 基本格式
-'#/properties/fieldName'                           // 顶层字段
-'#/properties/parent/properties/child'             // 嵌套字段
-'#/properties/array/items/properties/field'        // 数组元素字段
+'#/properties/fieldName'; // 顶层字段
+'#/properties/parent/properties/child'; // 嵌套字段
+'#/properties/array/items/properties/field'; // 数组元素字段
 ```
 
 **示例**：
@@ -255,10 +256,10 @@ function extractArrayInfo(path: string) {
 
 ### 4.3 JSON Pointer 转换规则
 
-| JSON Pointer | 表单数据路径 | 说明 |
-|--------------|-------------|------|
-| `#/properties/name` | `name` | 顶层字段 |
-| `#/properties/user/properties/age` | `user.age` | 嵌套字段 |
+| JSON Pointer                                  | 表单数据路径                                           | 说明         |
+| --------------------------------------------- | ------------------------------------------------------ | ------------ |
+| `#/properties/name`                           | `name`                                                 | 顶层字段     |
+| `#/properties/user/properties/age`            | `user.age`                                             | 嵌套字段     |
 | `#/properties/contacts/items/properties/name` | `contacts.name`（模板）<br>`contacts.0.name`（运行时） | 数组元素字段 |
 
 **转换函数**：
@@ -277,13 +278,13 @@ function parseJsonPointer(pointer: string): string {
 
 ### 4.4 路径格式选择指南
 
-| 场景 | 推荐格式 | 示例 |
-|------|----------|------|
-| 同一对象内的字段依赖 | 相对路径 | `./type` |
-| 数组元素内部字段依赖 | 相对路径 | `./status` |
-| 依赖顶层字段 | JSON Pointer | `#/properties/enableFeature` |
-| 依赖父数组元素字段 | JSON Pointer | `#/properties/departments/items/properties/type` |
-| 依赖整个数组（聚合计算） | JSON Pointer | `#/properties/items` |
+| 场景                     | 推荐格式     | 示例                                             |
+| ------------------------ | ------------ | ------------------------------------------------ |
+| 同一对象内的字段依赖     | 相对路径     | `./type`                                         |
+| 数组元素内部字段依赖     | 相对路径     | `./status`                                       |
+| 依赖顶层字段             | JSON Pointer | `#/properties/enableFeature`                     |
+| 依赖父数组元素字段       | JSON Pointer | `#/properties/departments/items/properties/type` |
+| 依赖整个数组（聚合计算） | JSON Pointer | `#/properties/items`                             |
 
 ---
 
@@ -333,6 +334,7 @@ function parseJsonPointer(pointer: string): string {
 **规则 3**：否则使用 `.` 连接
 
 **关键点**：
+
 - flattenPath 对象之间使用 `~~` 连接
 - flattenPath 链的最后一个字段（数组或普通字段）也使用 `~~` 连接
 - 数组索引始终使用 `.` 连接
@@ -361,10 +363,10 @@ region (flattenPath: true)
 
 ### 5.3 逻辑路径 vs 物理路径
 
-| 概念 | 定义 | 用途 |
-|------|------|------|
+| 概念         | 定义                                  | 用途                   |
+| ------------ | ------------------------------------- | ---------------------- |
 | **逻辑路径** | 使用 `~~` 连接 flattenPath 层级的路径 | 表单字段注册、联动配置 |
-| **物理路径** | 使用 `.` 连接所有层级的完整路径 | 实际数据存储 |
+| **物理路径** | 使用 `.` 连接所有层级的完整路径       | 实际数据存储           |
 
 **对比示例**：
 
@@ -372,25 +374,27 @@ region (flattenPath: true)
 // Schema 中 group 和 category 都设置了 flattenPath: true
 
 // 字段: contacts
-逻辑路径: 'group~~category~~contacts'
-物理路径: 'group.category.contacts'
+逻辑路径: 'group~~category~~contacts';
+物理路径: 'group.category.contacts';
 
 // 字段: contacts[0].name
-逻辑路径: 'group~~category~~contacts.0.name'
-物理路径: 'group.category.contacts.0.name'
+逻辑路径: 'group~~category~~contacts.0.name';
+物理路径: 'group.category.contacts.0.name';
 
 // 字段: contacts[0] 内部的 flattenPath 字段
-逻辑路径: 'group~~category~~contacts.0~~inner~~field'
-物理路径: 'group.category.contacts.0.inner.field'
+逻辑路径: 'group~~category~~contacts.0~~inner~~field';
+物理路径: 'group.category.contacts.0.inner.field';
 ```
 
 **为什么使用 `~~` 分隔符？**
 
 避免路径冲突。如果有两个不同的物理路径：
+
 - `group.category.contacts`
 - `region.market.contacts`
 
 使用 `~~` 分隔符后，它们的逻辑路径分别是：
+
 - `group~~category~~contacts`
 - `region~~market~~contacts`
 
@@ -447,10 +451,10 @@ const submitData = PathTransformer.flatToNestedWithSchema(
 
 ### 6.1 模板路径 vs 运行时路径
 
-| 概念 | 定义 | 示例 |
-|------|------|------|
-| **模板路径** | Schema 解析时的路径（不含索引） | `contacts.name` |
-| **运行时路径** | 实际数组元素的路径（含索引） | `contacts.0.name`, `contacts.1.name` |
+| 概念           | 定义                            | 示例                                 |
+| -------------- | ------------------------------- | ------------------------------------ |
+| **模板路径**   | Schema 解析时的路径（不含索引） | `contacts.name`                      |
+| **运行时路径** | 实际数组元素的路径（含索引）    | `contacts.0.name`, `contacts.1.name` |
 
 ```typescript
 // Schema 定义（模板）
@@ -549,7 +553,7 @@ const submitData = PathTransformer.flatToNestedWithSchema(
 
 ```typescript
 // 依赖配置
-dependencies: ['#/properties/departments/items/properties/type']
+dependencies: ['#/properties/departments/items/properties/type'];
 
 // 当前路径: departments.0.employees.1.techStack
 // 解析结果: departments.0.type  // 自动匹配父数组索引 0
@@ -598,7 +602,7 @@ import {
   splitPath,
   rebuildPath,
   isInFlattenPathChain,
-  isLastSeparatorFlatten
+  isLastSeparatorFlatten,
 } from '@/utils/pathTransformer';
 
 // 基于 Schema 的输入转换（推荐）
@@ -621,15 +625,16 @@ rebuildPath('group~~category.contacts', parts, 2);
 // → 'group~~category'
 
 // 判断是否在 flattenPath 链中
-isInFlattenPathChain('group~~category~~contacts');  // true
-isInFlattenPathChain('user.name');  // false
+isInFlattenPathChain('group~~category~~contacts'); // true
+isInFlattenPathChain('user.name'); // false
 
 // 检查最后一个分隔符类型
-isLastSeparatorFlatten('group~~category~~contacts');  // true
-isLastSeparatorFlatten('group~~category.contacts');   // false
+isLastSeparatorFlatten('group~~category~~contacts'); // true
+isLastSeparatorFlatten('group~~category.contacts'); // false
 ```
 
 **重构改进**：
+
 - ✅ 导出了公共路径工具函数，避免代码重复
 - ✅ `splitPath` 统一处理 `.` 和 `~~` 两种分隔符
 - ✅ `rebuildPath` 保留原始路径的分隔符类型
@@ -646,7 +651,7 @@ import {
   logicalToPhysicalPath,
   transformToAbsolutePaths,
   isInFlattenPathChain,
-  isLastSeparatorFlatten
+  isLastSeparatorFlatten,
 } from '@/utils/schemaLinkageParser';
 
 // 解析 Schema
@@ -663,13 +668,14 @@ logicalToPhysicalPath('group~~category~~contacts.0', pathMappings);
 transformToAbsolutePaths(linkages, 'contacts.0');
 
 // 判断是否在 flattenPath 链中（从 pathTransformer 导入）
-isInFlattenPathChain('group~~category~~contacts');  // true
+isInFlattenPathChain('group~~category~~contacts'); // true
 
 // 检查最后一个分隔符类型（从 pathTransformer 导入）
-isLastSeparatorFlatten('group~~category~~contacts');  // true
+isLastSeparatorFlatten('group~~category~~contacts'); // true
 ```
 
 **重构改进**：
+
 - ✅ 移除了重复的路径工具函数定义
 - ✅ 统一从 `pathTransformer` 导入公共路径工具
 - ✅ 简化了代码结构，提高可维护性
@@ -685,11 +691,11 @@ import {
   parseJsonPointer,
   resolveRelativePath,
   resolveDependencyPath,
-  resolveArrayElementLinkage
+  resolveArrayElementLinkage,
 } from '@/utils/arrayLinkageHelper';
 
 // 判断是否是数组元素路径
-isArrayElementPath('contacts.0.name');  // true
+isArrayElementPath('contacts.0.name'); // true
 
 // 提取数组信息
 extractArrayInfo('contacts.0.name');
@@ -704,10 +710,14 @@ resolveRelativePath('./type', 'contacts.0.companyName');
 // → 'contacts.0.type'
 
 // 解析依赖路径（核心函数）
-resolveDependencyPath('./type', 'contacts.0.companyName', schema);
+resolveDependencyPath({ depPath: './type', currentPath: 'contacts.0.companyName', schema });
 // → 'contacts.0.type'
 
-resolveDependencyPath('#/properties/enableVip', 'contacts.0.vipLevel', schema);
+resolveDependencyPath({
+  depPath: '#/properties/enableVip',
+  currentPath: 'contacts.0.vipLevel',
+  schema,
+});
 // → 'enableVip'
 ```
 
@@ -733,14 +743,14 @@ const schema = {
           ui: {
             linkage: {
               type: 'value',
-              dependencies: ['./age'],  // 相对路径
-              fulfill: { function: 'checkAdult' }
-            }
-          }
-        }
-      }
-    }
-  }
+              dependencies: ['./age'], // 相对路径
+              fulfill: { function: 'checkAdult' },
+            },
+          },
+        },
+      },
+    },
+  },
 };
 
 // 表单数据路径
@@ -770,7 +780,7 @@ const schema = {
           type: {
             type: 'string',
             enum: ['personal', 'work'],
-            title: '类型'
+            title: '类型',
           },
           companyName: {
             type: 'string',
@@ -778,10 +788,10 @@ const schema = {
             ui: {
               linkage: {
                 type: 'visibility',
-                dependencies: ['./type'],  // 相对路径：同级字段
-                when: { field: './type', operator: '==', value: 'work' }
-              }
-            }
+                dependencies: ['./type'], // 相对路径：同级字段
+                when: { field: './type', operator: '==', value: 'work' },
+              },
+            },
           },
           vipLevel: {
             type: 'string',
@@ -789,15 +799,15 @@ const schema = {
             ui: {
               linkage: {
                 type: 'visibility',
-                dependencies: ['#/properties/enableVip'],  // JSON Pointer：顶层字段
-                when: { field: '#/properties/enableVip', operator: '==', value: true }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
+                dependencies: ['#/properties/enableVip'], // JSON Pointer：顶层字段
+                when: { field: '#/properties/enableVip', operator: '==', value: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
 };
 
 // 运行时路径解析（假设有 2 个联系人）
@@ -909,17 +919,17 @@ const schema = {
 
 ```typescript
 // 顶层字段
-'enableRegion'
+'enableRegion';
 
 // 数组字段（region 和 market 都是 flattenPath）
-'region~~market~~contacts'
+'region~~market~~contacts';
 
 // 数组元素内部字段（假设索引为 0）
-'region~~market~~contacts.0.auth.apiKey'           // auth 是普通对象，使用 .
-'region~~market~~contacts.0.auth.apiSecret'        // auth 是普通对象，使用 .
-'region~~market~~contacts.0~~category~~group~~type'    // category 和 group 是 flattenPath，使用 ~~
-'region~~market~~contacts.0~~category~~group~~name'    // name 继承 flattenPath 链，使用 ~~
-'region~~market~~contacts.0~~category~~group~~vipLevel' // vipLevel 继承 flattenPath 链，使用 ~~
+'region~~market~~contacts.0.auth.apiKey'; // auth 是普通对象，使用 .
+'region~~market~~contacts.0.auth.apiSecret'; // auth 是普通对象，使用 .
+'region~~market~~contacts.0~~category~~group~~type'; // category 和 group 是 flattenPath，使用 ~~
+'region~~market~~contacts.0~~category~~group~~name'; // name 继承 flattenPath 链，使用 ~~
+'region~~market~~contacts.0~~category~~group~~vipLevel'; // vipLevel 继承 flattenPath 链，使用 ~~
 ```
 
 **路径解析规则说明**：
@@ -995,6 +1005,7 @@ const schema = {
 ### 9.1 为什么不支持 `../` 相对路径？
 
 **原因**：
+
 1. 语义不清晰：在多层嵌套中，`../` 的含义容易混淆
 2. 维护困难：Schema 结构变化时，相对路径需要同步修改
 3. JSON Pointer 更强大：可以引用任意层级的字段
@@ -1003,10 +1014,10 @@ const schema = {
 
 ```typescript
 // ❌ 不支持
-dependencies: ['../type']
+dependencies: ['../type'];
 
 // ✅ 使用 JSON Pointer
-dependencies: ['#/properties/departments/items/properties/type']
+dependencies: ['#/properties/departments/items/properties/type'];
 ```
 
 ### 9.2 路径透明化时联动不生效？
@@ -1019,12 +1030,12 @@ dependencies: ['#/properties/departments/items/properties/type']
 // Schema 中 group.category 设置了 flattenPath: true
 
 // ❌ 错误：使用物理路径
-dependencies: ['group.category.enableFeature']
+dependencies: ['group.category.enableFeature'];
 
 // ✅ 正确：使用逻辑路径
-dependencies: ['group~~category~~enableFeature']
+dependencies: ['group~~category~~enableFeature'];
 // 或使用 JSON Pointer
-dependencies: ['#/properties/group/properties/category/properties/enableFeature']
+dependencies: ['#/properties/group/properties/category/properties/enableFeature'];
 ```
 
 ### 9.3 数组元素联动只对第一个元素生效？
@@ -1035,10 +1046,10 @@ dependencies: ['#/properties/group/properties/category/properties/enableFeature'
 
 ```typescript
 // ❌ 错误：固定索引
-dependencies: ['contacts.0.type']
+dependencies: ['contacts.0.type'];
 
 // ✅ 正确：相对路径
-dependencies: ['./type']
+dependencies: ['./type'];
 ```
 
 ### 9.4 如何调试路径问题？
@@ -1054,7 +1065,7 @@ console.log('联动配置:', linkages);
 **方法 2**：检查运行时解析结果
 
 ```typescript
-const resolved = resolveDependencyPath(depPath, currentPath, schema);
+const resolved = resolveDependencyPath({ depPath, currentPath, schema });
 console.log(`${depPath} → ${resolved}`);
 ```
 
@@ -1062,15 +1073,15 @@ console.log(`${depPath} → ${resolved}`);
 
 ## 附录：路径相关文件索引
 
-| 文件 | 职责 |
-|------|------|
-| `src/utils/pathResolver.ts` | JSON Pointer 解析和转换 |
-| `src/utils/pathTransformer.ts` | 路径透明化数据转换 |
-| `src/utils/schemaLinkageParser.ts` | Schema 联动配置解析、路径映射、统一路径生成函数 |
-| `src/utils/arrayLinkageHelper.ts` | 数组联动路径处理 |
-| `src/components/DynamicForm/core/SchemaParser.ts` | Schema 解析、字段配置生成、逻辑路径计算 |
-| `src/hooks/useLinkageManager.ts` | 联动状态管理 |
-| `src/hooks/useArrayLinkageManager.ts` | 数组联动状态管理 |
+| 文件                                              | 职责                                            |
+| ------------------------------------------------- | ----------------------------------------------- |
+| `src/utils/pathResolver.ts`                       | JSON Pointer 解析和转换                         |
+| `src/utils/pathTransformer.ts`                    | 路径透明化数据转换                              |
+| `src/utils/schemaLinkageParser.ts`                | Schema 联动配置解析、路径映射、统一路径生成函数 |
+| `src/utils/arrayLinkageHelper.ts`                 | 数组联动路径处理                                |
+| `src/components/DynamicForm/core/SchemaParser.ts` | Schema 解析、字段配置生成、逻辑路径计算         |
+| `src/hooks/useLinkageManager.ts`                  | 联动状态管理                                    |
+| `src/hooks/useArrayLinkageManager.ts`             | 数组联动状态管理                                |
 
 ---
 
@@ -1082,17 +1093,20 @@ console.log(`${depPath} → ${resolved}`);
 **更新内容**:
 
 ### v1.3 (2025-12-29)
+
 - 新增 8.3 节：复杂的路径透明化 + 数组 + 联动综合示例
 - 添加了完整的 Schema 配置和逻辑路径解析示例
 - 详细说明了混合使用 flattenPath 和普通对象时的路径生成规则
 
 ### v1.2 (2025-12-29)
+
 - 新增 5.2 节：详细说明逻辑路径生成规则
 - 更新了逻辑路径示例，包含数组元素内部 flattenPath 的情况
 - 新增 SchemaParser.buildFieldPath 方法的说明
 - 更新了路径相关文件索引，添加 SchemaParser.ts
 
 ### v1.1 (2025-12-29)
+
 - 更新了逻辑路径示例，使用 `~~` 分隔符
 - 新增统一路径生成函数 `buildLogicalPath`、`buildPhysicalPath`、`isInFlattenPathChain` 的说明
 - 更新了 schemaLinkageParser 工具函数列表

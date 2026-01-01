@@ -9,6 +9,7 @@
 **A**: 请参考 [UI 联动设计方案](./UI_LINKAGE_DESIGN.md)
 
 系统提供了完整的联动机制，支持：
+
 - **字段显示/隐藏**：根据其他字段的值控制字段是否显示
 - **字段禁用/启用**：根据条件动态禁用或启用字段
 - **字段值自动计算**：根据其他字段的值自动计算当前字段的值
@@ -85,12 +86,14 @@
 路径透明化用于解决深层嵌套参数显示冗余的问题。
 
 **适合使用的场景**：
+
 - ✅ 后端接口参数嵌套深度超过 2 层
 - ✅ 中间层级没有实际业务意义，只是数据结构的组织方式
 - ✅ 用户只需要关注最内层的实际字段
 - ✅ 表单字段数量较少（< 10 个）
 
 **不适合使用的场景**：
+
 - ❌ 嵌套层级有明确的业务分组意义
 - ❌ 需要展示层级结构帮助用户理解
 - ❌ 字段数量很多，需要分组管理
@@ -145,6 +148,7 @@
    - 禁止使用 `../` 父级相对路径
 
 2. **打印依赖图和联动状态**：
+
 ```typescript
 const { linkages, pathMappings } = parseSchemaLinkages(schema);
 console.log('路径映射:', pathMappings);
@@ -152,8 +156,9 @@ console.log('联动配置:', linkages);
 ```
 
 3. **检查运行时解析结果**：
+
 ```typescript
-const resolved = resolveDependencyPath(depPath, currentPath, schema);
+const resolved = resolveDependencyPath({ depPath, currentPath, schema });
 console.log(`${depPath} → ${resolved}`);
 ```
 
@@ -171,6 +176,7 @@ console.log(`${depPath} → ${resolved}`);
 - **多层嵌套**：支持任意深度的嵌套
 
 **关键特性**：
+
 - ✅ 使用 `asNestedForm` 模式，数据自动管理
 - ✅ 支持 JSON Pointer 格式的跨层级依赖
 - ✅ 智能数据过滤：类型切换时保留数据，提交时自动过滤
@@ -183,13 +189,13 @@ console.log(`${depPath} → ${resolved}`);
 
 系统中存在多种路径格式，各有其适用场景：
 
-| 路径格式 | 语法 | 使用场景 |
-|----------|------|----------|
-| **点号路径** | `a.b.c` | 表单数据访问、字段注册 |
-| **数组索引路径** | `a.0.b` | 数组元素字段访问 |
-| **相对路径** | `./field` | 数组元素内部联动 |
-| **JSON Pointer** | `#/properties/...` | 跨层级联动依赖 |
-| **逻辑路径** | 使用 `~~` 分隔 | Schema 字段定义（flattenPath） |
+| 路径格式         | 语法               | 使用场景                       |
+| ---------------- | ------------------ | ------------------------------ |
+| **点号路径**     | `a.b.c`            | 表单数据访问、字段注册         |
+| **数组索引路径** | `a.0.b`            | 数组元素字段访问               |
+| **相对路径**     | `./field`          | 数组元素内部联动               |
+| **JSON Pointer** | `#/properties/...` | 跨层级联动依赖                 |
+| **逻辑路径**     | 使用 `~~` 分隔     | Schema 字段定义（flattenPath） |
 
 详细文档请参考 [字段路径完全指南](./FIELD_PATH_GUIDE.md)。
 
@@ -292,8 +298,8 @@ describe('SchemaParser', () => {
     const schema = {
       type: 'object',
       properties: {
-        name: { type: 'string', title: '姓名' }
-      }
+        name: { type: 'string', title: '姓名' },
+      },
     };
 
     const fields = SchemaParser.parse(schema);
@@ -307,9 +313,9 @@ describe('SchemaParser', () => {
     const schema = {
       type: 'object',
       properties: {
-        email: { type: 'string' }
+        email: { type: 'string' },
       },
-      required: ['email']
+      required: ['email'],
     };
 
     const fields = SchemaParser.parse(schema);
@@ -324,10 +330,10 @@ describe('SchemaParser', () => {
         address: {
           type: 'object',
           properties: {
-            city: { type: 'string', title: '城市' }
-          }
-        }
-      }
+            city: { type: 'string', title: '城市' },
+          },
+        },
+      },
     };
 
     const fields = SchemaParser.parse(schema);
@@ -451,7 +457,7 @@ try {
 } catch (error) {
   Sentry.captureException(error, {
     tags: { component: 'DynamicForm' },
-    extra: { schema }
+    extra: { schema },
   });
 }
 ```
@@ -546,6 +552,7 @@ try {
    - ✅ 添加详细的变更历史
 
 **删除的内容**：
+
 - ❌ Q1: 异步验证示例（不完整且过时）
 - ❌ Q2: 字段联动示例（改为引用专题文档）
 - ❌ Q3: 文件上传示例（不完整）
@@ -554,6 +561,7 @@ try {
 - ❌ 所有时间估算（"1-2 周"、"2-3 周"等）
 
 **新增的内容**：
+
 - ✅ Q1: 如何实现字段联动？
 - ✅ Q2: 如何处理数组字段联动？
 - ✅ Q3: 什么时候使用路径透明化？
@@ -567,4 +575,3 @@ try {
 ### v1.0 (2025-12-26)
 
 初始版本，包含常见问题、实施建议、测试策略和部署维护内容。
-

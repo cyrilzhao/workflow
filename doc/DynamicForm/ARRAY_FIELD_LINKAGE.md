@@ -1281,11 +1281,15 @@ resolveRelativePath('../type', 'departments.0.employees.1.techStack');
  * @param schema - Schema 对象（用于识别数组字段）
  * @returns 解析后的绝对路径
  */
-export function resolveDependencyPath(
-  depPath: string,
-  currentPath: string,
-  schema: ExtendedJSONSchema
-): string {
+export function resolveDependencyPath({
+  depPath,
+  currentPath,
+  schema,
+}: {
+  depPath: string;
+  currentPath: string;
+  schema: ExtendedJSONSchema;
+}): string {
   // 1. 相对路径：同级字段
   if (depPath.startsWith('./')) {
     return resolveRelativePath(depPath, currentPath);
@@ -1441,21 +1445,26 @@ function resolveParentToChild(
  * 为数组元素的联动配置解析路径
  * @param linkage - 原始联动配置
  * @param currentPath - 当前字段的完整路径
- * @param schema - Schema 对象
+ * @param schema - Schema 对象（可选，当 depPath 为绝对路径时必填）
  * @returns 解析后的联动配置
  */
 export function resolveArrayElementLinkage(
   linkage: LinkageConfig,
   currentPath: string,
-  schema: ExtendedJSONSchema
+  schema?: ExtendedJSONSchema
 ): LinkageConfig {
   const resolved = { ...linkage };
 
   // 解析 dependencies 中的路径
+  // 统一调用 resolveDependencyPath 处理所有路径类型
   if (resolved.dependencies) {
-    resolved.dependencies = resolved.dependencies.map(dep =>
-      resolveDependencyPath(dep, currentPath, schema)
-    );
+    resolved.dependencies = resolved.dependencies.map(depPath => {
+      return resolveDependencyPath({
+        depPath,
+        currentPath,
+        schema,
+      });
+    });
   }
 
   // 解析 when 条件中的路径
@@ -1472,13 +1481,17 @@ export function resolveArrayElementLinkage(
 function resolveConditionPaths(
   condition: any,
   currentPath: string,
-  schema: ExtendedJSONSchema
+  schema?: ExtendedJSONSchema
 ): any {
   const resolved = { ...condition };
 
   // 解析 field 字段
   if (resolved.field) {
-    resolved.field = resolveDependencyPath(resolved.field, currentPath, schema);
+    resolved.field = resolveDependencyPath({
+      depPath: resolved.field,
+      currentPath,
+      schema,
+    });
   }
 
   // 递归处理 and/or
@@ -1492,6 +1505,12 @@ function resolveConditionPaths(
   return resolved;
 }
 ```
+
+**关键改进**：
+
+1. **简化逻辑**：移除了重复的路径判断，统一调用 `resolveDependencyPath` 处理所有路径类型
+2. **schema 参数可选**：支持 `schema` 为 `undefined`，保持向后兼容
+3. **统一路径解析**：所有路径（相对路径、JSON Pointer、运行时路径）都通过 `resolveDependencyPath` 处理
 
 ### 6.2 Schema 解析
 
@@ -1669,11 +1688,7 @@ export function useArrayLinkageManager({
         // 为每个数组元素生成联动配置
         arrayValue.forEach((_, index) => {
           const elementFieldPath = `${arrayPath}.${index}.${fieldPathInArray}`;
-          const resolvedLinkage = resolveArrayElementLinkage(
-            linkage,
-            elementFieldPath,
-            schema
-          );
+          const resolvedLinkage = resolveArrayElementLinkage(linkage, elementFieldPath, schema);
           newDynamicLinkages[elementFieldPath] = resolvedLinkage;
         });
       });
@@ -1716,8 +1731,8 @@ const linkageStates = useArrayLinkageManager({
   form: methods,
   baseLinkages: linkages,
   linkageFunctions,
-  schema,           // 传递 schema 用于 JSON Pointer 路径解析
-  pathMappings,     // 传递路径映射用于路径转换
+  schema, // 传递 schema 用于 JSON Pointer 路径解析
+  pathMappings, // 传递路径映射用于路径转换
 });
 ```
 
@@ -1838,7 +1853,7 @@ dependencies: ['#/properties/enableVip'];
 // 检查 JSON Pointer 格式
 console.log('当前路径:', currentPath);
 console.log('依赖路径:', depPath);
-console.log('解析结果:', resolveDependencyPath(depPath, currentPath, schema));
+console.log('解析结果:', resolveDependencyPath({ depPath, currentPath, schema }));
 
 // 确保 JSON Pointer 格式正确
 // ✅ 正确：#/properties/fieldName

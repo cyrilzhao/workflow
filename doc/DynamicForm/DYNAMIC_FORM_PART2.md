@@ -2,30 +2,21 @@
 
 ## JSON Schema 规范详解
 
-### 5.1 基础类型定义
+> **标准 JSON Schema 规范**：关于 JSON Schema 的标准定义、基础类型、验证规则和条件验证机制，请参考 [JSON Schema 定义规范文档](./JSON_SCHEMA_DEFINITION.md)。
+>
+> 本文档主要介绍**项目特有的 UI 扩展规范**，包括 `ui` 字段的配置、Widget 类型、字段路径透明化等内容。
 
-#### 5.1.1 字符串类型 (string)
+---
 
-```json
-{
-  "type": "string",
-  "title": "用户名",
-  "description": "请输入用户名",
-  "minLength": 2,
-  "maxLength": 20,
-  "pattern": "^[a-zA-Z0-9_]+$",
-  "default": "",
-  "examples": ["john_doe", "user123"]
-}
-```
+## 5. UI 扩展规范
 
-**支持的验证规则**:
+### 5.1 基础类型的 UI 扩展
 
-- `minLength`: 最小长度
-- `maxLength`: 最大长度
-- `pattern`: 正则表达式
-- `format`: 预定义格式（email, uri, date-time 等）
-- `enum`: 枚举值
+本节介绍各基础类型字段如何通过 `ui` 字段进行 UI 层面的扩展配置。
+
+> **前置知识**：关于各基础类型的标准验证规则（如 `minLength`、`maximum`、`pattern` 等），请参考 [JSON Schema 定义规范 - 基础类型详解](./JSON_SCHEMA_DEFINITION.md#基础类型详解)。
+
+#### 5.1.1 字符串类型的 UI 扩展
 
 **UI 扩展属性**:
 
@@ -159,12 +150,12 @@
 
 **数组特定的 UI 配置**:
 
-| 属性 | 类型 | 说明 |
-|------|------|------|
-| `addButtonText` | `string` | 添加按钮的文本 |
-| `arrayMode` | `'dynamic' \| 'static'` | 渲染模式（dynamic: 可增删，static: 固定） |
-| `showAddButton` | `boolean` | 是否显示添加按钮 |
-| `showRemoveButton` | `boolean` | 是否显示删除按钮 |
+| 属性               | 类型                    | 说明                                      |
+| ------------------ | ----------------------- | ----------------------------------------- |
+| `addButtonText`    | `string`                | 添加按钮的文本                            |
+| `arrayMode`        | `'dynamic' \| 'static'` | 渲染模式（dynamic: 可增删，static: 固定） |
+| `showAddButton`    | `boolean`               | 是否显示添加按钮                          |
+| `showRemoveButton` | `boolean`               | 是否显示删除按钮                          |
 
 更多数组字段的配置选项、渲染模式、数据包装机制和最佳实践，请查看 [ArrayFieldWidget 完整文档](./ARRAY_FIELD_WIDGET.md)。
 
@@ -272,39 +263,39 @@
 
 UI 配置通过 `ui` 字段扩展，支持以下属性：
 
-| 属性 | 类型 | 说明 |
-|------|------|------|
-| `widget` | `string` | 组件类型（text、select、radio 等） |
-| `placeholder` | `string` | 占位符文本 |
-| `disabled` | `boolean` | 是否禁用 |
-| `readonly` | `boolean` | 是否只读 |
-| `hidden` | `boolean` | 是否隐藏 |
-| `help` | `string` | 帮助文本 |
-| `className` | `string` | CSS 类名 |
-| `style` | `React.CSSProperties` | 内联样式 |
-| `order` | `string[]` | 字段顺序 |
-| `errorMessages` | `ErrorMessages` | 自定义错误信息 |
-| `linkage` | `LinkageConfig` | UI 联动配置（详见 [UI_LINKAGE_DESIGN.md](./UI_LINKAGE_DESIGN.md)） |
-| `layout` | `'vertical' \| 'horizontal' \| 'inline'` | 布局方式（优先级高于全局配置，层级越深优先级越高） |
-| `labelWidth` | `number \| string` | 标签宽度（仅在 horizontal layout 下生效） |
-| `flattenPath` | `boolean` | 路径透明化：是否跳过该对象层级（详见 [FIELD_PATH_FLATTENING.md](./FIELD_PATH_FLATTENING.md)） |
-| `flattenPrefix` | `boolean` | 路径透明化：是否添加当前字段 title 作为前缀 |
-| `schemaKey` | `string` | 动态嵌套表单：依赖字段（详见 [NESTED_FORM.md](./NESTED_FORM.md)） |
-| `schemas` | `Record<string, {...}>` | 动态嵌套表单：多个子表单 schema 片段 |
-| `schemaLoader` | `Function` | 动态嵌套表单：异步加载 schema |
+| 属性            | 类型                                     | 说明                                                                                          |
+| --------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `widget`        | `string`                                 | 组件类型（text、select、radio 等）                                                            |
+| `placeholder`   | `string`                                 | 占位符文本                                                                                    |
+| `disabled`      | `boolean`                                | 是否禁用                                                                                      |
+| `readonly`      | `boolean`                                | 是否只读                                                                                      |
+| `hidden`        | `boolean`                                | 是否隐藏                                                                                      |
+| `help`          | `string`                                 | 帮助文本                                                                                      |
+| `className`     | `string`                                 | CSS 类名                                                                                      |
+| `style`         | `React.CSSProperties`                    | 内联样式                                                                                      |
+| `order`         | `string[]`                               | 字段顺序                                                                                      |
+| `errorMessages` | `ErrorMessages`                          | 自定义错误信息                                                                                |
+| `linkage`       | `LinkageConfig`                          | UI 联动配置（详见 [UI_LINKAGE_DESIGN.md](./UI_LINKAGE_DESIGN.md)）                            |
+| `layout`        | `'vertical' \| 'horizontal' \| 'inline'` | 布局方式（优先级高于全局配置，层级越深优先级越高）                                            |
+| `labelWidth`    | `number \| string`                       | 标签宽度（仅在 horizontal layout 下生效）                                                     |
+| `flattenPath`   | `boolean`                                | 路径透明化：是否跳过该对象层级（详见 [FIELD_PATH_FLATTENING.md](./FIELD_PATH_FLATTENING.md)） |
+| `flattenPrefix` | `boolean`                                | 路径透明化：是否添加当前字段 title 作为前缀                                                   |
+| `schemaKey`     | `string`                                 | 动态嵌套表单：依赖字段（详见 [NESTED_FORM.md](./NESTED_FORM.md)）                             |
+| `schemas`       | `Record<string, {...}>`                  | 动态嵌套表单：多个子表单 schema 片段                                                          |
+| `schemaLoader`  | `Function`                               | 动态嵌套表单：异步加载 schema                                                                 |
 
 > **完整类型定义**：详见 [PART3 - 组件架构设计](./DYNAMIC_FORM_PART3.md#核心类型定义)
 
 **ErrorMessages 错误信息配置**：
 
-| 属性 | 类型 | 说明 |
-|------|------|------|
-| `required` | `string` | 必填错误信息 |
+| 属性        | 类型     | 说明             |
+| ----------- | -------- | ---------------- |
+| `required`  | `string` | 必填错误信息     |
 | `minLength` | `string` | 最小长度错误信息 |
 | `maxLength` | `string` | 最大长度错误信息 |
-| `min` | `string` | 最小值错误信息 |
-| `max` | `string` | 最大值错误信息 |
-| `pattern` | `string` | 格式错误信息 |
+| `min`       | `string` | 最小值错误信息   |
+| `max`       | `string` | 最大值错误信息   |
+| `pattern`   | `string` | 格式错误信息     |
 
 #### 5.3.2 Readonly vs Disabled 详解
 
@@ -312,25 +303,27 @@ UI 配置通过 `ui` 字段扩展，支持以下属性：
 
 **核心区别对比表**：
 
-| 特性 | Readonly | Disabled |
-|------|----------|----------|
-| **值是否可修改** | ❌ 不可修改 | ❌ 不可修改 |
-| **表单提交时是否包含** | ✅ 包含在表单数据中 | ❌ 不包含在表单数据中 |
-| **是否可聚焦** | ✅ 可以聚焦（可选中、复制） | ❌ 不可聚焦 |
-| **是否可交互** | ✅ 部分交互（如滚动、选择文本） | ❌ 完全不可交互 |
-| **视觉样式** | 正常样式（可能有只读标识） | 灰色/禁用样式 |
-| **Tab 键导航** | ✅ 可以通过 Tab 键访问 | ❌ 跳过该字段 |
-| **语义含义** | 数据只读，但有效 | 字段不可用/不适用 |
+| 特性                   | Readonly                        | Disabled              |
+| ---------------------- | ------------------------------- | --------------------- |
+| **值是否可修改**       | ❌ 不可修改                     | ❌ 不可修改           |
+| **表单提交时是否包含** | ✅ 包含在表单数据中             | ❌ 不包含在表单数据中 |
+| **是否可聚焦**         | ✅ 可以聚焦（可选中、复制）     | ❌ 不可聚焦           |
+| **是否可交互**         | ✅ 部分交互（如滚动、选择文本） | ❌ 完全不可交互       |
+| **视觉样式**           | 正常样式（可能有只读标识）      | 灰色/禁用样式         |
+| **Tab 键导航**         | ✅ 可以通过 Tab 键访问          | ❌ 跳过该字段         |
+| **语义含义**           | 数据只读，但有效                | 字段不可用/不适用     |
 
 **使用场景**：
 
 **使用 Readonly 的场景**：
+
 1. **显示已确认的数据**：订单已提交，显示订单详情但不允许修改
 2. **权限限制**：用户只有查看权限，没有编辑权限
 3. **审核/审批流程**：审核人员查看申请内容，但不能修改
 4. **历史记录查看**：查看历史版本，不允许修改
 
 **使用 Disabled 的场景**：
+
 1. **条件性禁用**：依赖其他字段的值，某些字段暂时不可用
 2. **加载状态**：数据加载中，禁用表单
 3. **表单提交中**：提交中，防止重复提交
@@ -361,6 +354,7 @@ const [isSubmitting, setIsSubmitting] = useState(false);
 ```
 
 **最佳实践**：
+
 - ✅ 根据实际场景选择合适的属性
 - ✅ 需要提交数据时使用 `readonly`
 - ✅ 字段不适用或临时禁用时使用 `disabled`
@@ -373,6 +367,7 @@ const [isSubmitting, setIsSubmitting] = useState(false);
 **配置方式**：
 
 1. **全局配置**（通过 DynamicForm 组件属性）：
+
 ```typescript
 <DynamicForm
   schema={schema}
@@ -381,6 +376,7 @@ const [isSubmitting, setIsSubmitting] = useState(false);
 ```
 
 2. **字段级配置**（通过 ui.layout）：
+
 ```json
 {
   "type": "object",
@@ -397,11 +393,13 @@ const [isSubmitting, setIsSubmitting] = useState(false);
 ```
 
 **优先级规则**：层级越深优先级越高
+
 - 当前字段的 `ui.layout`（最高优先级）
 - 父级字段的 `ui.layout`
 - 全局 `DynamicFormProps.layout`（最低优先级）
 
 **支持的值**：
+
 - `vertical`：垂直布局（标签在上，输入框在下）
 - `horizontal`：水平布局（标签在左，输入框在右）
 - `inline`：内联布局
@@ -413,6 +411,7 @@ const [isSubmitting, setIsSubmitting] = useState(false);
 **配置方式**：
 
 1. **全局配置**（通过 DynamicForm 组件属性）：
+
 ```typescript
 <DynamicForm
   schema={schema}
@@ -422,6 +421,7 @@ const [isSubmitting, setIsSubmitting] = useState(false);
 ```
 
 2. **字段级配置**（通过 ui.labelWidth）：
+
 ```json
 {
   "type": "object",
@@ -447,6 +447,7 @@ const [isSubmitting, setIsSubmitting] = useState(false);
 **优先级**：字段级 `ui.labelWidth` > 全局 `labelWidth`
 
 **支持的值类型**：
+
 - 数字：如 `120`（表示 120px）
 - 字符串：如 `"120px"`、`"10rem"`、`"20%"`
 
@@ -510,28 +511,29 @@ const [isSubmitting, setIsSubmitting] = useState(false);
 
 #### 5.3.7 支持的 Widget 类型
 
-| Widget 类型    | 适用字段类型   | 说明                                       |
-| -------------- | -------------- | ------------------------------------------ |
-| `text`         | string         | 单行文本输入                               |
-| `textarea`     | string         | 多行文本输入                               |
-| `password`     | string         | 密码输入                                   |
-| `email`        | string         | 邮箱输入                                   |
-| `url`          | string         | URL 输入                                   |
-| `number`       | number/integer | 数字输入                                   |
-| `range`        | number/integer | 滑块                                       |
-| `select`       | string/number/array | 下拉选择（array 类型的默认 widget）   |
-| `radio`        | string/number  | 单选按钮                                   |
-| `checkboxes`   | array          | 多选框组（当 items.enum 存在时自动使用）   |
-| `checkbox`     | boolean        | 单个复选框                                 |
-| `switch`       | boolean        | 开关                                       |
-| `date`         | string         | 日期选择                                   |
-| `datetime`     | string         | 日期时间选择                               |
-| `time`         | string         | 时间选择                                   |
-| `color`        | string         | 颜色选择                                   |
-| `file`         | string         | 文件上传                                   |
-| `nested-form`  | object/array   | 嵌套表单（详见 NESTED_FORM.md）            |
+| Widget 类型   | 适用字段类型        | 说明                                     |
+| ------------- | ------------------- | ---------------------------------------- |
+| `text`        | string              | 单行文本输入                             |
+| `textarea`    | string              | 多行文本输入                             |
+| `password`    | string              | 密码输入                                 |
+| `email`       | string              | 邮箱输入                                 |
+| `url`         | string              | URL 输入                                 |
+| `number`      | number/integer      | 数字输入                                 |
+| `range`       | number/integer      | 滑块                                     |
+| `select`      | string/number/array | 下拉选择（array 类型的默认 widget）      |
+| `radio`       | string/number       | 单选按钮                                 |
+| `checkboxes`  | array               | 多选框组（当 items.enum 存在时自动使用） |
+| `checkbox`    | boolean             | 单个复选框                               |
+| `switch`      | boolean             | 开关                                     |
+| `date`        | string              | 日期选择                                 |
+| `datetime`    | string              | 日期时间选择                             |
+| `time`        | string              | 时间选择                                 |
+| `color`       | string              | 颜色选择                                 |
+| `file`        | string              | 文件上传                                 |
+| `nested-form` | object/array        | 嵌套表单（详见 NESTED_FORM.md）          |
 
 > **注意**：
+>
 > - **array 类型字段的 widget 选择规则**：
 >   - 如果 `items.enum` 存在 → 自动使用 `checkboxes`（多选框组）
 >   - 如果 `items.type === 'object'` → 自动使用 `nested-form`（无需显式指定）
@@ -547,6 +549,7 @@ const [isSubmitting, setIsSubmitting] = useState(false);
 字段路径透明化用于解决深层嵌套参数显示冗余的问题。当后端接口参数嵌套较深时，可以通过配置跳过中间层级，直接展示目标字段。
 
 **核心特点**：
+
 - 设置了 `flattenPath: true` 的对象字段**不会渲染 Card 组件**，避免多余的边框和 padding
 - 使用 `~~` 分隔符构建逻辑路径（如 `auth~~content~~key`）
 - 提交时自动将扁平数据转换为嵌套结构
@@ -606,7 +609,13 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
 
 `dependencies` 用于表达"当某个字段存在或有特定值时，其他字段的约束条件"。
 
-**简单依赖（数组形式）**：
+##### 简单依赖（数组形式）- 仅支持必填校验
+
+简单依赖使用数组形式，只能表达"当字段 A 有值时，数据提交时必须同时包含字段 B、C、D... 的值"。
+
+> **注意**：这是**数据验证规则**，不是 UI 联动。字段不会在界面上动态显示/隐藏或改变状态，只是在提交时进行校验。
+
+**示例 1：单个依赖字段**
 
 ```json
 {
@@ -627,9 +636,61 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
 }
 ```
 
-**含义**：如果填写了 `creditCard`，则 `billingAddress` 变为必填。
+**含义**：当 `creditCard` 有值时，提交数据时必须同时校验 `billingAddress` 的必填状态。
 
-**复杂依赖（Schema 依赖）**：
+**示例 2：多个依赖字段**
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "enableNotification": {
+      "type": "boolean",
+      "title": "启用通知"
+    },
+    "email": {
+      "type": "string",
+      "title": "邮箱"
+    },
+    "phone": {
+      "type": "string",
+      "title": "手机号"
+    }
+  },
+  "dependencies": {
+    "enableNotification": ["email", "phone"]
+  }
+}
+```
+
+**含义**：当 `enableNotification` 有值时，提交数据必须同时包含 `email` 和 `phone` 的值。
+
+**示例 3：多个字段的依赖关系**
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "firstName": { "type": "string", "title": "名" },
+    "lastName": { "type": "string", "title": "姓" },
+    "middleName": { "type": "string", "title": "中间名" }
+  },
+  "dependencies": {
+    "firstName": ["lastName"],
+    "lastName": ["firstName"]
+  }
+}
+```
+
+**含义**：`firstName` 和 `lastName` 互相依赖，提交时如果其中一个有值，另一个也必须有值。
+
+##### 复杂依赖（Schema 依赖）- 支持任意验证规则
+
+Schema 依赖使用对象形式，可以配置任意 JSON Schema 验证规则，包括必填、长度、格式、数值范围等。
+
+> **注意**：这同样是**数据验证规则**，不会改变 UI 的显示状态。
+
+**示例 1：基础 Schema 依赖 - 必填 + 长度校验**
 
 ```json
 {
@@ -650,7 +711,7 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
         {
           "properties": {
             "hasAddress": { "const": true },
-            "address": { "minLength": 1 }
+            "address": { "minLength": 10, "maxLength": 200 }
           },
           "required": ["address"]
         }
@@ -660,11 +721,347 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
 }
 ```
 
-**含义**：当 `hasAddress` 为 `true` 时，`address` 变为必填且至少1个字符。
+**含义**：当 `hasAddress` 为 `true` 时，提交数据必须包含 `address` 且长度在 10-200 字符之间。
 
-**注意**：`dependencies` 中的 `oneOf` 是在依赖关系内部使用的，不是顶层的逻辑组合。
+**示例 2：格式校验 - 支付方式依赖**
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "paymentMethod": {
+      "type": "string",
+      "title": "支付方式",
+      "enum": ["credit_card", "bank_transfer", "alipay"]
+    },
+    "cardNumber": { "type": "string", "title": "信用卡号" },
+    "bankAccount": { "type": "string", "title": "银行账号" },
+    "alipayAccount": { "type": "string", "title": "支付宝账号" }
+  },
+  "dependencies": {
+    "paymentMethod": {
+      "oneOf": [
+        {
+          "properties": {
+            "paymentMethod": { "const": "credit_card" },
+            "cardNumber": {
+              "pattern": "^[0-9]{16}$"
+            }
+          },
+          "required": ["cardNumber"]
+        },
+        {
+          "properties": {
+            "paymentMethod": { "const": "bank_transfer" },
+            "bankAccount": {
+              "pattern": "^[0-9]{10,20}$"
+            }
+          },
+          "required": ["bankAccount"]
+        },
+        {
+          "properties": {
+            "paymentMethod": { "const": "alipay" },
+            "alipayAccount": {
+              "format": "email"
+            }
+          },
+          "required": ["alipayAccount"]
+        }
+      ]
+    }
+  }
+}
+```
+
+**含义**：根据选择的支付方式，对应的账号字段必填且需满足特定格式要求。
+
+> **生产环境建议**：信用卡号实际长度为 13-19 位，建议使用 Luhn 算法进行校验；银行账号格式因国家和银行而异，需根据实际业务调整。
+
+**示例 3：数值范围校验 - 会员等级依赖**
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "membershipLevel": {
+      "type": "string",
+      "title": "会员等级",
+      "enum": ["basic", "premium", "vip"]
+    },
+    "discountRate": {
+      "type": "number",
+      "title": "折扣率"
+    }
+  },
+  "dependencies": {
+    "membershipLevel": {
+      "oneOf": [
+        {
+          "properties": {
+            "membershipLevel": { "const": "basic" },
+            "discountRate": {
+              "minimum": 0.9,
+              "maximum": 0.95
+            }
+          },
+          "required": ["discountRate"]
+        },
+        {
+          "properties": {
+            "membershipLevel": { "const": "premium" },
+            "discountRate": {
+              "minimum": 0.8,
+              "maximum": 0.9
+            }
+          },
+          "required": ["discountRate"]
+        },
+        {
+          "properties": {
+            "membershipLevel": { "const": "vip" },
+            "discountRate": {
+              "minimum": 0.5,
+              "maximum": 0.8
+            }
+          },
+          "required": ["discountRate"]
+        }
+      ]
+    }
+  }
+}
+```
+
+**含义**：根据会员等级，折扣率必须在对应的范围内（基础会员 90-95%，高级会员 80-90%，VIP 会员 50-80%）。
+
+**示例 4：多字段联合校验 - 发票信息依赖**
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "needInvoice": {
+      "type": "boolean",
+      "title": "是否需要发票"
+    },
+    "invoiceType": {
+      "type": "string",
+      "title": "发票类型",
+      "enum": ["personal", "company"]
+    },
+    "invoiceTitle": { "type": "string", "title": "发票抬头" },
+    "taxNumber": { "type": "string", "title": "税号" }
+  },
+  "dependencies": {
+    "needInvoice": {
+      "oneOf": [
+        {
+          "properties": {
+            "needInvoice": { "const": true },
+            "invoiceTitle": { "minLength": 2, "maxLength": 100 }
+          },
+          "required": ["invoiceType", "invoiceTitle"]
+        }
+      ]
+    },
+    "invoiceType": {
+      "oneOf": [
+        {
+          "properties": {
+            "invoiceType": { "const": "company" },
+            "taxNumber": {
+              "pattern": "^[A-Z0-9]{15,20}$"
+            }
+          },
+          "required": ["taxNumber"]
+        }
+      ]
+    }
+  }
+}
+```
+
+**含义**：
+
+- 当 `needInvoice` 为 `true` 时，必须填写发票类型和发票抬头（2-100字符）
+- 当 `invoiceType` 为 `company` 时，必须填写税号（15-20位字母或数字）
+
+**示例 5：嵌套对象校验 - 配送信息依赖**
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "deliveryMethod": {
+      "type": "string",
+      "title": "配送方式",
+      "enum": ["express", "self_pickup"]
+    },
+    "shippingAddress": {
+      "type": "object",
+      "title": "配送地址",
+      "properties": {
+        "province": { "type": "string", "title": "省份" },
+        "city": { "type": "string", "title": "城市" },
+        "detail": { "type": "string", "title": "详细地址" }
+      }
+    },
+    "pickupStore": { "type": "string", "title": "自提门店" }
+  },
+  "dependencies": {
+    "deliveryMethod": {
+      "oneOf": [
+        {
+          "properties": {
+            "deliveryMethod": { "const": "express" },
+            "shippingAddress": {
+              "type": "object",
+              "properties": {
+                "province": { "minLength": 2 },
+                "city": { "minLength": 2 },
+                "detail": { "minLength": 5, "maxLength": 200 }
+              },
+              "required": ["province", "city", "detail"]
+            }
+          },
+          "required": ["shippingAddress"]
+        },
+        {
+          "properties": {
+            "deliveryMethod": { "const": "self_pickup" },
+            "pickupStore": {
+              "minLength": 1
+            }
+          },
+          "required": ["pickupStore"]
+        }
+      ]
+    }
+  }
+}
+```
+
+**含义**：
+
+- 当选择快递配送时，必须填写完整的配送地址（省份、城市至少2字符，详细地址5-200字符）
+- 当选择自提时，必须选择自提门店
+
+##### Schema 依赖的结构解析
+
+为了更好地理解 Schema 依赖的工作原理，我们以示例 1 为例进行详细解析：
+
+**整体结构**：
+
+```json
+"dependencies": {
+  "hasAddress": {  // ← 第一层：触发字段
+    "oneOf": [     // ← 第二层：逻辑组合
+      {            // ← 第三层：具体的校验规则
+        "properties": { ... },
+        "required": [ ... ]
+      }
+    ]
+  }
+}
+```
+
+**第一层：触发字段**
+
+```json
+"dependencies": {
+  "hasAddress": { ... }
+}
+```
+
+**含义**：当表单数据中存在 `hasAddress` 字段（无论值是什么）时，就会触发内部的校验规则。
+
+**第二层：oneOf 逻辑组合**
+
+```json
+"hasAddress": {
+  "oneOf": [ ... ]
+}
+```
+
+**含义**：表单数据必须**有且仅有一个** `oneOf` 数组中的 schema 被满足。
+
+> **为什么需要 oneOf？**
+>
+> - 在示例 1 中，`oneOf` 数组只有一个元素，看起来有点多余
+> - 但这是为了处理"当 `hasAddress` 为 `true` 时才校验"的场景
+> - 如果 `hasAddress` 为 `false` 或不存在，这个 schema 就不会被满足，校验会通过
+> - 如果不使用 `oneOf`，只要 `hasAddress` 字段存在（无论值是什么），校验规则都会生效
+
+**第三层：具体的校验规则**
+
+```json
+{
+  "properties": {
+    "hasAddress": { "const": true },
+    "address": { "minLength": 10, "maxLength": 200 }
+  },
+  "required": ["address"]
+}
+```
+
+这是一个完整的 JSON Schema 对象，包含两个部分：
+
+**1. `properties` - 字段约束**
+
+```json
+"properties": {
+  "hasAddress": { "const": true },  // ← 触发条件
+  "address": {
+    "minLength": 10,                // ← 验证规则
+    "maxLength": 200
+  }
+}
+```
+
+- `hasAddress: { "const": true }` - 这是**触发条件**，只有当 `hasAddress` 的值为 `true` 时，这个 schema 才会被满足
+- `address: { "minLength": 10, "maxLength": 200 }` - 这是**验证规则**，对 `address` 字段的长度进行约束
+
+**2. `required` - 必填字段**
+
+```json
+"required": ["address"]
+```
+
+当这个 schema 生效时（即 `hasAddress` 为 `true`），`address` 字段必须存在且有值。
+
+**完整的校验逻辑**
+
+下表展示了不同情况下的校验结果：
+
+| hasAddress 值 | address 值              | 校验结果 | 原因                                 |
+| ------------- | ----------------------- | -------- | ------------------------------------ |
+| `true`        | 未填写                  | ❌ 失败  | `required: ["address"]` 要求必填     |
+| `true`        | `"abc"` (3字符)         | ❌ 失败  | 不满足 `minLength: 10`               |
+| `true`        | `"1234567890"` (10字符) | ✅ 通过  | 满足所有条件                         |
+| `true`        | `"abc..."` (201字符)    | ❌ 失败  | 超过 `maxLength: 200`                |
+| `false`       | 未填写                  | ✅ 通过  | `hasAddress` 不为 `true`，依赖不生效 |
+| `false`       | `"abc"`                 | ✅ 通过  | `hasAddress` 不为 `true`，依赖不生效 |
+| 未填写        | 未填写                  | ✅ 通过  | `hasAddress` 不存在，依赖不生效      |
+
+##### Schema 依赖的关键要点
+
+1. **触发字段**：`dependencies` 的键（如 `hasAddress`）是触发字段，当该字段存在时触发校验
+2. **oneOf 的作用**：用于实现"只在特定值时生效"的逻辑，配合 `const` 实现条件判断
+3. **properties 中的 const**：定义触发条件（如 `hasAddress: { "const": true }`）
+4. **properties 中的其他字段**：定义验证规则（如长度、格式、范围等）
+5. **required 数组**：定义在条件满足时哪些字段必填
+6. **验证规则合并**：`dependencies` 中的验证规则会与基础 schema 定义合并
+7. **多层级依赖**：可以同时定义多个字段的依赖关系，它们会独立生效
+8. **嵌套对象支持**：可以对嵌套对象的内部字段进行校验
+
+**适用场景**：这种模式非常适合"当某个开关字段为特定值时，其他字段才需要校验"的场景。
 
 #### 5.4.2 使用 if/then/else (Draft-07+)
+
+`if/then/else` 是 JSON Schema Draft-07+ 引入的条件验证关键字，提供了更清晰的条件分支语义。
+
+**示例 1：基础条件分支 - 必填校验**
 
 ```json
 {
@@ -674,8 +1071,8 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
       "type": "string",
       "enum": ["china", "usa"]
     },
-    "idCard": { "type": "string" },
-    "ssn": { "type": "string" }
+    "idCard": { "type": "string", "title": "身份证号" },
+    "ssn": { "type": "string", "title": "社会安全号" }
   },
   "if": {
     "properties": { "country": { "const": "china" } }
@@ -689,6 +1086,139 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
 }
 ```
 
+**含义**：如果国家是中国，身份证号必填；否则社会安全号必填。
+
+**示例 2：格式校验 - 根据年龄段校验手机号格式**
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "ageGroup": {
+      "type": "string",
+      "title": "年龄段",
+      "enum": ["child", "adult"]
+    },
+    "phone": {
+      "type": "string",
+      "title": "联系电话"
+    }
+  },
+  "if": {
+    "properties": { "ageGroup": { "const": "child" } }
+  },
+  "then": {
+    "properties": {
+      "phone": {
+        "pattern": "^1[3-9]\\d{9}$",
+        "description": "儿童需填写监护人手机号"
+      }
+    },
+    "required": ["phone"]
+  },
+  "else": {
+    "properties": {
+      "phone": {
+        "pattern": "^(1[3-9]\\d{9}|\\d{3,4}-\\d{7,8})$",
+        "description": "成人可填写手机号或座机号"
+      }
+    }
+  }
+}
+```
+
+**含义**：儿童必须填写监护人手机号（11位），成人可以填写手机号或座机号。
+
+**示例 3：数值范围校验 - 根据会员类型限制购买数量**
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "memberType": {
+      "type": "string",
+      "title": "会员类型",
+      "enum": ["regular", "vip"]
+    },
+    "quantity": {
+      "type": "integer",
+      "title": "购买数量"
+    }
+  },
+  "if": {
+    "properties": { "memberType": { "const": "vip" } }
+  },
+  "then": {
+    "properties": {
+      "quantity": {
+        "minimum": 1,
+        "maximum": 100
+      }
+    }
+  },
+  "else": {
+    "properties": {
+      "quantity": {
+        "minimum": 1,
+        "maximum": 10
+      }
+    }
+  }
+}
+```
+
+**含义**：VIP 会员可购买 1-100 件，普通会员只能购买 1-10 件。
+
+**示例 4：枚举值限制 - 根据用户角色限制可选操作**
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "userRole": {
+      "type": "string",
+      "title": "用户角色",
+      "enum": ["admin", "editor", "viewer"]
+    },
+    "operation": {
+      "type": "string",
+      "title": "操作类型"
+    }
+  },
+  "if": {
+    "properties": { "userRole": { "const": "admin" } }
+  },
+  "then": {
+    "properties": {
+      "operation": {
+        "enum": ["create", "edit", "delete", "view"]
+      }
+    }
+  },
+  "else": {
+    "if": {
+      "properties": { "userRole": { "const": "editor" } }
+    },
+    "then": {
+      "properties": {
+        "operation": {
+          "enum": ["create", "edit", "view"]
+        }
+      }
+    },
+    "else": {
+      "properties": {
+        "operation": {
+          "enum": ["view"]
+        }
+      }
+    }
+  }
+}
+```
+
+**含义**：根据用户角色限制可选操作（管理员可执行所有操作，编辑者可创建/编辑/查看，查看者只能查看）。
+
 #### 5.4.3 使用 allOf (所有条件都满足)
 
 `allOf` 是顶层的逻辑组合关键字，用于组合多个 schema，要求数据同时满足所有子 schema。
@@ -700,47 +1230,26 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
 
 **使用场景**：当需要同时应用多个独立的条件规则时使用 `allOf`。
 
+**示例 1：多条件必填校验**
+
 ```json
 {
   "type": "object",
   "properties": {
-    "isStudent": {
-      "type": "boolean",
-      "title": "是否学生"
-    },
-    "age": {
-      "type": "integer",
-      "title": "年龄"
-    },
-    "studentId": {
-      "type": "string",
-      "title": "学号"
-    },
-    "school": {
-      "type": "string",
-      "title": "学校"
-    },
-    "guardianPhone": {
-      "type": "string",
-      "title": "监护人电话"
-    }
+    "isStudent": { "type": "boolean", "title": "是否学生" },
+    "age": { "type": "integer", "title": "年龄" },
+    "studentId": { "type": "string", "title": "学号" },
+    "school": { "type": "string", "title": "学校" },
+    "guardianPhone": { "type": "string", "title": "监护人电话" }
   },
   "allOf": [
     {
-      "if": {
-        "properties": { "isStudent": { "const": true } }
-      },
-      "then": {
-        "required": ["studentId", "school"]
-      }
+      "if": { "properties": { "isStudent": { "const": true } } },
+      "then": { "required": ["studentId", "school"] }
     },
     {
-      "if": {
-        "properties": { "age": { "maximum": 17 } }
-      },
-      "then": {
-        "required": ["guardianPhone"]
-      }
+      "if": { "properties": { "age": { "maximum": 17 } } },
+      "then": { "required": ["guardianPhone"] }
     }
   ]
 }
@@ -748,9 +1257,9 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
 
 **含义**：
 
-1. 第一个条件：如果是学生，则学号和学校必填
-2. 第二个条件：如果年龄小于18岁，则监护人电话必填
-3. 这两个条件是**独立的**，可以同时生效（例如：17岁的学生需要填写学号、学校和监护人电话）
+1. 如果是学生，学号和学校必填
+2. 如果年龄小于18岁，监护人电话必填
+3. 这两个条件**独立生效**（17岁的学生需要填写学号、学校和监护人电话）
 
 **对比 dependencies 的实现方式**：
 
@@ -771,29 +1280,122 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
 
 这种方式虽然也能实现，但语义上不如 `allOf` 清晰，因为这不是典型的"字段依赖"场景。
 
+**示例 2：多条件格式和范围校验**
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "hasPromotion": { "type": "boolean", "title": "是否参与促销" },
+    "productType": { "type": "string", "title": "商品类型", "enum": ["digital", "physical"] },
+    "promoCode": { "type": "string", "title": "促销码" },
+    "shippingAddress": { "type": "string", "title": "配送地址" },
+    "price": { "type": "number", "title": "价格" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "hasPromotion": { "const": true } } },
+      "then": {
+        "required": ["promoCode"],
+        "properties": {
+          "promoCode": { "pattern": "^[A-Z0-9]{8}$" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "productType": { "const": "physical" } } },
+      "then": {
+        "required": ["shippingAddress"],
+        "properties": {
+          "shippingAddress": { "minLength": 10 }
+        }
+      }
+    },
+    {
+      "properties": {
+        "price": { "minimum": 0.01, "maximum": 99999 }
+      }
+    }
+  ]
+}
+```
+
+**含义**：
+
+1. 如果参与促销，必须填写8位促销码（大写字母或数字）
+2. 如果是实体商品，必须填写配送地址（至少10字符）
+3. 价格必须在 0.01-99999 之间（这是无条件的约束）
+
+**示例 3：数组长度限制 - 根据多个条件限制数组大小**
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "isPremium": { "type": "boolean", "title": "是否高级用户" },
+    "hasStorage": { "type": "boolean", "title": "是否购买存储空间" },
+    "attachments": {
+      "type": "array",
+      "title": "附件列表",
+      "items": { "type": "string" }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "isPremium": { "const": true } } },
+      "then": {
+        "properties": {
+          "attachments": { "maxItems": 50 }
+        }
+      },
+      "else": {
+        "properties": {
+          "attachments": { "maxItems": 5 }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "hasStorage": { "const": true } } },
+      "then": {
+        "properties": {
+          "attachments": {
+            "items": { "maxLength": 10485760 }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "attachments": {
+            "items": { "maxLength": 1048576 }
+          }
+        }
+      }
+    }
+  ]
+}
+```
+
+**含义**：
+
+1. 高级用户最多上传 50 个附件，普通用户最多 5 个
+2. 购买存储空间的用户每个文件最大 10MB，否则最大 1MB
+3. 这两个条件独立生效
+
 #### 5.4.4 使用 anyOf (任一条件满足)
 
 `anyOf` 是顶层的逻辑组合关键字，要求数据至少满足其中一个子 schema。
 
 **使用场景**：当需要"至少满足一个条件"时使用 `anyOf`，常用于"多选一"的验证场景。
 
+**示例 1：基础必填校验 - 至少填写一种联系方式**
+
 ```json
 {
   "type": "object",
   "properties": {
-    "email": {
-      "type": "string",
-      "title": "邮箱",
-      "format": "email"
-    },
-    "phone": {
-      "type": "string",
-      "title": "手机号"
-    },
-    "wechat": {
-      "type": "string",
-      "title": "微信号"
-    }
+    "email": { "type": "string", "title": "邮箱", "format": "email" },
+    "phone": { "type": "string", "title": "手机号" },
+    "wechat": { "type": "string", "title": "微信号" }
   },
   "anyOf": [{ "required": ["email"] }, { "required": ["phone"] }, { "required": ["wechat"] }]
 }
@@ -801,32 +1403,72 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
 
 **含义**：用户必须至少填写邮箱、手机号、微信号中的一个。可以填写多个，但不能一个都不填。
 
-**实际应用示例**：
+**示例 2：格式校验 - 至少提供一种有效的身份证明**
 
 ```json
 {
   "type": "object",
   "properties": {
-    "contactMethod": {
-      "type": "string",
-      "title": "首选联系方式",
-      "enum": ["email", "phone", "wechat"]
+    "idCard": { "type": "string", "title": "身份证号" },
+    "passport": { "type": "string", "title": "护照号" },
+    "driverLicense": { "type": "string", "title": "驾驶证号" }
+  },
+  "anyOf": [
+    {
+      "properties": {
+        "idCard": { "pattern": "^[1-9]\\d{17}$" }
+      },
+      "required": ["idCard"]
     },
-    "email": { "type": "string", "title": "邮箱" },
-    "phone": { "type": "string", "title": "手机号" },
-    "wechat": { "type": "string", "title": "微信号" }
-  },
-  "anyOf": [{ "required": ["email"] }, { "required": ["phone"] }, { "required": ["wechat"] }],
-  "if": {
-    "properties": { "contactMethod": { "const": "email" } }
-  },
-  "then": {
-    "required": ["email"]
-  }
+    {
+      "properties": {
+        "passport": { "pattern": "^[A-Z]\\d{8}$" }
+      },
+      "required": ["passport"]
+    },
+    {
+      "properties": {
+        "driverLicense": { "pattern": "^\\d{12}$" }
+      },
+      "required": ["driverLicense"]
+    }
+  ]
 }
 ```
 
-**含义**：至少填写一种联系方式，如果选择了邮箱作为首选，则邮箱必填。
+**含义**：至少提供一种有效的身份证明，且必须符合对应的格式要求（身份证18位、护照1字母+8数字、驾驶证12位数字）。
+
+**示例 3：数值范围校验 - 至少满足一种折扣条件**
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "totalAmount": { "type": "number", "title": "订单总额" },
+    "itemCount": { "type": "integer", "title": "商品数量" },
+    "memberYears": { "type": "integer", "title": "会员年限" }
+  },
+  "anyOf": [
+    {
+      "properties": {
+        "totalAmount": { "minimum": 1000 }
+      }
+    },
+    {
+      "properties": {
+        "itemCount": { "minimum": 10 }
+      }
+    },
+    {
+      "properties": {
+        "memberYears": { "minimum": 3 }
+      }
+    }
+  ]
+}
+```
+
+**含义**：至少满足一个条件才能享受折扣（订单总额≥1000 或 商品数量≥10 或 会员年限≥3年）。
 
 #### 5.4.5 使用 oneOf (仅一个条件满足)
 
@@ -839,35 +1481,23 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
 - `anyOf`：至少满足一个（可以满足多个）
 - `oneOf`：有且仅有一个（不能同时满足多个）
 
+**示例 1：基础互斥选择 - 账户类型**
+
 ```json
 {
   "type": "object",
   "properties": {
-    "accountType": {
-      "type": "string",
-      "title": "账户类型",
-      "enum": ["personal", "business"]
-    },
-    "idCard": {
-      "type": "string",
-      "title": "身份证号"
-    },
-    "businessLicense": {
-      "type": "string",
-      "title": "营业执照号"
-    }
+    "accountType": { "type": "string", "title": "账户类型", "enum": ["personal", "business"] },
+    "idCard": { "type": "string", "title": "身份证号" },
+    "businessLicense": { "type": "string", "title": "营业执照号" }
   },
   "oneOf": [
     {
-      "properties": {
-        "accountType": { "const": "personal" }
-      },
+      "properties": { "accountType": { "const": "personal" } },
       "required": ["idCard"]
     },
     {
-      "properties": {
-        "accountType": { "const": "business" }
-      },
+      "properties": { "accountType": { "const": "business" } },
       "required": ["businessLicense"]
     }
   ]
@@ -880,7 +1510,98 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
 - 如果是企业账户，必须填写营业执照号（不能填写身份证）
 - 不能同时满足两个条件
 
+**示例 2：格式校验 - 支付方式互斥选择**
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "paymentType": { "type": "string", "title": "支付类型", "enum": ["card", "bank", "wallet"] },
+    "cardNumber": { "type": "string", "title": "银行卡号" },
+    "bankAccount": { "type": "string", "title": "银行账号" },
+    "walletId": { "type": "string", "title": "钱包ID" }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "paymentType": { "const": "card" },
+        "cardNumber": { "pattern": "^[0-9]{16,19}$" }
+      },
+      "required": ["cardNumber"]
+    },
+    {
+      "properties": {
+        "paymentType": { "const": "bank" },
+        "bankAccount": { "pattern": "^[0-9]{10,20}$" }
+      },
+      "required": ["bankAccount"]
+    },
+    {
+      "properties": {
+        "paymentType": { "const": "wallet" },
+        "walletId": { "minLength": 8, "maxLength": 32 }
+      },
+      "required": ["walletId"]
+    }
+  ]
+}
+```
+
+**含义**：根据支付类型，只能填写对应的支付账号，且必须符合格式要求。不能同时填写多种支付方式。
+
+**示例 3：对象属性互斥 - 配送方式的互斥约束**
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "deliveryType": { "type": "string", "enum": ["express", "pickup", "digital"] },
+    "address": {
+      "type": "object",
+      "properties": { "city": { "type": "string" }, "street": { "type": "string" } }
+    },
+    "storeId": { "type": "string" },
+    "email": { "type": "string" }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "deliveryType": { "const": "express" },
+        "address": {
+          "required": ["city", "street"],
+          "properties": {
+            "city": { "minLength": 2 },
+            "street": { "minLength": 5 }
+          }
+        }
+      },
+      "required": ["address"]
+    },
+    {
+      "properties": {
+        "deliveryType": { "const": "pickup" },
+        "storeId": { "pattern": "^STORE-\\d{4}$" }
+      },
+      "required": ["storeId"]
+    },
+    {
+      "properties": {
+        "deliveryType": { "const": "digital" },
+        "email": { "format": "email" }
+      },
+      "required": ["email"]
+    }
+  ]
+}
+```
+
+**含义**：根据配送方式，只能填写对应的信息（快递需地址、自提需门店ID、数字商品需邮箱），且格式必须正确。
+
 #### 5.4.6 嵌套条件判断
+
+嵌套条件判断用于处理多层级的条件逻辑，适用于"先判断 A，再根据 A 的值判断 B"的场景。
+
+**示例 1：基础嵌套必填校验 - 用户类型和国家**
 
 ```json
 {
@@ -939,7 +1660,74 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
 }
 ```
 
+**含义**：
+
+- 如果是个人用户，根据国家填写对应证件（中国填身份证、美国填SSN、其他填护照）
+- 如果是企业用户，必须填写公司名称和营业执照
+
+**示例 2：嵌套格式和范围校验 - 产品类型和规格**
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "productType": { "type": "string", "enum": ["physical", "digital"] },
+    "category": { "type": "string", "enum": ["book", "software", "music"] },
+    "weight": { "type": "number" },
+    "fileSize": { "type": "number" },
+    "pages": { "type": "integer" },
+    "version": { "type": "string" },
+    "duration": { "type": "integer" }
+  },
+  "if": {
+    "properties": { "productType": { "const": "physical" } }
+  },
+  "then": {
+    "if": {
+      "properties": { "category": { "const": "book" } }
+    },
+    "then": {
+      "properties": {
+        "weight": { "minimum": 0.1, "maximum": 5 },
+        "pages": { "minimum": 10, "maximum": 2000 }
+      }
+    }
+  },
+  "else": {
+    "allOf": [
+      {
+        "if": { "properties": { "category": { "const": "software" } } },
+        "then": {
+          "properties": {
+            "fileSize": { "minimum": 1, "maximum": 10240 },
+            "version": { "pattern": "^\\d+\\.\\d+\\.\\d+$" }
+          }
+        }
+      },
+      {
+        "if": { "properties": { "category": { "const": "music" } } },
+        "then": {
+          "properties": {
+            "fileSize": { "minimum": 1, "maximum": 500 },
+            "duration": { "minimum": 30, "maximum": 3600 }
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+**含义**：
+
+- 实体商品：书籍需校验重量（0.1-5kg）和页数（10-2000页）
+- 数字商品：软件需校验文件大小（1-10240MB）和版本号格式，音乐需校验文件大小（1-500MB）和时长（30-3600秒）
+
 #### 5.4.7 多字段联合判断
+
+多字段联合判断用于处理"先判断开关字段，再根据类型字段应用不同的验证规则"的复杂场景。
+
+**示例 1：优惠信息的多层级校验**
 
 ```json
 {
@@ -1007,6 +1795,76 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
 }
 ```
 
+**含义**：
+
+- 如果启用优惠（`hasDiscount` 为 `true`），必须选择优惠类型
+- 根据优惠类型应用不同的验证规则：
+  - 优惠券：必填优惠券码（6-20字符）
+  - 积分：必填积分数量（至少100）
+  - VIP：必填VIP等级
+
+**示例 2：订阅配置的多层级格式和枚举校验**
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "enableSubscription": { "type": "boolean", "title": "启用订阅" },
+    "subscriptionType": {
+      "type": "string",
+      "title": "订阅类型",
+      "enum": ["monthly", "yearly", "lifetime"]
+    },
+    "billingCycle": { "type": "integer", "title": "账单周期（天）" },
+    "autoRenew": { "type": "boolean", "title": "自动续费" },
+    "paymentMethod": { "type": "string", "title": "支付方式" }
+  },
+  "if": {
+    "properties": { "enableSubscription": { "const": true } }
+  },
+  "then": {
+    "required": ["subscriptionType"],
+    "allOf": [
+      {
+        "if": { "properties": { "subscriptionType": { "const": "monthly" } } },
+        "then": {
+          "properties": {
+            "billingCycle": { "const": 30 },
+            "paymentMethod": { "enum": ["credit_card", "paypal", "alipay"] }
+          }
+        }
+      },
+      {
+        "if": { "properties": { "subscriptionType": { "const": "yearly" } } },
+        "then": {
+          "properties": {
+            "billingCycle": { "const": 365 },
+            "paymentMethod": { "enum": ["credit_card", "paypal", "bank_transfer"] }
+          }
+        }
+      },
+      {
+        "if": { "properties": { "subscriptionType": { "const": "lifetime" } } },
+        "then": {
+          "properties": {
+            "autoRenew": { "const": false },
+            "paymentMethod": { "enum": ["credit_card", "bank_transfer"] }
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+**含义**：
+
+- 如果启用订阅，必须选择订阅类型
+- 根据订阅类型应用不同的约束：
+  - 月度订阅：账单周期固定为30天，支持信用卡/PayPal/支付宝
+  - 年度订阅：账单周期固定为365天，支持信用卡/PayPal/银行转账
+  - 终身订阅：自动续费必须为false，仅支持信用卡/银行转账
+
 #### 5.4.8 条件渲染机制对比总结
 
 | 机制             | 位置   | 语义               | 使用场景                        | 示例                               |
@@ -1024,6 +1882,74 @@ JSON Schema 提供了多种条件验证机制，主要分为两大类：
 3. 多个独立条件同时生效 → 使用 `allOf`
 4. 至少满足一个条件 → 使用 `anyOf`
 5. 互斥选择 → 使用 `oneOf`
+
+#### 5.4.9 最佳实践和注意事项
+
+**1. 数据验证 vs UI 联动**
+
+> **重要**：本章节所有示例都是**数据验证规则**，不是 UI 联动逻辑。
+>
+> - ✅ 验证规则：在表单提交时校验数据是否符合要求
+> - ❌ UI 联动：字段不会根据条件自动显示/隐藏或改变状态
+> - 如需 UI 联动，请参考第 6 章"UI Schema 配置"
+
+**2. 正则表达式转义**
+
+在 JSON 中使用正则表达式时，需要双重转义反斜杠：
+
+```json
+{
+  "pattern": "^\\d{3}-\\d{4}$" // JSON 中需要 \\d，实际正则为 \d
+}
+```
+
+**3. 格式校验的局限性**
+
+示例中的格式校验（如信用卡号、手机号）仅用于演示，生产环境建议：
+
+- 信用卡号：使用 Luhn 算法校验
+- 手机号：根据国家/地区使用不同的正则
+- 邮箱：使用 `format: "email"` 而非自定义正则
+- 身份证号：需要校验校验位算法
+
+**4. 条件验证的性能考虑**
+
+复杂的嵌套条件会影响验证性能，建议：
+
+- 避免过深的嵌套（建议不超过 3 层）
+- 优先使用简单的 `dependencies` 而非复杂的 `if/then/else`
+- 对于复杂业务逻辑，考虑在后端进行验证
+
+**5. 错误提示的友好性**
+
+JSON Schema 的默认错误提示可能不够友好，建议：
+
+- 使用 `description` 字段提供字段说明
+- 使用 `errorMessage` 扩展（如 ajv-errors）自定义错误提示
+- 在 UI Schema 中配置更友好的错误信息
+
+**6. 常见陷阱**
+
+- ❌ **错误**：在 `dependencies` 中使用 `if` 判断字段是否存在
+
+  ```json
+  "dependencies": {
+    "field": {
+      "if": { "required": ["field"] }  // 错误：dependencies 已经隐含了字段存在
+    }
+  }
+  ```
+
+- ✅ **正确**：直接使用 `const` 判断字段值
+  ```json
+  "dependencies": {
+    "field": {
+      "oneOf": [
+        { "properties": { "field": { "const": true } } }
+      ]
+    }
+  }
+  ```
 
 ### 5.5 自定义验证
 
