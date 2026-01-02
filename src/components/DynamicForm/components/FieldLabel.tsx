@@ -10,7 +10,7 @@ export const FieldLabel: React.FC<FieldLabelProps> = ({ htmlFor, label, required
   return (
     <label htmlFor={htmlFor} className="bp5-label">
       {label}
-      {required && <span className="bp5-text-muted"> (必填)</span>}
+      {required && <span className="bp5-text-muted"> *</span>}
     </label>
   );
 };

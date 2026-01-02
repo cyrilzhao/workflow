@@ -183,7 +183,7 @@ export const ArrayFieldWidget = forwardRef<HTMLDivElement, ArrayFieldWidgetProps
     const arrayMode = useMemo(() => determineArrayMode(schema), [schema]);
 
     // 从 schema.ui 中获取配置
-    const addButtonText = schema.ui?.addButtonText || '添加';
+    const addButtonText = schema.ui?.addButtonText || 'Add';
     const emptyText = schema.ui?.emptyText;
     const minItems = schema.minItems || 0;
     const maxItems = schema.maxItems;
@@ -307,7 +307,7 @@ export const ArrayFieldWidget = forwardRef<HTMLDivElement, ArrayFieldWidgetProps
         {/* 添加按钮 */}
         {canAddRemove && (
           <Tooltip
-            content={maxItems && fields.length >= maxItems ? '已达到最大数量限制' : ''}
+            content={maxItems && fields.length >= maxItems ? `Maximum of ${maxItems} items allowed` : ''}
             disabled={!maxItems || fields.length < maxItems}
           >
             <Button
@@ -345,14 +345,14 @@ const DeleteConfirmPopover: React.FC<DeleteConfirmPopoverProps> = ({
   return (
     <div style={{ padding: '10px', maxWidth: '250px' }}>
       <div style={{ marginBottom: '10px', fontSize: '14px' }}>
-        确定要删除第 {itemIndex + 1} 项吗？
+        Delete item {itemIndex + 1}?
       </div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
         <Button small onClick={onCancel}>
-          取消
+          Cancel
         </Button>
         <Button small intent="danger" onClick={onConfirm}>
-          删除
+          Delete
         </Button>
       </div>
     </div>
@@ -449,7 +449,7 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
             <div className="array-item-actions" style={{ display: 'flex', gap: '5px' }}>
               {onMoveUp && (
                 <Tooltip
-                  content={statusMap?.isFirstItem ? '已是第一项' : ''}
+                  content={statusMap?.isFirstItem ? 'Already at the first item' : ''}
                   disabled={!statusMap?.isFirstItem}
                 >
                   <Button
@@ -458,13 +458,13 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
                     small
                     onClick={onMoveUp}
                     disabled={disabled || statusMap?.isFirstItem}
-                    title="上移"
+                    title="Move up"
                   />
                 </Tooltip>
               )}
               {onMoveDown && (
                 <Tooltip
-                  content={statusMap?.isLastItem ? '已是最后一项' : ''}
+                  content={statusMap?.isLastItem ? 'Already at the last item' : ''}
                   disabled={!statusMap?.isLastItem}
                 >
                   <Button
@@ -473,7 +473,7 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
                     small
                     onClick={onMoveDown}
                     disabled={disabled || statusMap?.isLastItem}
-                    title="下移"
+                    title="Move down"
                   />
                 </Tooltip>
               )}
@@ -498,7 +498,7 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
                   placement="top"
                 >
                   <Tooltip
-                    content={statusMap?.isAtMinLimit ? '已达到最小数量限制' : ''}
+                    content={statusMap?.isAtMinLimit ? 'At least one item is required' : ''}
                     disabled={!statusMap?.isAtMinLimit}
                   >
                     <Button
@@ -507,7 +507,7 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
                       small
                       intent="danger"
                       disabled={disabled || statusMap?.isAtMinLimit}
-                      title="删除"
+                      title="Delete"
                     />
                   </Tooltip>
                 </Popover>
@@ -595,7 +595,7 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
         >
           {onMoveUp && (
             <Tooltip
-              content={statusMap?.isFirstItem ? '已是第一项' : ''}
+              content={statusMap?.isFirstItem ? 'Already at the first item' : ''}
               disabled={!statusMap?.isFirstItem}
             >
               <Button
@@ -604,13 +604,13 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
                 small
                 onClick={onMoveUp}
                 disabled={disabled || statusMap?.isFirstItem}
-                title="上移"
+                title="Move up"
               />
             </Tooltip>
           )}
           {onMoveDown && (
             <Tooltip
-              content={statusMap?.isLastItem ? '已是最后一项' : ''}
+              content={statusMap?.isLastItem ? 'Already at the last item' : ''}
               disabled={!statusMap?.isLastItem}
             >
               <Button
@@ -619,7 +619,7 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
                 small
                 onClick={onMoveDown}
                 disabled={disabled || statusMap?.isLastItem}
-                title="下移"
+                title="Move down"
               />
             </Tooltip>
           )}
@@ -644,7 +644,7 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
               placement="top"
             >
               <Tooltip
-                content={statusMap?.isAtMinLimit ? '已达到最小数量限制' : ''}
+                content={statusMap?.isAtMinLimit ? 'At least one item is required' : ''}
                 disabled={!statusMap?.isAtMinLimit}
               >
                 <Button
@@ -653,7 +653,7 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
                   small
                   intent="danger"
                   disabled={disabled || statusMap?.isAtMinLimit}
-                  title="删除"
+                  title="Delete"
                 />
               </Tooltip>
             </Popover>

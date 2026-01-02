@@ -387,7 +387,7 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
     return (
       <div className="dynamic-form__actions" style={{ marginTop: '20px' }}>
         <Button type="submit" intent="primary" loading={loading} disabled={loading || disabled}>
-          {loading ? '提交中...' : '提交'}
+          {loading ? 'Submitting...' : 'Submit'}
         </Button>
       </div>
     );

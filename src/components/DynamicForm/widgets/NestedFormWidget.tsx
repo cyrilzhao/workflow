@@ -197,7 +197,7 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
     if (loading) {
       return (
         <div ref={ref} className="nested-form-loading">
-          加载中...
+          Loading...
         </div>
       );
     }

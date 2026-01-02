@@ -19,7 +19,7 @@ export const ErrorList: React.FC<ErrorListProps> = ({ errors }) => {
 
   return (
     <Callout intent="danger" style={{ marginBottom: '20px' }}>
-      <h4 className="bp5-heading">表单验证错误</h4>
+      <h4 className="bp5-heading">Please fix the following errors</h4>
       <ul style={{ margin: '10px 0 0 0', paddingLeft: '20px' }}>
         {errorEntries.map(([fieldName, error]) => {
           const message = error?.message as string | undefined;

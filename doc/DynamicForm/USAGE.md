@@ -268,6 +268,7 @@ DynamicForm supports three layout modes:
 Arrays can be rendered in different ways depending on the `items` configuration:
 
 **Simple Array (Checkboxes)**:
+
 ```typescript
 {
   type: 'array',
@@ -285,6 +286,7 @@ Arrays can be rendered in different ways depending on the `items` configuration:
 ```
 
 **Object Array (Nested Forms)**:
+
 ```typescript
 {
   type: 'array',
@@ -352,20 +354,20 @@ The `ui` field provides extensive customization options:
 
 #### Supported Widget Types
 
-| Widget | Field Type | Description |
-|--------|-----------|-------------|
-| `text` | string | Single-line text input |
-| `textarea` | string | Multi-line text input |
-| `password` | string | Password input |
-| `email` | string | Email input |
-| `number` | number/integer | Number input |
-| `select` | string/number/array | Dropdown select |
-| `radio` | string/number | Radio buttons |
-| `checkboxes` | array | Multiple checkboxes |
-| `checkbox` | boolean | Single checkbox |
-| `switch` | boolean | Toggle switch |
-| `date` | string | Date picker |
-| `nested-form` | object/array | Nested form |
+| Widget        | Field Type          | Description            |
+| ------------- | ------------------- | ---------------------- |
+| `text`        | string              | Single-line text input |
+| `textarea`    | string              | Multi-line text input  |
+| `password`    | string              | Password input         |
+| `email`       | string              | Email input            |
+| `number`      | number/integer      | Number input           |
+| `select`      | string/number/array | Dropdown select        |
+| `radio`       | string/number       | Radio buttons          |
+| `checkboxes`  | array               | Multiple checkboxes    |
+| `checkbox`    | boolean             | Single checkbox        |
+| `switch`      | boolean             | Toggle switch          |
+| `date`        | string              | Date picker            |
+| `nested-form` | object/array        | Nested form            |
 
 ### Validation Rules
 
@@ -514,7 +516,7 @@ const schema = {
       type: 'string',
       title: 'Country',
       enum: ['china', 'usa'],
-      enumNames: ['China', 'USA']
+      enumNames: ['China', 'USA'],
     },
     province: {
       type: 'string',
@@ -524,12 +526,12 @@ const schema = {
           type: 'options',
           dependencies: ['#/properties/country'],
           fulfill: {
-            function: 'getProvinceOptions'
-          }
-        }
-      }
-    }
-  }
+            function: 'getProvinceOptions',
+          },
+        },
+      },
+    },
+  },
 };
 
 const linkageFunctions = {
@@ -537,16 +539,16 @@ const linkageFunctions = {
     if (formData.country === 'china') {
       return [
         { label: 'Beijing', value: 'beijing' },
-        { label: 'Shanghai', value: 'shanghai' }
+        { label: 'Shanghai', value: 'shanghai' },
       ];
     } else if (formData.country === 'usa') {
       return [
         { label: 'California', value: 'ca' },
-        { label: 'New York', value: 'ny' }
+        { label: 'New York', value: 'ny' },
       ];
     }
     return [];
-  }
+  },
 };
 ```
 
@@ -560,7 +562,7 @@ const schema = {
   properties: {
     name: {
       type: 'string',
-      title: 'Name'
+      title: 'Name',
     },
     address: {
       type: 'object',
@@ -568,11 +570,11 @@ const schema = {
       properties: {
         street: { type: 'string', title: 'Street' },
         city: { type: 'string', title: 'City' },
-        zipCode: { type: 'string', title: 'Zip Code' }
+        zipCode: { type: 'string', title: 'Zip Code' },
       },
-      required: ['city']
-    }
-  }
+      required: ['city'],
+    },
+  },
 };
 ```
 
@@ -588,31 +590,31 @@ const schema = {
       type: 'string',
       title: 'User Type',
       enum: ['personal', 'company'],
-      enumNames: ['Personal', 'Company']
+      enumNames: ['Personal', 'Company'],
     },
     details: {
       type: 'object',
       title: 'Details',
       ui: {
-        widget: 'nested-form',  // Explicitly specified here for clarity when using schemaKey/schemas
+        widget: 'nested-form', // Explicitly specified here for clarity when using schemaKey/schemas
         schemaKey: 'userType',
         schemas: {
           personal: {
             properties: {
               firstName: { type: 'string', title: 'First Name' },
-              lastName: { type: 'string', title: 'Last Name' }
-            }
+              lastName: { type: 'string', title: 'Last Name' },
+            },
           },
           company: {
             properties: {
               companyName: { type: 'string', title: 'Company Name' },
-              taxId: { type: 'string', title: 'Tax ID' }
-            }
-          }
-        }
-      }
-    }
-  }
+              taxId: { type: 'string', title: 'Tax ID' },
+            },
+          },
+        },
+      },
+    },
+  },
 };
 ```
 
@@ -629,24 +631,24 @@ const schema = {
       title: 'Authentication',
       ui: {
         flattenPath: true,
-        flattenPrefix: true
+        flattenPrefix: true,
       },
       properties: {
         content: {
           type: 'object',
           ui: {
-            flattenPath: true
+            flattenPath: true,
           },
           properties: {
             apiKey: {
               type: 'string',
-              title: 'API Key'
-            }
-          }
-        }
-      }
-    }
-  }
+              title: 'API Key',
+            },
+          },
+        },
+      },
+    },
+  },
 };
 // Display: "Authentication - API Key"
 // Submit: { auth: { content: { apiKey: 'xxx' } } }
@@ -658,25 +660,25 @@ const schema = {
 
 ### DynamicForm Props
 
-| Prop | Type | Required | Default | Description |
-|------|------|----------|---------|-------------|
-| `schema` | `ExtendedJSONSchema` | Yes | - | JSON Schema definition |
-| `defaultValues` | `Record<string, any>` | No | `{}` | Initial form values |
-| `onSubmit` | `(data: any) => void \| Promise<void>` | No | - | Submit handler |
-| `onChange` | `(data: any) => void` | No | - | Change handler |
-| `widgets` | `Record<string, ComponentType>` | No | `{}` | Custom widgets |
-| `linkageFunctions` | `Record<string, Function>` | No | `{}` | Linkage functions |
-| `customFormats` | `Record<string, Function>` | No | `{}` | Custom format validators |
-| `layout` | `'vertical' \| 'horizontal' \| 'inline'` | No | `'vertical'` | Form layout |
-| `labelWidth` | `number \| string` | No | - | Label width (horizontal layout) |
-| `showSubmitButton` | `boolean` | No | `true` | Show submit button |
-| `renderAsForm` | `boolean` | No | `true` | Render as `<form>` tag |
-| `validateMode` | `'onSubmit' \| 'onBlur' \| 'onChange' \| 'all'` | No | `'onSubmit'` | Validation mode |
-| `loading` | `boolean` | No | `false` | Loading state |
-| `disabled` | `boolean` | No | `false` | Disable all fields |
-| `readonly` | `boolean` | No | `false` | Make all fields readonly |
-| `className` | `string` | No | - | CSS class name |
-| `style` | `React.CSSProperties` | No | - | Inline styles |
+| Prop               | Type                                            | Required | Default      | Description                     |
+| ------------------ | ----------------------------------------------- | -------- | ------------ | ------------------------------- |
+| `schema`           | `ExtendedJSONSchema`                            | Yes      | -            | JSON Schema definition          |
+| `defaultValues`    | `Record<string, any>`                           | No       | `{}`         | Initial form values             |
+| `onSubmit`         | `(data: any) => void \| Promise<void>`          | No       | -            | Submit handler                  |
+| `onChange`         | `(data: any) => void`                           | No       | -            | Change handler                  |
+| `widgets`          | `Record<string, ComponentType>`                 | No       | `{}`         | Custom widgets                  |
+| `linkageFunctions` | `Record<string, Function>`                      | No       | `{}`         | Linkage functions               |
+| `customFormats`    | `Record<string, Function>`                      | No       | `{}`         | Custom format validators        |
+| `layout`           | `'vertical' \| 'horizontal' \| 'inline'`        | No       | `'vertical'` | Form layout                     |
+| `labelWidth`       | `number \| string`                              | No       | -            | Label width (horizontal layout) |
+| `showSubmitButton` | `boolean`                                       | No       | `true`       | Show submit button              |
+| `renderAsForm`     | `boolean`                                       | No       | `true`       | Render as `<form>` tag          |
+| `validateMode`     | `'onSubmit' \| 'onBlur' \| 'onChange' \| 'all'` | No       | `'onSubmit'` | Validation mode                 |
+| `loading`          | `boolean`                                       | No       | `false`      | Loading state                   |
+| `disabled`         | `boolean`                                       | No       | `false`      | Disable all fields              |
+| `readonly`         | `boolean`                                       | No       | `false`      | Make all fields readonly        |
+| `className`        | `string`                                        | No       | -            | CSS class name                  |
+| `style`            | `React.CSSProperties`                           | No       | -            | Inline styles                   |
 
 ---
 
@@ -827,12 +829,15 @@ properties: {
 **1. Cache Schema with useMemo**
 
 ```typescript
-const schema = useMemo(() => ({
-  type: 'object',
-  properties: {
-    // ... schema definition
-  }
-}), []);
+const schema = useMemo(
+  () => ({
+    type: 'object',
+    properties: {
+      // ... schema definition
+    },
+  }),
+  []
+);
 ```
 
 **2. Debounce onChange Callbacks**
@@ -890,21 +895,25 @@ const handleSubmit = async (data: any) => {
 ### Common Issues
 
 **Q: Fields not rendering**
+
 - Check if `type` is correctly specified in schema
 - Verify widget type is supported
 - Check console for errors
 
 **Q: Validation not working**
+
 - Ensure `required` fields are in schema's `required` array
 - Check validation rules syntax
 - Verify custom validators are registered
 
 **Q: Nested forms not displaying**
+
 - Object fields automatically use `nested-form` widget by default
 - For arrays of objects, ensure `items.type: 'object'` is set
 - Check schema structure is correct
 
 **Q: Linkage not working**
+
 - Verify dependencies use correct path format
 - Check linkage functions are registered
 - Use JSON Pointer format for nested fields
@@ -921,7 +930,3 @@ const handleSubmit = async (data: any) => {
 - [Field Path Flattening (Chinese)](./FIELD_PATH_FLATTENING.md)
 
 ---
-
-**Version**: 1.0
-**Last Updated**: 2025-12-30
-**Author**: Claude Code
