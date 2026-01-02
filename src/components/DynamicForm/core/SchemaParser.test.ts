@@ -1,5 +1,5 @@
 import { SchemaParser } from './SchemaParser';
-import type { ExtendedJSONSchema, FieldConfig } from '@/types/schema';
+import type { ExtendedJSONSchema, FieldConfig } from '../types/schema';
 
 describe('SchemaParser', () => {
   describe('parse', () => {

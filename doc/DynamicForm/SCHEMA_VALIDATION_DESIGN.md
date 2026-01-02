@@ -99,14 +99,14 @@ constructor(schema: ExtendedJSONSchema, rootSchema?: ExtendedJSONSchema)
 const schema = {
   properties: {
     age: { type: 'number', title: '年龄' },
-    studentId: { type: 'string', title: '学号' }
+    studentId: { type: 'string', title: '学号' },
   },
   allOf: [
     {
       if: { properties: { age: { maximum: 17 } } },
-      then: { required: ['studentId'] }
-    }
-  ]
+      then: { required: ['studentId'] },
+    },
+  ],
 };
 
 // 当验证 allOf 中的子 schema 时，需要 rootSchema 来获取 'studentId' 的标题 '学号'
@@ -791,7 +791,7 @@ private validateFormat(
 ## 5. 完整的 SchemaValidator 类实现
 
 ```typescript
-import type { ExtendedJSONSchema } from '@/types/schema';
+import type { ExtendedJSONSchema } from '../types/schema';
 
 /**
  * Schema 级别验证器
@@ -844,7 +844,7 @@ export class SchemaValidator {
 
 ```typescript
 import { SchemaValidator } from './SchemaValidator';
-import type { ExtendedJSONSchema } from '@/types/schema';
+import type { ExtendedJSONSchema } from '../types/schema';
 
 /**
  * 创建 Schema 验证 Resolver
@@ -884,7 +884,7 @@ export const createSchemaResolver = (schema: ExtendedJSONSchema) => {
 ```typescript
 import { useForm } from 'react-hook-form';
 import { createSchemaResolver } from './createSchemaResolver';
-import type { ExtendedJSONSchema } from '@/types/schema';
+import type { ExtendedJSONSchema } from './types/schema';
 
 interface DynamicFormProps {
   schema: ExtendedJSONSchema;

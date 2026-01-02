@@ -5,8 +5,8 @@ import { FieldLabel } from '../components/FieldLabel';
 import { FieldError } from '../components/FieldError';
 import { FieldHelp } from '../components/FieldHelp';
 import { FieldRegistry } from '../core/FieldRegistry';
-import type { FieldConfig } from '@/types/schema';
-import type { LinkageResult } from '@/types/linkage';
+import type { FieldConfig } from '../types/schema';
+import type { LinkageResult } from '../types/linkage';
 
 /**
  * 根据嵌套路径获取错误信息

@@ -1,5 +1,5 @@
 import { filterValueWithNestedSchemas } from './filterValueWithNestedSchemas';
-import type { ExtendedJSONSchema } from '../../../types/schema';
+import type { ExtendedJSONSchema } from '../types/schema';
 
 describe('filterValueWithNestedSchemas', () => {
   describe('基本类型处理', () => {

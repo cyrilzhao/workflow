@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { DynamicForm } from '@/components/DynamicForm';
-import type { ExtendedJSONSchema } from '@/types/schema';
+import type { ExtendedJSONSchema } from '@/components/DynamicForm/types/schema';
 
 /**
  * 内联布局示例

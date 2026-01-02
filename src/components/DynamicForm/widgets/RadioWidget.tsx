@@ -1,7 +1,7 @@
 import React, { forwardRef } from 'react';
 import { RadioGroup, Radio } from '@blueprintjs/core';
 import type { FieldWidgetProps } from '../types';
-import type { FieldOption } from '@/types/schema';
+import type { FieldOption } from '../types/schema';
 
 export const RadioWidget = forwardRef<HTMLInputElement, FieldWidgetProps>(
   ({ name, disabled, readonly, options = [], value, onChange }, ref) => {

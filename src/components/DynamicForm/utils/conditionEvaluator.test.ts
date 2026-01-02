@@ -1,5 +1,5 @@
 import { ConditionEvaluator } from './conditionEvaluator';
-import type { ConditionExpression } from '@/types/linkage';
+import type { ConditionExpression } from '../types/linkage';
 
 describe('ConditionEvaluator', () => {
   describe('基本比较操作符', () => {

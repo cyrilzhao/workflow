@@ -1,4 +1,4 @@
-import type { ConditionExpression, ConditionOperator } from '@/types/linkage';
+import type { ConditionExpression, ConditionOperator } from '../types/linkage';
 import { PathResolver } from './pathResolver';
 
 /**

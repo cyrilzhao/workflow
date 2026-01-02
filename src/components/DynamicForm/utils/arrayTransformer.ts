@@ -1,4 +1,4 @@
-import type { ExtendedJSONSchema } from '@/types/schema';
+import type { ExtendedJSONSchema } from '../types/schema';
 
 /**
  * 判断是否为基本类型

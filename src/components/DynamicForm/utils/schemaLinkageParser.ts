@@ -1,4 +1,4 @@
-import type { ExtendedJSONSchema, LinkageConfig } from '@/types/schema';
+import type { ExtendedJSONSchema, LinkageConfig } from '../types/schema';
 import { SchemaParser } from '@/components/DynamicForm';
 import {
   isInFlattenPathChain,

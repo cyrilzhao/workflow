@@ -1,18 +1,18 @@
 import { useMemo, useEffect, useState, useCallback } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
-import type { LinkageConfig, LinkageFunction } from '@/types/linkage';
-import type { LinkageResult } from '@/types/linkage';
-import type { ExtendedJSONSchema } from '@/types/schema';
+import type { LinkageConfig, LinkageFunction } from '../types/linkage';
+import type { LinkageResult } from '../types/linkage';
+import type { ExtendedJSONSchema } from '../types/schema';
 import { useLinkageManager as useBaseLinkageManager } from './useLinkageManager';
 import {
   isArrayElementPath,
   extractArrayInfo,
   resolveArrayElementLinkage,
   findArrayInPath,
-} from '@/utils/arrayLinkageHelper';
-import type { PathMapping } from '@/utils/schemaLinkageParser';
-import { DependencyGraph } from '@/utils/dependencyGraph';
-import { PathResolver } from '@/utils/pathResolver';
+} from '../utils/arrayLinkageHelper';
+import type { PathMapping } from '../utils/schemaLinkageParser';
+import { DependencyGraph } from '../utils/dependencyGraph';
+import { PathResolver } from '../utils/pathResolver';
 
 interface ArrayLinkageManagerOptions {
   form: UseFormReturn<any>;

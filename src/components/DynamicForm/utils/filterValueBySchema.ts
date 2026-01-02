@@ -1,4 +1,4 @@
-import type { ExtendedJSONSchema } from '@/types/schema';
+import type { ExtendedJSONSchema } from '../types/schema';
 
 /**
  * 根据 schema 递归过滤数据，只保留 schema 中定义的字段

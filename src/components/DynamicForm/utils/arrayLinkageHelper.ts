@@ -1,5 +1,5 @@
-import type { LinkageConfig } from '@/types/linkage';
-import type { ExtendedJSONSchema } from '@/types/schema';
+import type { LinkageConfig } from '../types/linkage';
+import type { ExtendedJSONSchema } from '../types/schema';
 import { FLATTEN_PATH_SEPARATOR, type PathMapping } from './schemaLinkageParser';
 import { SchemaParser } from '@/components/DynamicForm/core/SchemaParser';
 import { resolveRelativePath } from './pathTransformer';

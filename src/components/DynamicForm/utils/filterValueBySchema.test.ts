@@ -1,5 +1,5 @@
 import { filterValueBySchema } from './filterValueBySchema';
-import type { ExtendedJSONSchema } from '../../../types/schema';
+import type { ExtendedJSONSchema } from '../types/schema';
 
 describe('filterValueBySchema', () => {
   describe('基本类型处理', () => {

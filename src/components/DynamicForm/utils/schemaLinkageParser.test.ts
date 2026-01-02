@@ -1,5 +1,5 @@
 import { parseSchemaLinkages } from './schemaLinkageParser';
-import type { ExtendedJSONSchema, LinkageConfig } from '@/types/schema';
+import type { ExtendedJSONSchema, LinkageConfig } from '../types/schema';
 
 describe('parseSchemaLinkages', () => {
   describe('基本功能', () => {

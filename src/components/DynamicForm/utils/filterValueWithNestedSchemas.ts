@@ -1,4 +1,4 @@
-import type { ExtendedJSONSchema } from '@/types/schema';
+import type { ExtendedJSONSchema } from '../types/schema';
 
 /**
  * 使用嵌套 schema 注册表过滤数据

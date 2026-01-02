@@ -1,7 +1,7 @@
 import React, { createContext, useContext } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
-import type { LinkageResult, LinkageFunction } from '@/types/linkage';
-import type { ExtendedJSONSchema } from '@/types/schema';
+import type { LinkageResult, LinkageFunction } from '../types/linkage';
+import type { ExtendedJSONSchema } from '../types/schema';
 
 /**
  * 联动状态 Context 值类型

@@ -141,6 +141,7 @@
 ```
 
 **说明**：
+
 - `schemaKey: '#/properties/company/type'` 使用 JSON Pointer 格式
 - 可以依赖任意层级的字段，不限于同级
 - 同样支持自动数据清除机制
@@ -206,7 +207,7 @@ export interface UIConfig {
 
   // 嵌套表单配置（用于动态场景）
   schemaKey?: string; // 动态 schema 的依赖字段（支持简单字段名或 JSON Pointer 格式）
-                      // 示例: 'type' 或 '#/properties/company/type'
+  // 示例: 'type' 或 '#/properties/company/type'
   schemas?: Record<
     string,
     {
@@ -244,12 +245,13 @@ export interface NestedFormWidgetProps extends FieldWidgetProps {
   // 其他配置
   disabled?: boolean;
   readonly?: boolean;
-  layout?: 'vertical' | 'horizontal' | 'inline';  // 布局方式
-  labelWidth?: number | string;  // 标签宽度
+  layout?: 'vertical' | 'horizontal' | 'inline'; // 布局方式
+  labelWidth?: number | string; // 标签宽度
 }
 ```
 
 **重要说明**：
+
 - NestedFormWidget 使用 `asNestedForm` 模式，不需要 `value` 和 `onChange` props
 - 数据通过父表单的 FormContext 自动管理
 - 字段名通过 `pathPrefix` 参数自动添加前缀
@@ -268,7 +270,7 @@ import { useFormContext } from 'react-hook-form';
 import { Card } from '@blueprintjs/core';
 import { DynamicForm } from '../DynamicForm';
 import type { FieldWidgetProps } from '../types';
-import type { ExtendedJSONSchema } from '@/types/schema';
+import type { ExtendedJSONSchema } from '../types/schema';
 import { PathResolver } from '@/utils/pathResolver';
 import { useNestedSchemaRegistry } from '../context/NestedSchemaContext';
 import { usePathPrefix, joinPath, removePrefix } from '../context/PathPrefixContext';
@@ -441,6 +443,7 @@ useEffect(() => {
 ```
 
 **说明**：
+
 - 当 `schemaKey` 依赖字段变化时，`currentSchema` 会更新
 - `useEffect` 会自动重新注册新的 schema
 - 这确保注册表中始终是最新的 schema
@@ -453,6 +456,7 @@ const fullPath = joinPath(parentPathPrefix, name);
 ```
 
 **说明**：
+
 - 支持多层嵌套表单的路径计算
 - 例如：`company.details` 表示 `company` 字段下的 `details` 嵌套表单
 
@@ -487,6 +491,7 @@ NestedFormWidget 使用 `asNestedForm={true}` 参数让内层 DynamicForm 复用
    - 验证规则也会自动注册到父表单中
 
 **优势**：
+
 - ✅ 简化了数据传递逻辑，无需手动同步值
 - ✅ 避免了 Controller 的额外包裹层
 - ✅ 统一的验证和提交流程
@@ -713,6 +718,7 @@ const handleSubmit = (data: Record<string, any>) => {
 ```
 
 **关键点**：
+
 - `filterValueWithNestedSchemas` 函数会递归处理嵌套对象和数组
 - 对于动态嵌套表单字段，使用注册表中的当前 schema 进行过滤
 - 只保留当前 schema 中定义的字段，过滤掉类型切换时遗留的旧字段
@@ -724,19 +730,19 @@ const handleSubmit = (data: Record<string, any>) => {
 ##### `filterValueBySchema` - 基础过滤函数
 
 **函数签名**：
+
 ```typescript
-function filterValueBySchema(
-  value: any,
-  schema: ExtendedJSONSchema
-): any
+function filterValueBySchema(value: any, schema: ExtendedJSONSchema): any;
 ```
 
 **适用场景**：
+
 - 静态 schema，不涉及动态切换
 - 简单的嵌套对象过滤
 - 不需要跟踪嵌套表单的 schema 变化
 
 **特点**：
+
 - 只根据传入的 schema 进行过滤
 - 递归处理嵌套对象和数组
 - 不支持动态嵌套表单的 schema 注册机制
@@ -744,26 +750,30 @@ function filterValueBySchema(
 ##### `filterValueWithNestedSchemas` - 增强过滤函数
 
 **函数签名**：
+
 ```typescript
 function filterValueWithNestedSchemas(
   value: any,
   schema: ExtendedJSONSchema,
   nestedSchemas: Map<string, ExtendedJSONSchema>,
   currentPath?: string
-): any
+): any;
 ```
 
 **适用场景**：
+
 - 动态嵌套表单（使用 `schemaKey` 和 `schemas` 配置）
 - 需要根据当前激活的 schema 过滤数据
 - 多层嵌套表单场景
 
 **特点**：
+
 - 支持嵌套 schema 注册表
 - 对于注册的字段路径，使用注册表中的当前 schema 进行过滤
 - 完美支持类型切换时的数据过滤
 
 **使用建议**：
+
 - DynamicForm 内部统一使用 `filterValueWithNestedSchemas`
 - 如果没有嵌套 schema 注册表，传入空 Map 即可，功能等同于 `filterValueBySchema`
 
@@ -779,10 +789,11 @@ function filterValueWithNestedSchemas(
   schema: ExtendedJSONSchema,
   nestedSchemas: Map<string, ExtendedJSONSchema>,
   currentPath?: string
-): any
+): any;
 ```
 
 **参数说明**：
+
 - `value`: 要过滤的数据
 - `schema`: 顶层 JSON Schema
 - `nestedSchemas`: 嵌套字段的 schema 注册表（字段路径 -> 当前激活的 schema）
@@ -853,11 +864,13 @@ const cleanData = filterValueWithNestedSchemas(dirtyData, schema, nestedSchemas)
 为了支持动态嵌套表单的数据过滤，系统使用 `NestedSchemaContext` 机制来跟踪每个嵌套字段当前激活的 schema。
 
 **核心概念**：
+
 - 每个 `NestedFormWidget` 在挂载时自动注册当前使用的 schema
 - Schema 动态切换时，注册表会自动更新
 - 表单提交时，使用注册表中的当前 schema 进行数据过滤
 
 **工作流程**：
+
 1. DynamicForm 创建 NestedSchemaProvider，初始化注册表
 2. NestedFormWidget 挂载时注册当前 schema
 3. 用户修改 schemaKey 依赖字段时，NestedFormWidget 更新并重新注册 schema
@@ -909,7 +922,7 @@ const schema = {
           name: { type: 'string', title: 'Name' },
           email: { type: 'string', title: 'Email', format: 'email' },
           phone: { type: 'string', title: 'Phone' },
-        }
+        },
       },
     },
   },
@@ -962,12 +975,14 @@ NestedFormWidget 使用 `asNestedForm={true}` 模式，数据通过父表单的 
 ```
 
 **优势**：
+
 - ✅ 无需手动同步值，避免了复杂的值同步逻辑
 - ✅ 避免了父子组件之间的值同步死循环问题
 - ✅ 统一的数据管理，所有字段都在父表单的 FormContext 中
 - ✅ 更好的性能，减少了不必要的重渲染
 
 **工作原理**：
+
 1. 内层 DynamicForm 通过 `useFormContext()` 获取父表单的 FormContext
 2. 字段名通过 `pathPrefix` 自动添加前缀（如 `company.details.name`）
 3. 字段值直接从父表单的 FormContext 中读取和更新
@@ -1058,6 +1073,7 @@ export const NestedFormWidget = memo(
 ```
 
 **说明**：
+
 - 使用 `asNestedForm` 模式后，不需要比较 `value` 和 `onChange`
 - 只需要比较 schema 和配置相关的 props
 - 减少了不必要的重渲染，提升性能
@@ -1085,6 +1101,7 @@ export const NestedFormWidget = memo(
 **文档优化**：精简内容，减少重复，提升可读性
 
 **主要变更**：
+
 - ✅ 精简第 7.1 节：删除与 FIELD_PATH_GUIDE.md 重复的路径格式详细说明，改为引用链接
 - ✅ 精简第 7.3 节：删除与 UI_LINKAGE_DESIGN.md 重复的 Context 实现细节，保留核心概念
 - ✅ 优化概述部分：使用醒目的提示框突出默认 widget 说明
@@ -1096,6 +1113,7 @@ export const NestedFormWidget = memo(
 **架构重构**：改用 asNestedForm 模式
 
 **主要变更**：
+
 - 移除了 Controller 组件的使用，改为 asNestedForm 模式
 - 更新了 NestedFormWidgetProps 接口，移除 value 和 onChange
 - 补充了 asNestedForm 模式的详细说明

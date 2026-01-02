@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useRef, useCallback } from 'react';
-import type { ExtendedJSONSchema } from '@/types/schema';
+import type { ExtendedJSONSchema } from '../types/schema';
 
 /**
  * NestedSchemaContext 用于收集所有嵌套表单的当前 schema

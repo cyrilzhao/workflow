@@ -1,4 +1,4 @@
-import type { ExtendedJSONSchema } from '@/types/schema';
+import type { ExtendedJSONSchema } from '../types/schema';
 
 /**
  * Schema 级别验证器
@@ -127,7 +127,7 @@ export class SchemaValidator {
     }
 
     // 递归查找嵌套的 object 类型字段
-    for (const [key, propSchema] of Object.entries(schema.properties)) {
+    for (const [_, propSchema] of Object.entries(schema.properties)) {
       if (typeof propSchema === 'object' && propSchema.type === 'object' && propSchema.properties) {
         const nestedTitle = this.findFieldTitle(fieldName, propSchema);
         if (nestedTitle) return nestedTitle;
@@ -434,9 +434,17 @@ export class SchemaValidator {
     if (!inferredType) {
       if (schema.pattern || schema.minLength || schema.maxLength || schema.format) {
         inferredType = 'string';
-      } else if (schema.minimum !== undefined || schema.maximum !== undefined || schema.multipleOf !== undefined) {
+      } else if (
+        schema.minimum !== undefined ||
+        schema.maximum !== undefined ||
+        schema.multipleOf !== undefined
+      ) {
         inferredType = 'number';
-      } else if (schema.minItems !== undefined || schema.maxItems !== undefined || schema.uniqueItems) {
+      } else if (
+        schema.minItems !== undefined ||
+        schema.maxItems !== undefined ||
+        schema.uniqueItems
+      ) {
         inferredType = 'array';
       } else if (schema.minProperties !== undefined || schema.maxProperties !== undefined) {
         inferredType = 'object';

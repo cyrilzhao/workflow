@@ -5,13 +5,13 @@ import type {
   LinkageFunction,
   ConditionExpression,
   LinkageFunctionContext,
-} from '@/types/linkage';
-import type { LinkageResult } from '@/types/linkage';
-import { ConditionEvaluator } from '@/utils/conditionEvaluator';
-import { DependencyGraph } from '@/utils/dependencyGraph';
-import { PathResolver } from '@/utils/pathResolver';
-import type { PathMapping } from '@/utils/schemaLinkageParser';
-import { physicalToLogicalPath } from '@/utils/schemaLinkageParser';
+} from '../types/linkage';
+import type { LinkageResult } from '../types/linkage';
+import { ConditionEvaluator } from '../utils/conditionEvaluator';
+import { DependencyGraph } from '../utils/dependencyGraph';
+import { PathResolver } from '../utils/pathResolver';
+import type { PathMapping } from '../utils/schemaLinkageParser';
+import { physicalToLogicalPath } from '../utils/schemaLinkageParser';
 
 /**
  * 获取嵌套对象的值

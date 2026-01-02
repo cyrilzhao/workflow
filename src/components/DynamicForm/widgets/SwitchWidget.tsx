@@ -11,7 +11,7 @@ export const SwitchWidget = forwardRef<HTMLInputElement, FieldWidgetProps>(
         label={label}
         disabled={disabled || readonly}
         checked={value}
-        onChange={(e) => onChange?.(e.target.checked)}
+        onChange={e => onChange?.(e.target.checked)}
         {...rest}
       />
     );

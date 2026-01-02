@@ -1,5 +1,5 @@
 import type { JSONSchema7 } from 'json-schema';
-import type { LinkageConfig, ConditionExpression } from './linkage';
+import type { LinkageConfig } from './linkage';
 
 // 重新导出联动相关类型，方便其他模块使用
 export type { LinkageConfig, ConditionExpression } from './linkage';

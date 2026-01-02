@@ -132,9 +132,3 @@ export const removeStorage = (key: string): void => {
     console.error('删除存储失败:', error);
   }
 };
-
-// 导出联动相关工具类
-export { ConditionEvaluator } from './conditionEvaluator';
-export { PathResolver } from './pathResolver';
-export { DependencyGraph } from './dependencyGraph';
-export { parseSchemaLinkages } from './schemaLinkageParser';

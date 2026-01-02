@@ -1,4 +1,4 @@
-import type { ExtendedJSONSchema } from '@/types/schema';
+import type { ExtendedJSONSchema } from '../types/schema';
 import { FLATTEN_PATH_SEPARATOR } from './schemaLinkageParser';
 import { SchemaParser } from '@/components/DynamicForm/core/SchemaParser';
 

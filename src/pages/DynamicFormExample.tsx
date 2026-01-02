@@ -1,6 +1,6 @@
 import React from 'react';
 import { DynamicForm } from '@/components/DynamicForm';
-import type { ExtendedJSONSchema } from '@/types/schema';
+import type { ExtendedJSONSchema } from '@/components/DynamicForm/types/schema';
 
 export const DynamicFormExample: React.FC = () => {
   // 基础表单示例

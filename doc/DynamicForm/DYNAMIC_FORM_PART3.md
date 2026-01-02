@@ -172,10 +172,10 @@ export interface ValidationRules {
 ### 6.3 主组件接口设计
 
 ```typescript
-// src/components/DynamicForm/types.ts
+// src/components/DynamicForm/types/index.ts
 
-import { UseFormReturn } from 'react-hook-form';
-import { ExtendedJSONSchema } from '@/types/schema';
+import type { ExtendedJSONSchema, FieldOption } from './schema';
+import type { LinkageFunction } from './linkage';
 
 /**
  * DynamicForm 组件属性
@@ -304,7 +304,14 @@ src/
 ```typescript
 // src/components/DynamicForm/core/SchemaParser.ts
 
-import { ExtendedJSONSchema, FieldConfig } from '@/types/schema';
+import type {
+  ExtendedJSONSchema,
+  FieldConfig,
+  WidgetType,
+  ValidationRules,
+  FieldOption,
+} from '../types/schema';
+import { FLATTEN_PATH_SEPARATOR } from '../utils/schemaLinkageParser';
 
 /**
  * Schema 解析配置
@@ -319,6 +326,8 @@ interface ParseOptions {
 }
 
 export class SchemaParser {
+  private static customFormats: Record<string, (value: string) => boolean> = {};
+
   /**
    * 设置自定义格式验证器
    */
@@ -345,25 +354,21 @@ export class SchemaParser {
    * - buildFieldPath('region~~market', 'contacts', false) → 'region~~market~~contacts'
    * - buildFieldPath('region~~market~~contacts.0', 'category', true) → 'region~~market~~contacts.0~~category'
    */
-  static buildFieldPath(
-    parentPath: string,
-    fieldName: string,
-    isFlattenPath: boolean
-  ): string {
+  static buildFieldPath(parentPath: string, fieldName: string, isFlattenPath: boolean): string {
     if (!parentPath) {
       return fieldName;
     }
 
     // 检查父路径的最后一个分隔符类型
     const lastDotIndex = parentPath.lastIndexOf('.');
-    const lastSepIndex = parentPath.lastIndexOf('~~');
+    const lastSepIndex = parentPath.lastIndexOf(FLATTEN_PATH_SEPARATOR);
 
     // 如果最后一个分隔符是 ~~，说明父级在 flattenPath 链中
     const isParentInFlattenChain = lastSepIndex > lastDotIndex;
 
     // 规则：如果父级在 flattenPath 链中，或当前字段是 flattenPath，使用 ~~
     if (isParentInFlattenChain || isFlattenPath) {
-      return `${parentPath}~~${fieldName}`;
+      return `${parentPath}${FLATTEN_PATH_SEPARATOR}${fieldName}`;
     }
 
     // 否则使用 .
@@ -401,7 +406,7 @@ export class SchemaParser {
   }
 
   /**
-   * 解析 Schema 生成字段配置（支持路径扁平化和 UI 配置继承）
+   * 解析 Schema 生成字段配置（支持路径扁平化）
    */
   static parse(schema: ExtendedJSONSchema, options: ParseOptions = {}): FieldConfig[] {
     const { parentPath = '', prefixLabel = '', inheritedUI } = options;
@@ -425,19 +430,22 @@ export class SchemaParser {
       const isFlattenPath = fieldSchema.type === 'object' && fieldSchema.ui?.flattenPath;
 
       // 使用 buildFieldPath 方法正确处理 flattenPath 的路径
-      const currentPath = this.buildFieldPath(parentPath, key, isFlattenPath);
+      const currentPath = this.buildFieldPath(parentPath, key, isFlattenPath || false);
 
       // 检查是否需要路径扁平化
       if (isFlattenPath) {
         // 确定是否需要添加前缀
-        const newPrefixLabel = fieldSchema.ui.flattenPrefix && fieldSchema.title
-          ? (prefixLabel ? `${prefixLabel} - ${fieldSchema.title}` : fieldSchema.title)
-          : prefixLabel;
+        const newPrefixLabel =
+          fieldSchema.ui?.flattenPrefix && fieldSchema.title
+            ? prefixLabel
+              ? `${prefixLabel} - ${fieldSchema.title}`
+              : fieldSchema.title
+            : prefixLabel;
 
         // 准备要继承的 UI 配置（父级配置 + 当前层级配置）
         const newInheritedUI = {
-          layout: fieldSchema.ui.layout ?? inheritedUI?.layout,
-          labelWidth: fieldSchema.ui.labelWidth ?? inheritedUI?.labelWidth,
+          layout: fieldSchema.ui?.layout ?? inheritedUI?.layout,
+          labelWidth: fieldSchema.ui?.labelWidth ?? inheritedUI?.labelWidth,
         };
 
         // 递归解析子字段，传递当前路径（已经包含 ~~ 分隔符）
@@ -468,7 +476,7 @@ export class SchemaParser {
   }
 
   /**
-   * 解析单个字段（支持嵌套路径、标签前缀和 UI 配置继承）
+   * 解析单个字段（支持嵌套路径和标签前缀）
    */
   private static parseField(
     path: string,
@@ -518,12 +526,10 @@ export class SchemaParser {
    * 获取 Widget 类型
    */
   private static getWidget(schema: ExtendedJSONSchema): WidgetType {
-    // 优先使用显式指定的 widget
     if (schema.ui?.widget) {
       return schema.ui.widget;
     }
 
-    // 根据类型和其他属性推断
     const type = schema.type;
 
     if (type === 'string') {
@@ -551,7 +557,7 @@ export class SchemaParser {
     }
 
     if (type === 'object') {
-      return 'nested-form'; // 嵌套表单组件
+      return 'nested-form';
     }
 
     return 'text';

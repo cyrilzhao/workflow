@@ -9,7 +9,7 @@ import {
   PopoverInteractionKind,
 } from '@blueprintjs/core';
 import type { FieldWidgetProps } from '../types';
-import type { ExtendedJSONSchema, WidgetType } from '@/types/schema';
+import type { ExtendedJSONSchema, WidgetType } from '../types/schema';
 import { FieldRegistry } from '../core/FieldRegistry';
 import { SchemaParser } from '../core/SchemaParser';
 
@@ -307,7 +307,9 @@ export const ArrayFieldWidget = forwardRef<HTMLDivElement, ArrayFieldWidgetProps
         {/* 添加按钮 */}
         {canAddRemove && (
           <Tooltip
-            content={maxItems && fields.length >= maxItems ? `Maximum of ${maxItems} items allowed` : ''}
+            content={
+              maxItems && fields.length >= maxItems ? `Maximum of ${maxItems} items allowed` : ''
+            }
             disabled={!maxItems || fields.length < maxItems}
           >
             <Button
@@ -344,9 +346,7 @@ const DeleteConfirmPopover: React.FC<DeleteConfirmPopoverProps> = ({
 }) => {
   return (
     <div style={{ padding: '10px', maxWidth: '250px' }}>
-      <div style={{ marginBottom: '10px', fontSize: '14px' }}>
-        Delete item {itemIndex + 1}?
-      </div>
+      <div style={{ marginBottom: '10px', fontSize: '14px' }}>Delete item {itemIndex + 1}?</div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
         <Button small onClick={onCancel}>
           Cancel

@@ -4,8 +4,8 @@ import type {
   WidgetType,
   ValidationRules,
   FieldOption,
-} from '@/types/schema';
-import { FLATTEN_PATH_SEPARATOR } from '@/utils/schemaLinkageParser';
+} from '../types/schema';
+import { FLATTEN_PATH_SEPARATOR } from '../utils/schemaLinkageParser';
 
 /**
  * Schema 解析配置

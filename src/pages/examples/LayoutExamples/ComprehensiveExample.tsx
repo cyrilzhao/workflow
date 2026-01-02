@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { DynamicForm } from '@/components/DynamicForm';
-import type { ExtendedJSONSchema } from '@/types/schema';
+import type { ExtendedJSONSchema } from '@/components/DynamicForm/types/schema';
 
 /**
  * 综合示例：layout 和 labelWidth 的层级继承

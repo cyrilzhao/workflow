@@ -1,5 +1,5 @@
 import { SchemaValidator } from '../SchemaValidator';
-import type { ExtendedJSONSchema } from '../../../../types/schema';
+import type { ExtendedJSONSchema } from '../../types/schema';
 
 describe('SchemaValidator', () => {
   describe('dependencies 验证', () => {

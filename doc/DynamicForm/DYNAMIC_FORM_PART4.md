@@ -7,6 +7,7 @@
 > 本文档展示的是实际生产环境中的完整实现，包含了嵌套表单、数组字段、联动管理等高级特性。
 >
 > **关于 UI 组件库的选择**：
+>
 > - 动态表单的核心架构与具体的 UI 组件库是**完全解耦**的
 > - 当前实现使用 **Blueprint.js** 作为 UI 组件库，但这只是一个实现选择
 > - 开发者可以自由选择任何 UI 组件库（Ant Design、Material-UI、Chakra UI 等）
@@ -22,12 +23,14 @@
 本文档是动态表单技术方案的第四部分，提供核心代码实现示例和快速参考。
 
 **系列文档**：
+
 - [Part 1: 核心架构](./DYNAMIC_FORM_PART1.md) - 整体架构设计
 - [Part 2: Schema 解析](./DYNAMIC_FORM_PART2.md) - Schema 解析机制
 - [Part 3: 高级特性](./DYNAMIC_FORM_PART3.md) - 高级特性说明
 - **Part 4: 代码实现**（本文档）- 代码实现示例
 
 **专题文档**：
+
 - [嵌套表单设计](./NESTED_FORM.md) - 嵌套表单的完整设计和实现
 - [数组字段设计](./ARRAY_FIELD_WIDGET.md) - ArrayFieldWidget 的完整设计
 - [数组字段联动](./ARRAY_FIELD_LINKAGE.md) - 数组字段联动的详细方案
@@ -64,7 +67,10 @@ import type { DynamicFormProps } from './types';
 import { parseSchemaLinkages, transformToAbsolutePaths } from '@/utils/schemaLinkageParser';
 import { useArrayLinkageManager } from '@/hooks/useArrayLinkageManager';
 import { filterValueWithNestedSchemas } from './utils/filterValueWithNestedSchemas';
-import { NestedSchemaProvider, useNestedSchemaRegistryOptional } from './context/NestedSchemaContext';
+import {
+  NestedSchemaProvider,
+  useNestedSchemaRegistryOptional,
+} from './context/NestedSchemaContext';
 import { PathPrefixProvider } from './context/PathPrefixContext';
 import { LinkageStateProvider, useLinkageStateContext } from './context/LinkageStateContext';
 import { PathTransformer } from '@/utils/pathTransformer';
@@ -212,8 +218,8 @@ import { FieldLabel } from '../components/FieldLabel';
 import { FieldError } from '../components/FieldError';
 import { FieldHelp } from '../components/FieldHelp';
 import { FieldRegistry } from '../core/FieldRegistry';
-import type { FieldConfig } from '@/types/schema';
-import type { LinkageResult } from '@/types/linkage';
+import type { FieldConfig } from '../types/schema';
+import type { LinkageResult } from '../types/linkage';
 
 /**
  * 根据嵌套路径获取错误信息
@@ -370,6 +376,7 @@ export const FormField: React.FC<FormFieldProps> = ({
 ```
 
 **为什么需要包装？**
+
 - react-hook-form 的 `useFieldArray` 会过滤掉基本类型的空值（空字符串、0、false）
 - 包装成对象后，即使 value 为空，对象本身也不会被过滤
 - 这确保了数组项的稳定性和可编辑性
@@ -389,6 +396,7 @@ const handleSubmit = (data: any) => {
 ### 7.3 字段组件示例
 
 > **关于 Widget 实现**：
+>
 > - 以下示例使用 **Blueprint.js** 组件库实现
 > - 这只是一个实现选择，你可以使用任何 UI 组件库
 > - 关键是实现符合 `FieldWidgetProps` 接口的组件
@@ -512,7 +520,7 @@ export const SelectWidget = forwardRef<HTMLSelectElement, FieldWidgetProps>(
 import React, { forwardRef } from 'react';
 import { RadioGroup, Radio } from '@blueprintjs/core';
 import type { FieldWidgetProps } from '../types';
-import type { FieldOption } from '@/types/schema';
+import type { FieldOption } from '../types/schema';
 
 export const RadioWidget = forwardRef<HTMLInputElement, FieldWidgetProps>(
   ({ name, disabled, readonly, options = [], value, onChange }, ref) => {
@@ -574,13 +582,12 @@ export const RadioWidget = forwardRef<HTMLInputElement, FieldWidgetProps>(
 );
 ```
 
-
 ### 7.4 字段注册表
 
 ```typescript
 // src/components/DynamicForm/core/FieldRegistry.ts
 
-import type { WidgetType } from '@/types/schema';
+import type { WidgetType } from '../types/schema';
 import {
   TextWidget,
   PasswordWidget,
@@ -602,16 +609,16 @@ export class FieldRegistry {
   >([
     ['text', TextWidget],
     ['textarea', TextareaWidget],
-    ['password', PasswordWidget],      // 独立的密码输入组件
+    ['password', PasswordWidget], // 独立的密码输入组件
     ['email', TextWidget],
-    ['url', UrlWidget],                 // URL 输入组件
+    ['url', UrlWidget], // URL 输入组件
     ['number', NumberWidget],
     ['select', SelectWidget],
     ['radio', RadioWidget],
     ['checkbox', CheckboxWidget],
     ['switch', SwitchWidget],
-    ['nested-form', NestedFormWidget],  // 嵌套表单组件（用于 object 类型）
-    ['array', ArrayFieldWidget],        // 数组字段组件
+    ['nested-form', NestedFormWidget], // 嵌套表单组件（用于 object 类型）
+    ['array', ArrayFieldWidget], // 数组字段组件
   ]);
 
   /**
@@ -716,6 +723,7 @@ export class SchemaParser {
 嵌套表单用于渲染 `object` 类型的字段，支持递归嵌套。
 
 **核心特性**：
+
 - **复用父表单的 FormContext**：通过 `asNestedForm` prop 实现
 - **路径前缀管理**：自动为嵌套字段添加路径前缀（如 `address.city`）
 - **联动状态继承**：子表单可以访问父表单的联动状态
@@ -734,10 +742,10 @@ const schema = {
       title: '地址',
       properties: {
         city: { type: 'string', title: '城市' },
-        street: { type: 'string', title: '街道' }
-      }
-    }
-  }
+        street: { type: 'string', title: '街道' },
+      },
+    },
+  },
 };
 // 字段路径：address.city, address.street
 ```
@@ -749,6 +757,7 @@ const schema = {
 数组字段用于渲染 `array` 类型的字段，支持动态添加/删除元素。
 
 **核心特性**：
+
 - **动态元素管理**：支持添加、删除、排序数组元素
 - **基本类型数组包装**：自动将基本类型数组（如 `string[]`）包装为对象数组
 - **嵌套数组支持**：数组元素可以是对象或嵌套数组
@@ -764,9 +773,9 @@ const schema = {
     tags: {
       type: 'array',
       title: '标签',
-      items: { type: 'string' }
-    }
-  }
+      items: { type: 'string' },
+    },
+  },
 };
 // 内部包装为: [{ value: 'tag1' }, { value: 'tag2' }]
 // 字段路径: tags.0.value, tags.1.value
@@ -774,12 +783,12 @@ const schema = {
 
 > **详细说明**：关于数组字段的完整设计和实现，请参考 [ArrayFieldWidget 设计方案](./ARRAY_FIELD_WIDGET.md)
 
-
 ### 8.3 联动管理（useArrayLinkageManager）
 
 联动管理是动态表单的核心特性之一，支持字段间的动态交互。
 
 **核心特性**：
+
 - **统一联动处理**：同时处理普通字段和数组元素的联动
 - **动态实例化**：为数组元素动态创建联动实例
 - **路径映射支持**：支持 `flattenPath` 场景的路径转换
@@ -795,7 +804,7 @@ const schema = {
     country: {
       type: 'string',
       title: '国家',
-      enum: ['china', 'usa']
+      enum: ['china', 'usa'],
     },
     city: {
       type: 'string',
@@ -803,15 +812,15 @@ const schema = {
       ui: {
         linkage: {
           source: ['country'],
-          target: 'city'
-        }
-      }
-    }
-  }
+          target: 'city',
+        },
+      },
+    },
+  },
 };
 ```
 
 > **详细说明**：
+>
 > - 关于 UI 联动的完整设计和实现，请参考 [UI 联动设计](./UI_LINKAGE_DESIGN.md)
 > - 关于数组字段联动的详细方案，请参考 [数组字段联动](./ARRAY_FIELD_LINKAGE.md)
-

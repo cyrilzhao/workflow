@@ -5,10 +5,10 @@ import { SchemaParser } from './core/SchemaParser';
 import { FormField } from './layout/FormField';
 import { ErrorList } from './components/ErrorList';
 import type { DynamicFormProps } from './types';
-import { parseSchemaLinkages, transformToAbsolutePaths } from '@/utils/schemaLinkageParser';
-import { useArrayLinkageManager } from '@/hooks/useArrayLinkageManager';
-import type { LinkageConfig } from '@/types/linkage';
-import type { ExtendedJSONSchema } from '@/types/schema';
+import { parseSchemaLinkages, transformToAbsolutePaths } from './utils/schemaLinkageParser';
+import { useArrayLinkageManager } from './hooks/useArrayLinkageManager';
+import type { LinkageConfig } from './types/linkage';
+import type { ExtendedJSONSchema } from './types/schema';
 import { filterValueWithNestedSchemas } from './utils/filterValueWithNestedSchemas';
 import {
   NestedSchemaProvider,
@@ -16,7 +16,7 @@ import {
 } from './context/NestedSchemaContext';
 import { PathPrefixProvider } from './context/PathPrefixContext';
 import { LinkageStateProvider, useLinkageStateContext } from './context/LinkageStateContext';
-import { PathTransformer, splitPath, rebuildPath } from '@/utils/pathTransformer';
+import { PathTransformer, splitPath, rebuildPath } from './utils/pathTransformer';
 import { wrapPrimitiveArrays, unwrapPrimitiveArrays } from './utils/arrayTransformer';
 import '@blueprintjs/core/lib/css/blueprint.css';
 

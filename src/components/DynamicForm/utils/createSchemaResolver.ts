@@ -1,5 +1,5 @@
 import { SchemaValidator } from '../core/SchemaValidator';
-import type { ExtendedJSONSchema } from '@/types/schema';
+import type { ExtendedJSONSchema } from '../types/schema';
 
 /**
  * 创建 Schema 验证 Resolver

@@ -1,7 +1,7 @@
 import React from 'react';
 import { DynamicForm } from '@/components/DynamicForm';
-import type { ExtendedJSONSchema } from '@/types/schema';
-import type { LinkageFunction, LinkageFunctionContext } from '@/types/linkage';
+import type { ExtendedJSONSchema } from '@/components/DynamicForm/types/schema';
+import type { LinkageFunction, LinkageFunctionContext } from '@/components/DynamicForm/types/linkage';
 import { Card, H3 } from '@blueprintjs/core';
 
 /**
