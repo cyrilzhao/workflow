@@ -39,6 +39,7 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [selectedNode, setSelectedNode] = React.useState<WorkflowNode | null>(null);
+  const [highlightedLoopId, setHighlightedLoopId] = React.useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const { screenToFlowPosition } = useReactFlow();
@@ -82,27 +83,40 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
     const currentNodes = nodesRef.current;
     const currentEdges = edgesRef.current;
 
+    const cleanupClassName = (className?: string) =>
+      (className || '').replace(/\s*(highlighted|dimmed|animated)\s*/g, ' ').trim() || undefined;
+
     // 过滤掉 UI 状态属性（selected, dragging 等），只比较实质性属性
     const cleanNodes = currentNodes.map(node => {
-      const { selected, dragging, ...rest } = node as any;
-      return rest;
+      const { selected, dragging, className, ...rest } = node as any;
+      return { ...rest, className: cleanupClassName(className) };
+    });
+
+    const cleanEdges = currentEdges.map(edge => {
+      const { selected, className, ...rest } = edge as any;
+      return { ...rest, className: cleanupClassName(className) };
     });
 
     // 检查是否与当前历史状态相同（只比较实质性属性）
     const lastState = workflowHistory.present;
     if (lastState) {
       const lastCleanNodes = lastState.nodes.map(node => {
-        const { selected, dragging, ...rest } = node as any;
-        return rest;
+        const { selected, dragging, className, ...rest } = node as any;
+        return { ...rest, className: cleanupClassName(className) };
+      });
+
+      const lastCleanEdges = lastState.edges.map(edge => {
+        const { selected, className, ...rest } = edge as any;
+        return { ...rest, className: cleanupClassName(className) };
       });
 
       // 使用 lodash.isEqual 进行深度比较
-      if (isEqual(cleanNodes, lastCleanNodes) && isEqual(currentEdges, lastState.edges)) {
+      if (isEqual(cleanNodes, lastCleanNodes) && isEqual(cleanEdges, lastCleanEdges)) {
         return;
       }
     }
 
-    workflowHistory.set({ nodes: currentNodes, edges: currentEdges });
+    workflowHistory.set({ nodes: cleanNodes, edges: cleanEdges });
   }, [undoRedoEnabled, readonly, workflowHistory]);
 
   // 连接节点时记录历史
@@ -242,6 +256,150 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
     [readonly]
   );
 
+  // 计算 Loop 节点的高亮流
+  const getLoopFlowElements = useCallback(
+    (loopNodeId: string, currentNodes: WorkflowNode[], currentEdges: Edge[]) => {
+      const activeEdgeIds = new Set<string>();
+      const activeNodeIds = new Set<string>();
+      const visited = new Set<string>();
+      const loopNode = currentNodes.find(n => n.id === loopNodeId);
+
+      if (!loopNode) return { activeNodeIds, activeEdgeIds };
+
+      const queue: WorkflowNode[] = [];
+
+      // Find initial edges from loop-start
+      currentEdges.forEach(e => {
+        if (e.source === loopNodeId && e.sourceHandle === 'loop-start') {
+          activeEdgeIds.add(e.id);
+          const targetNode = currentNodes.find(n => n.id === e.target);
+          if (targetNode && !visited.has(targetNode.id)) {
+            // Check if it loops back directly to loop-end (unlikely but possible)
+            if (targetNode.id === loopNodeId && e.targetHandle === 'loop-end') {
+              return;
+            }
+            visited.add(targetNode.id);
+            activeNodeIds.add(targetNode.id);
+            queue.push(targetNode);
+          }
+        }
+      });
+
+      while (queue.length > 0) {
+        const curr = queue.shift()!;
+
+        currentEdges.forEach(e => {
+          if (e.source !== curr.id) return;
+
+          // If current node is a nested loop, ONLY follow 'next' handle (treat as black box)
+          if (curr.type === 'loop' && e.sourceHandle !== 'next') return;
+
+          if (e.target === loopNodeId) {
+            // End of the loop
+            if (e.targetHandle === 'loop-end') {
+              activeEdgeIds.add(e.id);
+            }
+          } else {
+            activeEdgeIds.add(e.id);
+            const targetNode = currentNodes.find(n => n.id === e.target);
+            if (targetNode && !visited.has(targetNode.id)) {
+              visited.add(targetNode.id);
+              activeNodeIds.add(targetNode.id);
+              queue.push(targetNode);
+            }
+          }
+        });
+      }
+
+      return { activeNodeIds, activeEdgeIds };
+    },
+    []
+  );
+
+  const onSelectionChange = useCallback(
+    ({ nodes: selectedNodes }: { nodes: WorkflowNode[] }) => {
+      const loopNode =
+        selectedNodes.length === 1 && selectedNodes[0].type === 'loop' ? selectedNodes[0] : null;
+
+      if (loopNode) {
+        if (loopNode.id !== highlightedLoopId) {
+          setHighlightedLoopId(loopNode.id);
+        }
+      } else {
+        if (highlightedLoopId !== null) {
+          setHighlightedLoopId(null);
+        }
+      }
+    },
+    [highlightedLoopId]
+  );
+
+  // Apply highlighting effect
+  useEffect(() => {
+    const currentNodes = nodesRef.current;
+    const currentEdges = edgesRef.current;
+
+    let activeNodeIds = new Set<string>();
+    let activeEdgeIds = new Set<string>();
+
+    if (highlightedLoopId) {
+      const loopNode = currentNodes.find(n => n.id === highlightedLoopId);
+      if (loopNode) {
+        ({ activeNodeIds, activeEdgeIds } = getLoopFlowElements(
+          highlightedLoopId,
+          currentNodes,
+          currentEdges
+        ));
+        // Also highlight the loop node itself
+        activeNodeIds.add(highlightedLoopId);
+      }
+    }
+
+    // Update Nodes
+    setNodes(nds =>
+      nds.map(n => {
+        const baseClass = (n.className || '')
+          .replace(/\s*(highlighted|dimmed|animated)\s*/g, ' ')
+          .trim();
+
+        let newClass = baseClass;
+        if (highlightedLoopId) {
+          if (activeNodeIds.has(n.id)) {
+            newClass = `${newClass} highlighted`;
+          }
+          // Remove dimmed effect based on user feedback
+        }
+
+        if (n.className !== newClass.trim()) {
+          return { ...n, className: newClass.trim() || undefined };
+        }
+        return n;
+      })
+    );
+
+    // Update Edges
+    setEdges(eds =>
+      eds.map(e => {
+        const baseClass = (e.className || '')
+          .replace(/\s*(highlighted|dimmed|animated)\s*/g, ' ')
+          .trim();
+
+        let newClass = baseClass;
+        if (highlightedLoopId) {
+          if (activeEdgeIds.has(e.id)) {
+            newClass = `${newClass} highlighted animated`;
+          }
+          // Remove dimmed effect based on user feedback
+        }
+
+        if (e.className !== newClass.trim()) {
+          return { ...e, className: newClass.trim() || undefined };
+        }
+        return e;
+      })
+    );
+  }, [highlightedLoopId, getLoopFlowElements, setNodes, setEdges]);
+
   const handleSaveNodeConfig = (nodeId: string, data: any) => {
     setNodes(nds =>
       nds.map(node => {
@@ -331,6 +489,7 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
         nodesDraggable={!readonly}
         nodesConnectable={!readonly}
         elementsSelectable={!readonly}
+        onSelectionChange={onSelectionChange}
         defaultEdgeOptions={{
           type: 'default',
           animated: true,
