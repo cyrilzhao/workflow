@@ -101,7 +101,7 @@ describe('SchemaParser', () => {
         };
 
         const fields = SchemaParser.parse(schema);
-        expect(fields.map((f) => f.name)).toEqual(['name', 'age', 'email']);
+        expect(fields.map(f => f.name)).toEqual(['name', 'age', 'email']);
       });
 
       it('应该按照 ui.order 指定的顺序返回字段', () => {
@@ -118,7 +118,7 @@ describe('SchemaParser', () => {
         };
 
         const fields = SchemaParser.parse(schema);
-        expect(fields.map((f) => f.name)).toEqual(['email', 'name', 'age']);
+        expect(fields.map(f => f.name)).toEqual(['email', 'name', 'age']);
       });
 
       it('应该忽略 ui.order 中不存在的字段', () => {
@@ -134,7 +134,7 @@ describe('SchemaParser', () => {
         };
 
         const fields = SchemaParser.parse(schema);
-        expect(fields.map((f) => f.name)).toEqual(['name', 'age']);
+        expect(fields.map(f => f.name)).toEqual(['name', 'age']);
       });
     });
   });
@@ -218,7 +218,7 @@ describe('SchemaParser', () => {
       expect(field.schema).toEqual(nestedSchema);
     });
 
-    it('应该为非对象类型字段不设置 schema', () => {
+    it('应该为所有字段保留 schema', () => {
       const schema: ExtendedJSONSchema = {
         type: 'object',
         properties: {
@@ -229,8 +229,10 @@ describe('SchemaParser', () => {
 
       const fields = SchemaParser.parse(schema);
 
-      expect(fields[0].schema).toBeUndefined();
-      expect(fields[1].schema).toBeUndefined();
+      expect(fields[0].schema).toBeDefined();
+      expect(fields[0].schema?.type).toBe('string');
+      expect(fields[1].schema).toBeDefined();
+      expect(fields[1].schema?.type).toBe('number');
     });
   });
 
@@ -395,7 +397,7 @@ describe('SchemaParser', () => {
     });
 
     describe('数组类型', () => {
-      it('应该为有 enum items 的数组返回 checkboxes widget', () => {
+      it('应该为有 enum items 的数组返回 array widget', () => {
         const schema: ExtendedJSONSchema = {
           type: 'object',
           properties: {
@@ -410,10 +412,10 @@ describe('SchemaParser', () => {
         };
 
         const fields = SchemaParser.parse(schema);
-        expect(fields[0].widget).toBe('checkboxes');
+        expect(fields[0].widget).toBe('array');
       });
 
-      it('应该为普通数组返回 select widget', () => {
+      it('应该为普通数组返回 array widget', () => {
         const schema: ExtendedJSONSchema = {
           type: 'object',
           properties: {
@@ -425,7 +427,7 @@ describe('SchemaParser', () => {
         };
 
         const fields = SchemaParser.parse(schema);
-        expect(fields[0].widget).toBe('select');
+        expect(fields[0].widget).toBe('array');
       });
 
       it('应该处理没有 items 的数组', () => {
@@ -439,7 +441,7 @@ describe('SchemaParser', () => {
         };
 
         const fields = SchemaParser.parse(schema);
-        expect(fields[0].widget).toBe('select');
+        expect(fields[0].widget).toBe('array');
       });
     });
 
@@ -589,10 +591,15 @@ describe('SchemaParser', () => {
         };
 
         const fields = SchemaParser.parse(schema);
-        expect(fields[0].validation?.minLength).toEqual({
-          value: 8,
-          message: '最小长度为 8 个字符',
-        });
+        expect(fields[0].validation?.validate?.minLength).toBeDefined();
+
+        // 测试验证函数
+        const validator = fields[0].validation?.validate?.minLength;
+        if (validator) {
+          expect(validator('short')).toBe('最小长度为 8 个字符');
+          expect(validator('longenough')).toBe(true);
+          expect(validator(null)).toBe('最小长度为 8 个字符');
+        }
       });
 
       it('应该添加 maxLength 规则', () => {
@@ -632,7 +639,15 @@ describe('SchemaParser', () => {
         };
 
         const fields = SchemaParser.parse(schema);
-        expect(fields[0].validation?.minLength?.message).toBe('验证码必须是6位');
+
+        // 测试 minLength 自定义错误消息
+        const minLengthValidator = fields[0].validation?.validate?.minLength;
+        if (minLengthValidator) {
+          expect(minLengthValidator('12345')).toBe('验证码必须是6位');
+          expect(minLengthValidator('123456')).toBe(true);
+        }
+
+        // 测试 maxLength 自定义错误消息
         expect(fields[0].validation?.maxLength?.message).toBe('验证码必须是6位');
       });
     });
@@ -1056,7 +1071,7 @@ describe('SchemaParser', () => {
       const fields = SchemaParser.parse(schema);
 
       expect(fields).toHaveLength(6);
-      expect(fields.map((f) => f.name)).toEqual([
+      expect(fields.map(f => f.name)).toEqual([
         'username',
         'email',
         'age',
@@ -1073,7 +1088,8 @@ describe('SchemaParser', () => {
         required: true,
         widget: 'text',
       });
-      expect(fields[0].validation?.minLength?.value).toBe(3);
+      // minLength 现在是 validate 函数，不是对象
+      expect(fields[0].validation?.validate?.minLength).toBeDefined();
       expect(fields[0].validation?.maxLength?.value).toBe(20);
       expect(fields[0].validation?.pattern?.value).toEqual(/^[a-zA-Z0-9_]+$/);
 

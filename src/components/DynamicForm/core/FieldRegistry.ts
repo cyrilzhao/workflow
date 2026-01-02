@@ -14,7 +14,10 @@ import {
 } from '../widgets';
 
 export class FieldRegistry {
-  private static widgets: Map<WidgetType, React.ComponentType<any>> = new Map<WidgetType, React.ComponentType<any>>([
+  private static widgets: Map<WidgetType, React.ComponentType<any>> = new Map<
+    WidgetType,
+    React.ComponentType<any>
+  >([
     ['text', TextWidget],
     ['textarea', TextareaWidget],
     ['password', PasswordWidget],
