@@ -50,13 +50,17 @@ import { ComprehensiveExample } from './examples/LayoutExamples/ComprehensiveExa
 // 复杂场景
 import { ComplexFormPanel } from './examples/ComplexForm/ComplexFormPanel';
 
+// Schema Builder
+import { SchemaBuilderExample } from './examples/SchemaBuilderExample';
+
 export const DynamicFormExamples: React.FC = () => {
-  const [selectedTab, setSelectedTab] = useState('array');
+  const [selectedTab, setSelectedTab] = useState('schemaBuilder');
 
   return (
     <div style={{ padding: '20px' }}>
       <h1>动态表单示例</h1>
       <Tabs selectedTabId={selectedTab} onChange={id => setSelectedTab(id as string)}>
+        <Tab id="schemaBuilder" title="Schema Builder" panel={<SchemaBuilderExample />} />
         <Tab id="basic" title="基础表单" panel={<BasicFormPanel />} />
         <Tab id="conditional" title="条件渲染" panel={<ConditionalFormPanel />} />
         <Tab id="nested" title="嵌套表单" panel={<NestedFormPanel />} />
