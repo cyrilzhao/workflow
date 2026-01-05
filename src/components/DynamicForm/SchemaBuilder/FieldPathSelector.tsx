@@ -20,6 +20,10 @@ interface FieldPathSelectorProps {
   onChange: (path: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  // 字段过滤控制
+  visibleFields?: string[];             // 可见字段列表(fieldPath 数组),如果指定则只显示这些字段
+  selectableFields?: string[];          // 可选字段列表(fieldPath 数组),如果指定则只有这些字段可选
+  excludeCurrentField?: boolean;        // 是否排除当前字段(默认 true)
 }
 
 /**
@@ -33,6 +37,9 @@ export const FieldPathSelector: React.FC<FieldPathSelectorProps> = ({
   onChange,
   disabled,
   placeholder = '#/properties/fieldName or ./fieldName',
+  visibleFields,
+  selectableFields,
+  excludeCurrentField = true,
 }) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedPath, setSelectedPath] = useState<string>(value);
@@ -61,8 +68,17 @@ export const FieldPathSelector: React.FC<FieldPathSelectorProps> = ({
 
   // 构建 Tree 节点（带选中状态）
   const treeNodes = useMemo(() => {
-    return schemaToTreeNodes(schema, '', currentFieldPath, selectedPath, expandedNodes);
-  }, [schema, currentFieldPath, selectedPath, expandedNodes]);
+    return schemaToTreeNodes(
+      schema,
+      '',
+      currentFieldPath,
+      selectedPath,
+      expandedNodes,
+      visibleFields,
+      selectableFields,
+      excludeCurrentField
+    );
+  }, [schema, currentFieldPath, selectedPath, expandedNodes, visibleFields, selectableFields, excludeCurrentField]);
 
   // 滚动到选中的节点
   useEffect(() => {
@@ -359,7 +375,10 @@ function schemaToTreeNodes(
   parentPath: string = '',
   currentFieldPath: string,
   selectedPath?: string,
-  expandedNodes?: Set<string>
+  expandedNodes?: Set<string>,
+  visibleFields?: string[],
+  selectableFields?: string[],
+  excludeCurrentField?: boolean
 ): TreeNodeInfo[] {
   const nodes: TreeNodeInfo[] = [];
 
@@ -379,10 +398,22 @@ function schemaToTreeNodes(
       ? `${parentPath.replace('#/properties/', '').replace(/\/properties\//g, '.')}.${fieldName}`
       : fieldName;
 
-    // 判断是否是当前字段（不能选择自己）
+    // 判断是否是当前字段
     const isCurrentField = jsonPointerPath === currentFieldPath;
     // 判断是否是选中的字段
     const isSelectedField = jsonPointerPath === selectedPath;
+
+    // 判断是否可见
+    const isVisible = !visibleFields || visibleFields.includes(jsonPointerPath);
+    // 如果不可见,跳过此节点
+    if (!isVisible) return;
+
+    // 判断是否可选
+    const isSelectable = selectableFields ? selectableFields.includes(jsonPointerPath) : true;
+    // 判断是否应该禁用
+    const isDisabled =
+      (excludeCurrentField && isCurrentField) || // 排除当前字段
+      !isSelectable; // 不在可选列表中
 
     // 创建节点
     const node: TreeNodeInfo = {
@@ -399,9 +430,8 @@ function schemaToTreeNodes(
         </div>
       ),
       icon: null,
-      // icon: getFieldIcon(typedSchema.type),
       isSelected: isSelectedField,
-      disabled: isCurrentField,
+      disabled: isDisabled,
       isExpanded: expandedNodes?.has(jsonPointerPath),
       className: isSelectedField
         ? 'field-path-tree-node field-path-tree-node-selected'
@@ -420,7 +450,10 @@ function schemaToTreeNodes(
         jsonPointerPath,
         currentFieldPath,
         selectedPath,
-        expandedNodes
+        expandedNodes,
+        visibleFields,
+        selectableFields,
+        excludeCurrentField
       );
       node.hasCaret = true;
     }
@@ -435,7 +468,10 @@ function schemaToTreeNodes(
           itemsPath,
           currentFieldPath,
           selectedPath,
-          expandedNodes
+          expandedNodes,
+          visibleFields,
+          selectableFields,
+          excludeCurrentField
         );
         node.hasCaret = true;
       }

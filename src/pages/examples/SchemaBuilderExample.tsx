@@ -5,17 +5,54 @@ import { H3 } from '@blueprintjs/core';
 
 const initialSchema: ExtendedJSONSchema = {
   type: 'object',
-  title: 'User Profile',
+  title: 'Root',
   properties: {
     username: {
       type: 'string',
-      title: 'Username',
+      title: 'Name',
       minLength: 3,
     },
     age: {
       type: 'integer',
       title: 'Age',
       minimum: 0,
+    },
+    weight: {
+      type: 'number',
+      title: 'Weight',
+      minimum: 0,
+    },
+    address: {
+      type: 'object',
+      title: 'Address',
+      properties: {
+        province: {
+          type: 'string',
+          title: 'Province',
+        },
+        city: {
+          type: 'string',
+          title: 'City',
+        },
+      },
+    },
+    contacts: {
+      type: 'array',
+      title: 'Contacts',
+      items: {
+        type: 'object',
+        title: 'Contact',
+        properties: {
+          email: {
+            type: 'string',
+            title: 'Email',
+          },
+          phone: {
+            type: 'string',
+            title: 'Phone',
+          },
+        },
+      },
     },
   },
   required: ['username'],

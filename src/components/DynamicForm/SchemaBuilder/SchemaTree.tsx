@@ -180,8 +180,8 @@ export const SchemaTree: React.FC = () => {
 
   const nodes = buildTreeNodes(schema);
 
-  // 隐藏根节点，直接展示一级子节点
-  const displayNodes = nodes[0]?.childNodes || [];
+  // 显示根节点
+  const displayNodes = nodes;
 
   return (
     <Tree

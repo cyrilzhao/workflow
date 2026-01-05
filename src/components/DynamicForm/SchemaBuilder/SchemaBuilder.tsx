@@ -131,8 +131,6 @@ export const SchemaBuilder: React.FC<SchemaBuilderProps> = ({
   const [previewData, setPreviewData] = useState({});
   const [previewTab, setPreviewTab] = useState<'form' | 'json'>('form');
 
-  console.info('cyril selectedPath: ', selectedPath);
-
   // Resizable sidebar state
   const [leftPanelWidth, setLeftPanelWidth] = useState(300);
   const isResizingRef = useRef(false);
@@ -206,8 +204,15 @@ export const SchemaBuilder: React.FC<SchemaBuilderProps> = ({
 
         if (!currentNode) return prevSchema;
 
-        // Apply updates
-        Object.assign(currentNode, updates);
+        // Apply updates - 对于值为 undefined 的属性，需要删除而不是赋值
+        Object.keys(updates).forEach(key => {
+          const value = updates[key as keyof typeof updates];
+          if (value === undefined) {
+            delete currentNode[key];
+          } else {
+            currentNode[key] = value;
+          }
+        });
 
         // Auto-create items for array type
         if (updates.type === 'array' && !currentNode.items) {
@@ -444,7 +449,6 @@ export const SchemaBuilder: React.FC<SchemaBuilderProps> = ({
       setTimeout(() => {
         setSchema(currentSchema => {
           const newPath = getFirstLevelNodePath(currentSchema);
-          console.info('cyril onDelete newPath: ', newPath);
           setSelectedPath(newPath);
           return currentSchema;
         });
@@ -452,8 +456,6 @@ export const SchemaBuilder: React.FC<SchemaBuilderProps> = ({
     },
     [onChange]
   );
-
-  console.info('cyril schema: ', JSON.stringify(schema));
 
   return (
     <SchemaBuilderContext.Provider

@@ -270,7 +270,7 @@ export class SchemaParser {
     const errorMessages = schema.ui?.errorMessages || {};
 
     if (required) {
-      rules.required = errorMessages.required || '此字段为必填项';
+      rules.required = errorMessages.required || 'This field is required';
     }
 
     if (schema.minLength) {
@@ -279,11 +279,11 @@ export class SchemaParser {
       rules.validate = rules.validate || {};
       rules.validate.minLength = (value: any) => {
         if (value === null || value === undefined) {
-          return errorMessages.minLength || `最小长度为 ${schema.minLength} 个字符`;
+          return errorMessages.minLength || `Minimum length is ${schema.minLength} characters`;
         }
         const strValue = String(value);
         if (strValue.length < schema.minLength!) {
-          return errorMessages.minLength || `最小长度为 ${schema.minLength} 个字符`;
+          return errorMessages.minLength || `Minimum length is ${schema.minLength} characters`;
         }
         return true;
       };
@@ -292,28 +292,28 @@ export class SchemaParser {
     if (schema.maxLength) {
       rules.maxLength = {
         value: schema.maxLength,
-        message: errorMessages.maxLength || `最大长度为 ${schema.maxLength} 个字符`,
+        message: errorMessages.maxLength || `Maximum length is ${schema.maxLength} characters`,
       };
     }
 
     if (schema.minimum !== undefined) {
       rules.min = {
         value: schema.minimum,
-        message: errorMessages.min || `最小值为 ${schema.minimum}`,
+        message: errorMessages.min || `Minimum value is ${schema.minimum}`,
       };
     }
 
     if (schema.maximum !== undefined) {
       rules.max = {
         value: schema.maximum,
-        message: errorMessages.max || `最大值为 ${schema.maximum}`,
+        message: errorMessages.max || `Maximum value is ${schema.maximum}`,
       };
     }
 
     if (schema.pattern) {
       rules.pattern = {
         value: new RegExp(schema.pattern),
-        message: errorMessages.pattern || '格式不正确',
+        message: errorMessages.pattern || 'Invalid format',
       };
     }
 
@@ -326,13 +326,13 @@ export class SchemaParser {
         rules.validate[formatName] = (value: string) => {
           if (!value) return true; // 空值由 required 规则处理
           const isValid = this.customFormats[formatName](value);
-          return isValid || errorMessages.format || `${formatName} 格式不正确`;
+          return isValid || errorMessages.format || `Invalid ${formatName} format`;
         };
       } else if (schema.format === 'email') {
         // 内置邮箱格式验证
         rules.pattern = {
           value: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
-          message: errorMessages.format || '请输入有效的邮箱地址',
+          message: errorMessages.format || 'Please enter a valid email address',
         };
       }
     }
