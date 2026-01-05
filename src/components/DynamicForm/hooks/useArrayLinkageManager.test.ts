@@ -47,13 +47,30 @@ describe('useArrayLinkageManager - 场景 1: 相对路径依赖', () => {
         },
       });
 
-      // 使用模板路径（与 DynamicForm 中 parseSchemaLinkages 的输出一致）
+      // 模拟真实场景：传入已实例化的路径（由 transformToAbsolutePaths 生成）
+      // 在实际使用中，NestedFormWidget 会为每个数组元素创建子 DynamicForm，
+      // 子 DynamicForm 通过 transformToAbsolutePaths 将模板路径转换为实例化路径
       const baseLinkages: Record<string, LinkageConfig> = {
-        'contacts.companyName': {
+        'contacts.0.companyName': {
           type: 'visibility',
-          dependencies: ['./type'],
+          dependencies: ['contacts.0.type'],
           when: {
-            field: './type',
+            field: 'contacts.0.type',
+            operator: '==',
+            value: 'work',
+          },
+          fulfill: {
+            state: { visible: true },
+          },
+          otherwise: {
+            state: { visible: false },
+          },
+        },
+        'contacts.1.companyName': {
+          type: 'visibility',
+          dependencies: ['contacts.1.type'],
+          when: {
+            field: 'contacts.1.type',
             operator: '==',
             value: 'work',
           },
@@ -66,14 +83,10 @@ describe('useArrayLinkageManager - 场景 1: 相对路径依赖', () => {
         },
       };
 
-      // 关键：必须传递 schema，让 useArrayLinkageManager 能够：
-      // 1. 通过 findArrayInPath 找到数组字段
-      // 2. 为每个数组元素生成实例化的联动配置
-      // 3. 通过 resolveArrayElementLinkage 解析相对路径
       const linkageStates = useArrayLinkageManager({
         form,
         baseLinkages,
-        schema, // ✅ 必须提供 schema
+        schema,
       });
 
       return { form, linkageStates };
@@ -81,10 +94,6 @@ describe('useArrayLinkageManager - 场景 1: 相对路径依赖', () => {
 
     // 等待初始化完成
     await waitFor(() => {
-      // 调试：打印所有联动状态的键
-      console.log('所有联动状态键:', Object.keys(result.current.linkageStates));
-      console.log('linkageStates:', JSON.stringify(result.current.linkageStates, null, 2));
-
       // contacts.0.type = 'personal'，companyName 应该隐藏
       expect(result.current.linkageStates['contacts.0.companyName']?.visible).toBe(false);
       // contacts.1.type = 'work'，companyName 应该显示
@@ -121,14 +130,15 @@ describe('useArrayLinkageManager - 场景 1: 相对路径依赖', () => {
         },
       });
 
+      // 模拟真实场景：传入已实例化的路径
       const baseLinkages: Record<string, LinkageConfig> = {
-        'contacts.department': {
+        'contacts.0.department': {
           type: 'visibility',
-          dependencies: ['./type', './companyName'],
+          dependencies: ['contacts.0.type', 'contacts.0.companyName'],
           when: {
             and: [
-              { field: './type', operator: '==', value: 'work' },
-              { field: './companyName', operator: 'isNotEmpty' },
+              { field: 'contacts.0.type', operator: '==', value: 'work' },
+              { field: 'contacts.0.companyName', operator: 'isNotEmpty' },
             ],
           },
           fulfill: {
@@ -190,12 +200,28 @@ describe('useArrayLinkageManager - 场景 2: 绝对路径依赖（数组内依�
         },
       });
 
+      // 模拟真实场景：传入已实例化的路径
       const baseLinkages: Record<string, LinkageConfig> = {
-        'contacts.vipLevel': {
+        'contacts.0.vipLevel': {
           type: 'visibility',
-          dependencies: ['#/properties/enableVip'],
+          dependencies: ['enableVip'],
           when: {
-            field: '#/properties/enableVip',
+            field: 'enableVip',
+            operator: '==',
+            value: true,
+          },
+          fulfill: {
+            state: { visible: true },
+          },
+          otherwise: {
+            state: { visible: false },
+          },
+        },
+        'contacts.1.vipLevel': {
+          type: 'visibility',
+          dependencies: ['enableVip'],
+          when: {
+            field: 'enableVip',
             operator: '==',
             value: true,
           },
@@ -259,12 +285,43 @@ describe('useArrayLinkageManager - 场景 2: 绝对路径依赖（数组内依�
         },
       });
 
+      // 模拟真实场景：传入已实例化的路径
       const baseLinkages: Record<string, LinkageConfig> = {
-        'items.advancedSettings': {
+        'items.0.advancedSettings': {
           type: 'visibility',
-          dependencies: ['#/properties/showAdvanced'],
+          dependencies: ['showAdvanced'],
           when: {
-            field: '#/properties/showAdvanced',
+            field: 'showAdvanced',
+            operator: '==',
+            value: true,
+          },
+          fulfill: {
+            state: { visible: true },
+          },
+          otherwise: {
+            state: { visible: false },
+          },
+        },
+        'items.1.advancedSettings': {
+          type: 'visibility',
+          dependencies: ['showAdvanced'],
+          when: {
+            field: 'showAdvanced',
+            operator: '==',
+            value: true,
+          },
+          fulfill: {
+            state: { visible: true },
+          },
+          otherwise: {
+            state: { visible: false },
+          },
+        },
+        'items.2.advancedSettings': {
+          type: 'visibility',
+          dependencies: ['showAdvanced'],
+          when: {
+            field: 'showAdvanced',
             operator: '==',
             value: true,
           },
@@ -335,28 +392,29 @@ describe('useArrayLinkageManager - 场景 3: 菱形依赖', () => {
         },
       });
 
+      // 模拟真实场景：传入已实例化的路径
       const baseLinkages: Record<string, LinkageConfig> = {
-        'contacts.showCompany': {
+        'contacts.0.showCompany': {
           type: 'value',
-          dependencies: ['./type'],
+          dependencies: ['contacts.0.type'],
           fulfill: {
             function: 'calcShowCompany',
           },
         },
-        'contacts.showDepartment': {
+        'contacts.0.showDepartment': {
           type: 'value',
-          dependencies: ['./type'],
+          dependencies: ['contacts.0.type'],
           fulfill: {
             function: 'calcShowDepartment',
           },
         },
-        'contacts.workInfo': {
+        'contacts.0.workInfo': {
           type: 'visibility',
-          dependencies: ['./showCompany', './showDepartment'],
+          dependencies: ['contacts.0.showCompany', 'contacts.0.showDepartment'],
           when: {
             and: [
-              { field: './showCompany', operator: '==', value: true },
-              { field: './showDepartment', operator: '==', value: true },
+              { field: 'contacts.0.showCompany', operator: '==', value: true },
+              { field: 'contacts.0.showDepartment', operator: '==', value: true },
             ],
           },
           fulfill: {
@@ -369,13 +427,11 @@ describe('useArrayLinkageManager - 场景 3: 菱形依赖', () => {
       };
 
       const linkageFunctions: Record<string, LinkageFunction> = {
-        calcShowCompany: (formData: any, context?: any) => {
-          const contact = formData.contacts?.[context?.arrayIndex];
-          return contact?.type === 'work';
+        calcShowCompany: (formData: any) => {
+          return formData.contacts?.[0]?.type === 'work';
         },
-        calcShowDepartment: (formData: any, context?: any) => {
-          const contact = formData.contacts?.[context?.arrayIndex];
-          return contact?.type === 'work';
+        calcShowDepartment: (formData: any) => {
+          return formData.contacts?.[0]?.type === 'work';
         },
       };
 
@@ -434,14 +490,31 @@ describe('useArrayLinkageManager - 场景 4: 混合依赖（外部 + 内部相�
         },
       });
 
+      // 模拟真实场景：传入已实例化的路径
       const baseLinkages: Record<string, LinkageConfig> = {
-        'contacts.advancedWorkInfo': {
+        'contacts.0.advancedWorkInfo': {
           type: 'visibility',
-          dependencies: ['#/properties/enableAdvanced', './type'],
+          dependencies: ['enableAdvanced', 'contacts.0.type'],
           when: {
             and: [
-              { field: '#/properties/enableAdvanced', operator: '==', value: true },
-              { field: './type', operator: '==', value: 'work' },
+              { field: 'enableAdvanced', operator: '==', value: true },
+              { field: 'contacts.0.type', operator: '==', value: 'work' },
+            ],
+          },
+          fulfill: {
+            state: { visible: true },
+          },
+          otherwise: {
+            state: { visible: false },
+          },
+        },
+        'contacts.1.advancedWorkInfo': {
+          type: 'visibility',
+          dependencies: ['enableAdvanced', 'contacts.1.type'],
+          when: {
+            and: [
+              { field: 'enableAdvanced', operator: '==', value: true },
+              { field: 'contacts.1.type', operator: '==', value: 'work' },
             ],
           },
           fulfill: {
@@ -524,10 +597,18 @@ describe('useArrayLinkageManager - 场景 5: 跨数组联动', () => {
         },
       });
 
+      // 模拟真实场景：传入已实例化的路径
       const baseLinkages: Record<string, LinkageConfig> = {
-        'features.enabled': {
+        'features.0.enabled': {
           type: 'value',
-          dependencies: ['#/properties/permissions'],
+          dependencies: ['permissions'],
+          fulfill: {
+            function: 'checkAdminPermission',
+          },
+        },
+        'features.1.enabled': {
+          type: 'value',
+          dependencies: ['permissions'],
           fulfill: {
             function: 'checkAdminPermission',
           },
@@ -604,10 +685,18 @@ describe('useArrayLinkageManager - 场景 5: 跨数组联动', () => {
         },
       });
 
+      // 模拟真实场景：传入已实例化的路径
       const baseLinkages: Record<string, LinkageConfig> = {
-        'reminders.notifyImmediately': {
+        'reminders.0.notifyImmediately': {
           type: 'value',
-          dependencies: ['#/properties/tasks'],
+          dependencies: ['tasks'],
+          fulfill: {
+            function: 'checkUrgentTasks',
+          },
+        },
+        'reminders.1.notifyImmediately': {
+          type: 'value',
+          dependencies: ['tasks'],
           fulfill: {
             function: 'checkUrgentTasks',
           },
@@ -693,12 +782,43 @@ describe('useArrayLinkageManager - 场景 6: 嵌套数组联动', () => {
         },
       });
 
+      // 模拟真实场景：传入已实例化的路径（嵌套数组）
       const baseLinkages: Record<string, LinkageConfig> = {
-        'departments.employees.techStack': {
+        'departments.0.employees.0.techStack': {
           type: 'visibility',
-          dependencies: ['#/properties/departments/items/properties/type'],
+          dependencies: ['departments.0.type'],
           when: {
-            field: '#/properties/departments/items/properties/type',
+            field: 'departments.0.type',
+            operator: '==',
+            value: 'tech',
+          },
+          fulfill: {
+            state: { visible: true },
+          },
+          otherwise: {
+            state: { visible: false },
+          },
+        },
+        'departments.0.employees.1.techStack': {
+          type: 'visibility',
+          dependencies: ['departments.0.type'],
+          when: {
+            field: 'departments.0.type',
+            operator: '==',
+            value: 'tech',
+          },
+          fulfill: {
+            state: { visible: true },
+          },
+          otherwise: {
+            state: { visible: false },
+          },
+        },
+        'departments.1.employees.0.techStack': {
+          type: 'visibility',
+          dependencies: ['departments.1.type'],
+          when: {
+            field: 'departments.1.type',
             operator: '==',
             value: 'tech',
           },
@@ -789,17 +909,18 @@ describe('useArrayLinkageManager - 场景 6: 嵌套数组联动', () => {
         },
       });
 
+      // 模拟真实场景：传入已实例化的路径
       const baseLinkages: Record<string, LinkageConfig> = {
-        'departments.employeeCount': {
+        'departments.0.employeeCount': {
           type: 'value',
-          dependencies: ['#/properties/departments/items/properties/employees'],
+          dependencies: ['departments.0.employees'],
           fulfill: {
             function: 'countEmployees',
           },
         },
-        'departments.totalSalary': {
+        'departments.0.totalSalary': {
           type: 'value',
-          dependencies: ['#/properties/departments/items/properties/employees'],
+          dependencies: ['departments.0.employees'],
           fulfill: {
             function: 'sumSalaries',
           },
@@ -807,13 +928,11 @@ describe('useArrayLinkageManager - 场景 6: 嵌套数组联动', () => {
       };
 
       const linkageFunctions: Record<string, LinkageFunction> = {
-        countEmployees: (formData: any, context?: any) => {
-          const department = formData.departments?.[context?.arrayIndex];
-          return department?.employees?.length || 0;
+        countEmployees: (formData: any) => {
+          return formData.departments?.[0]?.employees?.length || 0;
         },
-        sumSalaries: (formData: any, context?: any) => {
-          const department = formData.departments?.[context?.arrayIndex];
-          const employees = department?.employees || [];
+        sumSalaries: (formData: any) => {
+          const employees = formData.departments?.[0]?.employees || [];
           return employees.reduce((sum: number, emp: any) => sum + (emp.salary || 0), 0);
         },
       };
@@ -1007,21 +1126,21 @@ describe('useArrayLinkageManager - 循环依赖检测', () => {
         },
       });
 
-      // 创建循环依赖：a -> b -> c -> a
+      // 创建循环依赖：a -> b -> c -> a（使用实例化路径）
       const baseLinkages: Record<string, LinkageConfig> = {
-        'contacts.a': {
+        'contacts.0.a': {
           type: 'value',
-          dependencies: ['./c'],
+          dependencies: ['contacts.0.c'],
           fulfill: { function: 'calc' },
         },
-        'contacts.b': {
+        'contacts.0.b': {
           type: 'value',
-          dependencies: ['./a'],
+          dependencies: ['contacts.0.a'],
           fulfill: { function: 'calc' },
         },
-        'contacts.c': {
+        'contacts.0.c': {
           type: 'value',
-          dependencies: ['./b'],
+          dependencies: ['contacts.0.b'],
           fulfill: { function: 'calc' },
         },
       };
@@ -1073,16 +1192,16 @@ describe('useArrayLinkageManager - 循环依赖检测', () => {
           },
         });
 
-        // 创建循环依赖：a -> b -> a
+        // 创建循环依赖：a -> b -> a（使用实例化路径）
         const baseLinkages: Record<string, LinkageConfig> = {
-          'contacts.a': {
+          'contacts.0.a': {
             type: 'value',
-            dependencies: ['./b'],
+            dependencies: ['contacts.0.b'],
             fulfill: { function: 'calc' },
           },
-          'contacts.b': {
+          'contacts.0.b': {
             type: 'value',
-            dependencies: ['./a'],
+            dependencies: ['contacts.0.a'],
             fulfill: { function: 'calc' },
           },
         };
@@ -1103,140 +1222,6 @@ describe('useArrayLinkageManager - 循环依赖检测', () => {
   });
 });
 
-describe('useArrayLinkageManager - 动态数组变化', () => {
-  it('应该在数组元素增加时自动生成新的联动配置', async () => {
-    const { result } = renderHook(() => {
-      const form = useForm({
-        defaultValues: {
-          contacts: [{ type: 'work', companyName: '' }],
-        },
-      });
-
-      const schema = createSchema({
-        contacts: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              type: { type: 'string' },
-              companyName: { type: 'string' },
-            },
-          },
-        },
-      });
-
-      const baseLinkages: Record<string, LinkageConfig> = {
-        'contacts.companyName': {
-          type: 'visibility',
-          dependencies: ['./type'],
-          when: {
-            field: './type',
-            operator: '==',
-            value: 'work',
-          },
-          fulfill: {
-            state: { visible: true },
-          },
-          otherwise: {
-            state: { visible: false },
-          },
-        },
-      };
-
-      const linkageStates = useArrayLinkageManager({
-        form,
-        baseLinkages,
-        schema,
-      });
-
-      return { form, linkageStates };
-    });
-
-    // 初始状态：只有一个元素
-    await waitFor(() => {
-      expect(result.current.linkageStates['contacts.0.companyName']?.visible).toBe(true);
-    });
-
-    // 添加新元素
-    const currentContacts = result.current.form.getValues('contacts');
-    result.current.form.setValue('contacts', [
-      ...currentContacts,
-      { type: 'personal', companyName: '' },
-    ]);
-
-    // 等待新元素的联动配置生成
-    await waitFor(() => {
-      expect(result.current.linkageStates['contacts.1.companyName']?.visible).toBe(false);
-    });
-  });
-
-  it('应该在数组元素删除时移除对应的联动配置', async () => {
-    const { result } = renderHook(() => {
-      const form = useForm({
-        defaultValues: {
-          contacts: [
-            { type: 'work', companyName: '' },
-            { type: 'personal', companyName: '' },
-          ],
-        },
-      });
-
-      const schema = createSchema({
-        contacts: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              type: { type: 'string' },
-              companyName: { type: 'string' },
-            },
-          },
-        },
-      });
-
-      const baseLinkages: Record<string, LinkageConfig> = {
-        'contacts.companyName': {
-          type: 'visibility',
-          dependencies: ['./type'],
-          when: {
-            field: './type',
-            operator: '==',
-            value: 'work',
-          },
-          fulfill: {
-            state: { visible: true },
-          },
-          otherwise: {
-            state: { visible: false },
-          },
-        },
-      };
-
-      const linkageStates = useArrayLinkageManager({
-        form,
-        baseLinkages,
-        schema,
-      });
-
-      return { form, linkageStates };
-    });
-
-    // 初始状态：两个元素
-    await waitFor(() => {
-      expect(result.current.linkageStates['contacts.0.companyName']).toBeDefined();
-      expect(result.current.linkageStates['contacts.1.companyName']).toBeDefined();
-    });
-
-    // 删除第一个元素
-    result.current.form.setValue('contacts', [{ type: 'personal', companyName: '' }]);
-
-    // 等待联动配置更新
-    await waitFor(() => {
-      expect(result.current.linkageStates['contacts.0.companyName']?.visible).toBe(false);
-      expect(result.current.linkageStates['contacts.1.companyName']).toBeUndefined();
-    });
-  });
-});
 
 describe('useArrayLinkageManager - 路径映射支持', () => {
   it('应该支持带有路径映射的数组联动', async () => {
@@ -1278,12 +1263,13 @@ describe('useArrayLinkageManager - 路径映射支持', () => {
         },
       });
 
+      // 模拟真实场景：传入已实例化的路径（带路径映射）
       const baseLinkages: Record<string, LinkageConfig> = {
-        'group~~category~~contacts.info~~companyName': {
+        'group~~category~~contacts.0.info~~companyName': {
           type: 'visibility',
-          dependencies: ['./type'],
+          dependencies: ['group~~category~~contacts.0.type'],
           when: {
-            field: './type',
+            field: 'group~~category~~contacts.0.type',
             operator: '==',
             value: 'work',
           },

@@ -196,8 +196,6 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
     let linkages = rawLinkages;
     if (asNestedForm && pathPrefix) {
       const transformed = transformToAbsolutePaths(rawLinkages, pathPrefix);
-      console.info('cyril rawLinkages: ', rawLinkages);
-      console.info('cyril transformed: ', transformed);
 
       // 如果有父级联动状态，过滤掉已经在父级计算过的联动
       if (linkageStateContext?.parentLinkageStates) {
@@ -246,8 +244,6 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
     methods,
   ]);
 
-  console.info('cyril processedLinkages: ', processedLinkages);
-
   // 步骤3: 计算自己的联动状态
   const ownLinkageStates = useArrayLinkageManager({
     form: formToUse,
@@ -276,8 +272,6 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
     }
     return ownLinkageStates;
   }, [linkageStateContext?.parentLinkageStates, ownLinkageStates, pathPrefix]);
-
-  console.info('cyril linkageStates: ', linkageStates);
 
   const {
     handleSubmit,
