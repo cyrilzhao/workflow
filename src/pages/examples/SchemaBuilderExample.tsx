@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { SchemaBuilder } from '../../components/DynamicForm/SchemaBuilder/SchemaBuilder';
 import type { ExtendedJSONSchema } from '../../components/DynamicForm/types/schema';
-import { Card, H3, H5, Divider, Button } from '@blueprintjs/core';
-import { DynamicForm } from '../../components/DynamicForm';
+import { H3 } from '@blueprintjs/core';
 
 const initialSchema: ExtendedJSONSchema = {
   type: 'object',
@@ -24,59 +23,25 @@ const initialSchema: ExtendedJSONSchema = {
 
 export const SchemaBuilderExample: React.FC = () => {
   const [schema, setSchema] = useState<ExtendedJSONSchema>(initialSchema);
-  const [previewData, setPreviewData] = useState({});
 
   return (
     <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
       <H3>Schema Builder</H3>
-      <p>Visual editor for ExtendedJSONSchema.</p>
+      <p>Visual editor for ExtendedJSONSchema with integrated preview.</p>
 
       <div style={{ marginBottom: '20px' }}>
         <SchemaBuilder defaultValue={initialSchema} onChange={setSchema} />
       </div>
 
-      <div style={{ display: 'flex', gap: '20px' }}>
-        <div style={{ flex: 1 }}>
-          <Card>
-            <H5>Generated Schema (JSON)</H5>
-            <pre
-              style={{
-                background: '#f5f8fa',
-                padding: '10px',
-                borderRadius: '4px',
-                overflow: 'auto',
-                maxHeight: '400px',
-                fontSize: '12px',
-              }}
-            >
-              {JSON.stringify(schema, null, 2)}
-            </pre>
-          </Card>
-        </div>
-        <div style={{ flex: 1 }}>
-          <Card>
-            <H5>Live Form Preview</H5>
-            <Divider />
-            <div style={{ padding: '10px 0' }}>
-              <DynamicForm schema={schema} onChange={setPreviewData} />
-            </div>
-            <Divider />
-            <H5>Form Data</H5>
-            <pre
-              style={{
-                background: '#f5f8fa',
-                padding: '10px',
-                borderRadius: '4px',
-                overflow: 'auto',
-                maxHeight: '200px',
-                fontSize: '12px',
-              }}
-            >
-              {JSON.stringify(previewData, null, 2)}
-            </pre>
-          </Card>
-        </div>
-      </div>
+      {/* 
+      // Preview is now inside SchemaBuilder
+      <div style={{ marginTop: '20px' }}>
+        <p>Current Schema State in Parent Component:</p>
+        <pre style={{ fontSize: '10px', maxHeight: '100px', overflow: 'auto' }}>
+            {JSON.stringify(schema, null, 2)}
+        </pre>
+      </div> 
+      */}
     </div>
   );
 };

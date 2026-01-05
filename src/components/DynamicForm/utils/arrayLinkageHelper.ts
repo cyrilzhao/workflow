@@ -330,7 +330,6 @@ function resolveConditionPaths(
   schema?: ExtendedJSONSchema
 ): any {
   const resolved = { ...condition };
-  console.info('cyril resolved: ', resolved);
 
   // 解析 field 字段
   if (resolved.field) {

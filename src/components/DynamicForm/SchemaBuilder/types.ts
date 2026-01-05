@@ -31,8 +31,11 @@ export interface SchemaNode extends ExtendedJSONSchema {
 export interface SchemaBuilderContextType {
   schema: ExtendedJSONSchema;
   selectedPath: string[]; // Path to the currently selected node
+  expandedPaths: Record<string, boolean>;
   onSelect: (path: string[]) => void;
   onUpdate: (path: string[], updates: Partial<SchemaNode>, newKey?: string) => void;
-  onAdd: (path: string[], type: SchemaNodeType) => void;
+  onAddChild: (path: string[], type: SchemaNodeType) => void;
+  onAddSibling: (path: string[], type: SchemaNodeType) => void;
   onDelete: (path: string[]) => void;
+  onToggleExpand: (path: string[], expanded: boolean) => void;
 }

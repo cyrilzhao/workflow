@@ -74,6 +74,16 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
       };
     }, [fullPath, currentSchema, nestedSchemaRegistry]);
 
+    console.info('cyril currentSchema: ', JSON.stringify(currentSchema));
+
+    // 同步外部传入的 schema 变化
+    useEffect(() => {
+      // 如果没有动态 schema 配置，直接使用外部传入的 schema
+      if (!schemaKey && !schemaLoader) {
+        setCurrentSchema(schema);
+      }
+    }, [schema, schemaKey, schemaLoader]);
+
     // 处理动态 schema 加载
     useEffect(() => {
       if (!schemaKey || !schemas) return;

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import {
   Tabs,
@@ -37,6 +37,15 @@ export const PropertyEditor: React.FC = () => {
     selectedPath.length > 0 && selectedPath[selectedPath.length - 2] === 'properties';
   const currentKey = isObjectProperty ? selectedPath[selectedPath.length - 1] : undefined;
 
+  // Determine if it's an array items node
+  const parentPath = selectedPath.slice(0, -1);
+  const parentNode = getNode(schema, parentPath);
+  const isArrayItems =
+    selectedPath.length > 0 &&
+    selectedPath[selectedPath.length - 1] === 'items' &&
+    parentNode?.type === 'array';
+  const [selectedTabId, setSelectedTabId] = useState('basic');
+
   const { control, register, handleSubmit, reset, watch, setValue } = useForm({
     defaultValues: {
       key: currentKey,
@@ -58,6 +67,10 @@ export const PropertyEditor: React.FC = () => {
       });
     }
   }, [currentNode, currentKey, reset]);
+
+  useEffect(() => {
+    setSelectedTabId('basic');
+  }, [currentKey]);
 
   if (!currentNode) {
     return (
@@ -104,25 +117,30 @@ export const PropertyEditor: React.FC = () => {
 
   return (
     <div className="property-editor">
-      <Tabs id="property-editor-tabs">
+      <Tabs
+        selectedTabId={selectedTabId}
+        id="property-editor-tabs"
+        onChange={newTabId => setSelectedTabId(newTabId.toString())}
+      >
         <Tab
           id="basic"
           title="Basic"
           panel={
             <div className="editor-panel">
               {isObjectProperty && (
-                <FormGroup label="Field Key" helperText="Unique identifier for this field">
-                  <InputGroup defaultValue={currentKey} onBlur={handleKeyChange} />
+                <FormGroup label="Name" helperText="Unique identifier for this field">
+                  <InputGroup key={currentKey} defaultValue={currentKey} onBlur={handleKeyChange} />
                 </FormGroup>
               )}
 
-              <FormGroup label="Title">
+              <FormGroup label="Label">
                 <Controller
                   name="title"
                   control={control}
                   render={({ field }) => (
                     <InputGroup
                       {...field}
+                      // disabled={isArrayItems}
                       onChange={e => {
                         field.onChange(e);
                         handleFieldChange('title', e.target.value);
@@ -136,16 +154,20 @@ export const PropertyEditor: React.FC = () => {
                 <Controller
                   name="description"
                   control={control}
-                  render={({ field }) => (
-                    <TextArea
-                      {...field}
-                      fill
-                      onChange={e => {
-                        field.onChange(e);
-                        handleFieldChange('description', e.target.value);
-                      }}
-                    />
-                  )}
+                  render={({ field }) => {
+                    // console.info('cyril field: ', field);
+                    return (
+                      <TextArea
+                        {...field}
+                        fill
+                        disabled={isArrayItems}
+                        onChange={e => {
+                          field.onChange(e);
+                          handleFieldChange('description', e.target.value);
+                        }}
+                      />
+                    );
+                  }}
                 />
               </FormGroup>
 
@@ -157,7 +179,7 @@ export const PropertyEditor: React.FC = () => {
                     <HTMLSelect
                       {...field}
                       options={typeOptions}
-                      disabled={isRoot} // Root type usually shouldn't change easily or needs warning
+                      disabled={isRoot || isArrayItems} // Root type usually shouldn't change easily or needs warning
                       onChange={e => {
                         field.onChange(e);
                         handleFieldChange('type', e.target.value);
@@ -176,6 +198,7 @@ export const PropertyEditor: React.FC = () => {
                     {currentType === 'boolean' ? (
                       <Switch
                         checked={!!field.value}
+                        disabled={isArrayItems}
                         onChange={e => {
                           field.onChange(e.currentTarget.checked);
                           handleFieldChange('default', e.currentTarget.checked);
@@ -185,6 +208,7 @@ export const PropertyEditor: React.FC = () => {
                       <InputGroup
                         {...field}
                         value={field.value || ''}
+                        disabled={isArrayItems}
                         onChange={e => {
                           field.onChange(e);
                           handleFieldChange('default', e.target.value);
@@ -348,6 +372,7 @@ export const PropertyEditor: React.FC = () => {
                         <NumericInput
                           {...field}
                           onValueChange={v => handleFieldChange('minProperties', v)}
+                          disabled={isArrayItems}
                         />
                       )}
                     />
@@ -360,6 +385,7 @@ export const PropertyEditor: React.FC = () => {
                         <NumericInput
                           {...field}
                           onValueChange={v => handleFieldChange('maxProperties', v)}
+                          disabled={isArrayItems}
                         />
                       )}
                     />
@@ -384,6 +410,7 @@ export const PropertyEditor: React.FC = () => {
                       {...field}
                       options={['', ...(widgetOptions[currentType] || [])]}
                       onChange={e => handleUIChange('widget', e.target.value)}
+                      disabled={isArrayItems}
                     />
                   )}
                 />
@@ -397,20 +424,25 @@ export const PropertyEditor: React.FC = () => {
                     <InputGroup
                       {...field}
                       onChange={e => handleUIChange('placeholder', e.target.value)}
+                      disabled={isArrayItems}
                     />
                   )}
                 />
               </FormGroup>
 
-              <FormGroup label="Help Text">
+              {/* <FormGroup label="Help Text">
                 <Controller
                   name="ui.help"
                   control={control}
                   render={({ field }) => (
-                    <InputGroup {...field} onChange={e => handleUIChange('help', e.target.value)} />
+                    <InputGroup
+                      {...field}
+                      onChange={e => handleUIChange('help', e.target.value)}
+                      disabled={isArrayItems}
+                    />
                   )}
                 />
-              </FormGroup>
+              </FormGroup> */}
 
               <Controller
                 name="ui.hidden"
@@ -420,6 +452,7 @@ export const PropertyEditor: React.FC = () => {
                     label="Hidden"
                     checked={!!field.value}
                     onChange={e => handleUIChange('hidden', e.currentTarget.checked)}
+                    disabled={isArrayItems}
                   />
                 )}
               />
@@ -432,6 +465,7 @@ export const PropertyEditor: React.FC = () => {
                     label="Disabled"
                     checked={!!field.value}
                     onChange={e => handleUIChange('disabled', e.currentTarget.checked)}
+                    disabled={isArrayItems}
                   />
                 )}
               />
@@ -444,6 +478,7 @@ export const PropertyEditor: React.FC = () => {
                     label="Readonly"
                     checked={!!field.value}
                     onChange={e => handleUIChange('readonly', e.currentTarget.checked)}
+                    disabled={isArrayItems}
                   />
                 )}
               />
@@ -459,6 +494,7 @@ export const PropertyEditor: React.FC = () => {
                       {...field}
                       options={['', 'vertical', 'horizontal', 'inline']}
                       onChange={e => handleUIChange('layout', e.target.value)}
+                      disabled={isArrayItems}
                     />
                   )}
                 />
@@ -472,6 +508,7 @@ export const PropertyEditor: React.FC = () => {
                     <InputGroup
                       {...field}
                       onChange={e => handleUIChange('labelWidth', e.target.value)}
+                      disabled={isArrayItems}
                     />
                   )}
                 />
@@ -487,6 +524,7 @@ export const PropertyEditor: React.FC = () => {
                     label="Flatten Path (Transparent)"
                     checked={!!field.value}
                     onChange={e => handleUIChange('flattenPath', e.currentTarget.checked)}
+                    disabled={isArrayItems}
                   />
                 )}
               />
@@ -499,6 +537,7 @@ export const PropertyEditor: React.FC = () => {
                     label="Flatten Prefix"
                     checked={!!field.value}
                     onChange={e => handleUIChange('flattenPrefix', e.currentTarget.checked)}
+                    disabled={isArrayItems}
                   />
                 )}
               />

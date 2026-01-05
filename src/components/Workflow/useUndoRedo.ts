@@ -143,8 +143,6 @@ export function useUndoRedo<T>(
     }));
   }, []);
 
-  console.info('cyril history.past: ', JSON.stringify(history.past));
-
   return {
     present: history.present,
     past: history.past,

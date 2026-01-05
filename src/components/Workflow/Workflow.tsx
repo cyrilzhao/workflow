@@ -139,15 +139,10 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
 
   // 同步 undo/redo（nodes 和 edges 需要同步操作）
   const undo = useCallback(() => {
-    console.info('cyril undoRedoEnabled: ', undoRedoEnabled);
-    console.info('cyril readonly: ', readonly);
-    console.info('cyril workflowHistory.canUndo: ', workflowHistory.canUndo);
     if (!undoRedoEnabled || readonly || !workflowHistory.canUndo) return;
 
     // 先获取历史状态
     const prevState = workflowHistory.past[workflowHistory.past.length - 1];
-    console.info('cyril workflowHistory: ', JSON.stringify(workflowHistory));
-    console.info('cyril prevState: ', JSON.stringify(prevState));
 
     // 设置标志，防止记录历史
     isUndoingRef.current = true;
@@ -202,13 +197,11 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
       // Undo: Ctrl+Z / Cmd+Z
       if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
         e.preventDefault();
-        console.info('cyril undo');
         undo();
       }
       // Redo: Ctrl+R / Cmd+R
       if ((e.metaKey || e.ctrlKey) && e.key === 'r') {
         e.preventDefault();
-        console.info('cyril redo');
         redo();
       }
     };

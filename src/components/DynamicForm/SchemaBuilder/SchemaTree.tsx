@@ -1,12 +1,32 @@
 import React, { useState } from 'react';
-import { Tree, Icon, Classes, Button, Menu, MenuItem, Popover, Position } from '@blueprintjs/core';
+import {
+  Tree,
+  Icon,
+  Classes,
+  Button,
+  Menu,
+  MenuItem,
+  Popover,
+  Position,
+  MenuDivider,
+  Tooltip,
+} from '@blueprintjs/core';
 import type { TreeNodeInfo } from '@blueprintjs/core';
 import { useSchemaBuilder } from './SchemaBuilder';
 import type { ExtendedJSONSchema } from '../types/schema';
+import type { SchemaNodeType } from './types';
 
 export const SchemaTree: React.FC = () => {
-  const { schema, selectedPath, onSelect, onAdd, onDelete } = useSchemaBuilder();
-  const [expandedPaths, setExpandedPaths] = useState<Record<string, boolean>>({ '': true });
+  const {
+    schema,
+    selectedPath,
+    expandedPaths,
+    onSelect,
+    onAddChild,
+    onAddSibling,
+    onDelete,
+    onToggleExpand,
+  } = useSchemaBuilder();
 
   const handleNodeClick = (node: TreeNodeInfo) => {
     const path = node.nodeData as string[];
@@ -14,24 +34,66 @@ export const SchemaTree: React.FC = () => {
   };
 
   const handleNodeCollapse = (node: TreeNodeInfo) => {
-    const pathStr = (node.nodeData as string[]).join('.');
-    setExpandedPaths(prev => ({ ...prev, [pathStr]: false }));
+    const path = node.nodeData as string[];
+    onToggleExpand(path, false);
   };
 
   const handleNodeExpand = (node: TreeNodeInfo) => {
-    const pathStr = (node.nodeData as string[]).join('.');
-    setExpandedPaths(prev => ({ ...prev, [pathStr]: true }));
+    const path = node.nodeData as string[];
+    onToggleExpand(path, true);
   };
 
-  const renderAddMenu = (path: string[]) => (
-    <Menu>
-      <MenuItem text="String" onClick={() => onAdd(path, 'string')} icon="font" />
-      <MenuItem text="Number" onClick={() => onAdd(path, 'number')} icon="numerical" />
-      <MenuItem text="Boolean" onClick={() => onAdd(path, 'boolean')} icon="tick" />
-      <MenuItem text="Object" onClick={() => onAdd(path, 'object')} icon="symbol-square" />
-      <MenuItem text="Array" onClick={() => onAdd(path, 'array')} icon="list" />
-    </Menu>
-  );
+  const renderNodeMenu = (path: string[], currentSchema: ExtendedJSONSchema) => {
+    // Logic for allowed actions
+    const isRoot = path.length === 0;
+    const key = path.length > 0 ? path[path.length - 1] : '';
+    const parentKey = path.length > 1 ? path[path.length - 2] : '';
+
+    const canAddChild = currentSchema.type === 'object' || currentSchema.type === 'array';
+
+    // Can add sibling if parent is 'properties' (standard object field)
+    const canAddSibling = !isRoot && parentKey === 'properties';
+
+    // 检查是否是一级节点（path 为 ['properties', 'fieldName']）
+    const isFirstLevelNode = path.length === 2 && path[0] === 'properties';
+
+    // 如果是一级节点，检查是否是最后一个节点
+    let isLastFirstLevelNode = false;
+    if (isFirstLevelNode && schema.properties) {
+      const firstLevelNodeCount = Object.keys(schema.properties).length;
+      isLastFirstLevelNode = firstLevelNodeCount === 1;
+    }
+
+    // Can delete if not root and not 'items' of an array (enforcing read-only structure for items)
+    // 如果是最后一个一级节点，则不能删除
+    const canDelete = !isRoot && key !== 'items' && !isLastFirstLevelNode;
+
+    return (
+      <Menu>
+        {canAddChild && (
+          <MenuItem text="Add Child Node" icon="plus" onClick={() => onAddChild(path, 'string')} />
+        )}
+        {canAddSibling && (
+          <MenuItem
+            text="Add Sibling Node"
+            icon="new-object"
+            onClick={() => onAddSibling(path, 'string')}
+          />
+        )}
+
+        {(canAddChild || canAddSibling) && <MenuDivider />}
+
+        {canDelete && (
+          <MenuItem
+            text="Delete Node"
+            icon="trash"
+            intent="danger"
+            onClick={() => onDelete(path)}
+          />
+        )}
+      </Menu>
+    );
+  };
 
   const buildTreeNodes = (
     currentSchema: ExtendedJSONSchema,
@@ -39,51 +101,50 @@ export const SchemaTree: React.FC = () => {
   ): TreeNodeInfo[] => {
     const pathStr = path.join('.');
     const isSelected = path.join('.') === selectedPath.join('.');
-    const isExpanded = expandedPaths[pathStr];
+    const isExpanded = !!expandedPaths[pathStr];
 
-    // Determine label and icon
+    // Determine label
     let label = currentSchema.title || (path.length > 0 ? path[path.length - 1] : 'Root');
-    // If inside properties, use the key as label if title is not set, or format "Title (key)"
-    if (path.length > 0 && path[path.length - 2] === 'properties') {
+
+    // Formatting label
+    if (path.length > 0) {
       const key = path[path.length - 1];
-      label = currentSchema.title ? `${currentSchema.title} (${key})` : key;
+      if (path[path.length - 2] === 'properties') {
+        label = currentSchema.title ? `${key} (${currentSchema.title})` : key;
+      } else if (key === 'items') {
+        label = currentSchema.title ? `items (${currentSchema.title})` : 'items';
+      }
     }
 
-    let icon: any = 'symbol-circle';
-    if (currentSchema.type === 'object') icon = 'symbol-square';
-    else if (currentSchema.type === 'array') icon = 'list';
-    else if (currentSchema.type === 'string') icon = 'font';
-    else if (currentSchema.type === 'number' || currentSchema.type === 'integer')
-      icon = 'numerical';
-    else if (currentSchema.type === 'boolean') icon = 'tick';
+    const canAddChild = currentSchema.type === 'object';
+    const canAddSibling = path.length > 0 && path[path.length - 2] === 'properties';
+    const showActions = canAddChild || canAddSibling || path.length > 0;
+
+    // console.info('cyril currentSchema: ', currentSchema);
+    // console.info('cyril canAddSibling: ', canAddSibling);
+    // console.info('cyril canAddChild: ', canAddChild);
 
     const node: TreeNodeInfo = {
       id: pathStr || 'root',
       label: (
         <div className="schema-tree-node-label">
-          <span className="node-text">{label}</span>
+          <Tooltip content={label} hoverOpenDelay={500} position={Position.TOP_LEFT}>
+            <span className="node-text">{label}</span>
+          </Tooltip>
           <div className="node-actions">
-            {(currentSchema.type === 'object' || currentSchema.type === 'array') && (
-              <Popover content={renderAddMenu(path)} position={Position.BOTTOM_LEFT}>
-                <Button icon="plus" minimal small />
+            {showActions && (
+              <Popover
+                content={renderNodeMenu(path, currentSchema)}
+                position={Position.BOTTOM_LEFT}
+                interactionKind="click"
+              >
+                <Button icon="more" minimal small />
               </Popover>
-            )}
-            {path.length > 0 && (
-              <Button
-                icon="trash"
-                minimal
-                small
-                intent="danger"
-                onClick={e => {
-                  e.stopPropagation();
-                  onDelete(path);
-                }}
-              />
             )}
           </div>
         </div>
       ),
-      icon: icon,
+      // No icon as per requirement
       isSelected: isSelected,
       isExpanded: isExpanded,
       nodeData: path,
@@ -108,7 +169,6 @@ export const SchemaTree: React.FC = () => {
         // Single schema for all items
         children.push(...buildTreeNodes(itemsSchema as ExtendedJSONSchema, [...path, 'items']));
       }
-      // Note: We are not handling tuple validation (array of schemas) for now as per design focus on common cases
     }
 
     if (children.length > 0) {
@@ -120,9 +180,12 @@ export const SchemaTree: React.FC = () => {
 
   const nodes = buildTreeNodes(schema);
 
+  // 隐藏根节点，直接展示一级子节点
+  const displayNodes = nodes[0]?.childNodes || [];
+
   return (
     <Tree
-      contents={nodes}
+      contents={displayNodes}
       onNodeClick={handleNodeClick}
       onNodeCollapse={handleNodeCollapse}
       onNodeExpand={handleNodeExpand}
