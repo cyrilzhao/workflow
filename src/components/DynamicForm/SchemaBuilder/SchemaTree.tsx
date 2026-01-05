@@ -110,9 +110,9 @@ export const SchemaTree: React.FC = () => {
     if (path.length > 0) {
       const key = path[path.length - 1];
       if (path[path.length - 2] === 'properties') {
-        label = currentSchema.title ? `${key} (${currentSchema.title})` : key;
+        label = currentSchema.title ? `${currentSchema.title} (${key})` : key;
       } else if (key === 'items') {
-        label = currentSchema.title ? `items (${currentSchema.title})` : 'items';
+        label = currentSchema.title ? `${currentSchema.title} (items)` : 'items';
       }
     }
 

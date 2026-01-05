@@ -12,10 +12,15 @@ import {
   Callout,
   ControlGroup,
   Divider,
+  Button,
+  Tag,
 } from '@blueprintjs/core';
 import { get } from 'lodash';
 import { useSchemaBuilder } from './SchemaBuilder';
 import type { SchemaNodeType } from './types';
+import { LinkageEditor } from './LinkageEditor';
+import type { LinkageConfig } from '../types/linkage';
+import { FieldPathSelector } from './FieldPathSelector';
 
 // Helper to get node from path
 const getNode = (schema: any, path: string[]) => {
@@ -26,6 +31,13 @@ const getNode = (schema: any, path: string[]) => {
 export const PropertyEditor: React.FC = () => {
   const { schema, selectedPath, onUpdate } = useSchemaBuilder();
   const currentNode = getNode(schema, selectedPath);
+
+  console.info('cyril PropertyEditor selectedPath: ', selectedPath);
+  console.info('cyril PropertyEditor currentNode: ', currentNode);
+
+  // 将 selectedPath 数组转换为 JSON Pointer 格式
+  // ['properties', 'field1', 'properties', 'field2'] -> '#/properties/field1/properties/field2'
+  const currentFieldPath = selectedPath.length > 0 ? `#/${selectedPath.join('/')}` : '';
 
   // Determine if it's a root node
   const isRoot = selectedPath.length === 0;
@@ -86,6 +98,10 @@ export const PropertyEditor: React.FC = () => {
 
   const handleUIChange = (field: string, value: any) => {
     onUpdate(selectedPath, { ui: { ...currentNode.ui, [field]: value } });
+  };
+
+  const handleLinkageChange = (linkage: LinkageConfig | undefined) => {
+    onUpdate(selectedPath, { ui: { ...currentNode.ui, linkage } });
   };
 
   const handleKeyChange = (e: React.FocusEvent<HTMLInputElement>) => {
@@ -241,6 +257,25 @@ export const PropertyEditor: React.FC = () => {
                       )}
                     />
                   </FormGroup>
+                  <FormGroup label="Min Length Error Message">
+                    <Controller
+                      name="ui.errorMessages.minLength"
+                      control={control}
+                      render={({ field }) => (
+                        <InputGroup
+                          {...field}
+                          placeholder="Custom error message for minLength"
+                          onChange={e => {
+                            field.onChange(e);
+                            handleUIChange('errorMessages', {
+                              ...currentNode.ui?.errorMessages,
+                              minLength: e.target.value,
+                            });
+                          }}
+                        />
+                      )}
+                    />
+                  </FormGroup>
                   <FormGroup label="Max Length">
                     <Controller
                       name="maxLength"
@@ -253,6 +288,25 @@ export const PropertyEditor: React.FC = () => {
                       )}
                     />
                   </FormGroup>
+                  <FormGroup label="Max Length Error Message">
+                    <Controller
+                      name="ui.errorMessages.maxLength"
+                      control={control}
+                      render={({ field }) => (
+                        <InputGroup
+                          {...field}
+                          placeholder="Custom error message for maxLength"
+                          onChange={e => {
+                            field.onChange(e);
+                            handleUIChange('errorMessages', {
+                              ...currentNode.ui?.errorMessages,
+                              maxLength: e.target.value,
+                            });
+                          }}
+                        />
+                      )}
+                    />
+                  </FormGroup>
                   <FormGroup label="Pattern (Regex)">
                     <Controller
                       name="pattern"
@@ -261,6 +315,25 @@ export const PropertyEditor: React.FC = () => {
                         <InputGroup
                           {...field}
                           onChange={e => handleFieldChange('pattern', e.target.value)}
+                        />
+                      )}
+                    />
+                  </FormGroup>
+                  <FormGroup label="Pattern Error Message">
+                    <Controller
+                      name="ui.errorMessages.pattern"
+                      control={control}
+                      render={({ field }) => (
+                        <InputGroup
+                          {...field}
+                          placeholder="Custom error message for pattern"
+                          onChange={e => {
+                            field.onChange(e);
+                            handleUIChange('errorMessages', {
+                              ...currentNode.ui?.errorMessages,
+                              pattern: e.target.value,
+                            });
+                          }}
                         />
                       )}
                     />
@@ -295,6 +368,25 @@ export const PropertyEditor: React.FC = () => {
                       )}
                     />
                   </FormGroup>
+                  <FormGroup label="Minimum Error Message">
+                    <Controller
+                      name="ui.errorMessages.min"
+                      control={control}
+                      render={({ field }) => (
+                        <InputGroup
+                          {...field}
+                          placeholder="Custom error message for minimum"
+                          onChange={e => {
+                            field.onChange(e);
+                            handleUIChange('errorMessages', {
+                              ...currentNode.ui?.errorMessages,
+                              min: e.target.value,
+                            });
+                          }}
+                        />
+                      )}
+                    />
+                  </FormGroup>
                   <FormGroup label="Maximum">
                     <Controller
                       name="maximum"
@@ -303,6 +395,25 @@ export const PropertyEditor: React.FC = () => {
                         <NumericInput
                           {...field}
                           onValueChange={v => handleFieldChange('maximum', v)}
+                        />
+                      )}
+                    />
+                  </FormGroup>
+                  <FormGroup label="Maximum Error Message">
+                    <Controller
+                      name="ui.errorMessages.max"
+                      control={control}
+                      render={({ field }) => (
+                        <InputGroup
+                          {...field}
+                          placeholder="Custom error message for maximum"
+                          onChange={e => {
+                            field.onChange(e);
+                            handleUIChange('errorMessages', {
+                              ...currentNode.ui?.errorMessages,
+                              max: e.target.value,
+                            });
+                          }}
                         />
                       )}
                     />
@@ -392,6 +503,142 @@ export const PropertyEditor: React.FC = () => {
                   </FormGroup>
                 </>
               )}
+
+              <Divider />
+
+              {/* 条件验证配置提示 */}
+              <Callout intent="primary" icon="info-sign" style={{ marginBottom: 16 }}>
+                <strong>Conditional Validation (Advanced)</strong>
+                <p style={{ marginTop: 8, marginBottom: 8, fontSize: 13 }}>
+                  For complex validation rules based on other field values (dependencies, if/then/else,
+                  allOf/anyOf/oneOf), please edit the schema JSON directly.
+                </p>
+                <p style={{ marginBottom: 0, fontSize: 12, color: '#5c7080' }}>
+                  Refer to the{' '}
+                  <a
+                    href="https://json-schema.org/understanding-json-schema/reference/conditionals.html"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    JSON Schema documentation
+                  </a>{' '}
+                  for detailed syntax.
+                </p>
+              </Callout>
+
+              <Divider />
+
+              <FormGroup
+                label="Required Error Message"
+                helperText="Custom error message when field is required but empty"
+              >
+                <Controller
+                  name="ui.errorMessages.required"
+                  control={control}
+                  render={({ field }) => (
+                    <InputGroup
+                      {...field}
+                      placeholder="This field is required"
+                      disabled={isArrayItems}
+                      onChange={e => {
+                        field.onChange(e);
+                        handleUIChange('errorMessages', {
+                          ...currentNode.ui?.errorMessages,
+                          required: e.target.value,
+                        });
+                      }}
+                    />
+                  )}
+                />
+              </FormGroup>
+
+              <Divider />
+
+              <FormGroup
+                label="Custom Validation Function"
+                helperText="Name of custom validation function (e.g., matchPassword)"
+              >
+                <Controller
+                  name="ui.validation.function"
+                  control={control}
+                  render={({ field }) => (
+                    <InputGroup
+                      {...field}
+                      placeholder="Function name"
+                      disabled={isArrayItems}
+                      onChange={e => {
+                        field.onChange(e);
+                        handleUIChange('validation', {
+                          ...currentNode.ui?.validation,
+                          function: e.target.value,
+                        });
+                      }}
+                    />
+                  )}
+                />
+              </FormGroup>
+
+              <FormGroup
+                label="Validation Dependencies"
+                helperText="Select field paths that this validation depends on"
+              >
+                <Controller
+                  name="ui.validation.dependencies"
+                  control={control}
+                  render={({ field }) => {
+                    const dependencies = Array.isArray(field.value) ? field.value : [];
+
+                    const handleAddDependency = (path: string) => {
+                      if (path && !dependencies.includes(path)) {
+                        const newDeps = [...dependencies, path];
+                        field.onChange(newDeps);
+                        handleUIChange('validation', {
+                          ...currentNode.ui?.validation,
+                          dependencies: newDeps,
+                        });
+                      }
+                    };
+
+                    const handleRemoveDependency = (index: number) => {
+                      const newDeps = dependencies.filter((_, i) => i !== index);
+                      field.onChange(newDeps);
+                      handleUIChange('validation', {
+                        ...currentNode.ui?.validation,
+                        dependencies: newDeps,
+                      });
+                    };
+
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {/* 已选择的依赖字段列表 */}
+                        {dependencies.length > 0 && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
+                            {dependencies.map((dep, index) => (
+                              <Tag
+                                key={index}
+                                onRemove={() => handleRemoveDependency(index)}
+                                intent="primary"
+                              >
+                                {dep}
+                              </Tag>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* 字段路径选择器 */}
+                        <FieldPathSelector
+                          schema={schema}
+                          currentFieldPath={currentFieldPath}
+                          value=""
+                          onChange={handleAddDependency}
+                          disabled={isArrayItems}
+                          placeholder="Click to add dependency field"
+                        />
+                      </div>
+                    );
+                  }}
+                />
+              </FormGroup>
             </div>
           }
         />
@@ -572,6 +819,23 @@ export const PropertyEditor: React.FC = () => {
                   </FormGroup>
                 </>
               )}
+            </div>
+          }
+        />
+
+        <Tab
+          id="linkage"
+          title="Linkage"
+          panel={
+            <div className="editor-panel">
+              <LinkageEditor
+                key={selectedPath.join('.')}
+                value={currentNode.ui?.linkage}
+                onChange={handleLinkageChange}
+                currentFieldPath={currentFieldPath}
+                schema={schema}
+                disabled={isArrayItems}
+              />
             </div>
           }
         />

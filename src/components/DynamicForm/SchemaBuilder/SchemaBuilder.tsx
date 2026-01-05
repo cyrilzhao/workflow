@@ -34,7 +34,9 @@ const generateRandomKeyStatic = (properties: Record<string, any>): string => {
 };
 
 // 确保 schema 至少有一个一级节点
-const ensureHasFirstLevelNodeStatic = (schema: ExtendedJSONSchema | null | undefined): ExtendedJSONSchema => {
+const ensureHasFirstLevelNodeStatic = (
+  schema: ExtendedJSONSchema | null | undefined
+): ExtendedJSONSchema => {
   // 处理 null、undefined 或空对象的情况
   if (!schema || typeof schema !== 'object' || Object.keys(schema).length === 0) {
     const newSchema: ExtendedJSONSchema = {
@@ -113,11 +115,23 @@ export const SchemaBuilder: React.FC<SchemaBuilderProps> = ({
     return ensureHasFirstLevelNodeStatic(initialSchema);
   };
 
-  const [schema, setSchema] = useState<ExtendedJSONSchema>(getInitialSchema());
-  const [selectedPath, setSelectedPath] = useState<string[]>([]);
+  // 获取第一个一级节点的路径
+  const getFirstLevelNodePath = (schema: ExtendedJSONSchema): string[] => {
+    if (schema.properties && Object.keys(schema.properties).length > 0) {
+      const firstKey = Object.keys(schema.properties)[0];
+      return ['properties', firstKey];
+    }
+    return [];
+  };
+
+  const initialSchema = getInitialSchema();
+  const [schema, setSchema] = useState<ExtendedJSONSchema>(initialSchema);
+  const [selectedPath, setSelectedPath] = useState<string[]>(getFirstLevelNodePath(initialSchema));
   const [expandedPaths, setExpandedPaths] = useState<Record<string, boolean>>({ '': true });
   const [previewData, setPreviewData] = useState({});
   const [previewTab, setPreviewTab] = useState<'form' | 'json'>('form');
+
+  console.info('cyril selectedPath: ', selectedPath);
 
   // Resizable sidebar state
   const [leftPanelWidth, setLeftPanelWidth] = useState(300);
@@ -128,6 +142,8 @@ export const SchemaBuilder: React.FC<SchemaBuilderProps> = ({
       // 检查是否需要创建占位节点
       const schemaToSet = ensureHasFirstLevelNodeStatic(defaultValue);
       setSchema(schemaToSet);
+      // 默认选中第一个一级节点
+      setSelectedPath(getFirstLevelNodePath(schemaToSet));
     }
   }, [defaultValue]);
 
@@ -195,7 +211,7 @@ export const SchemaBuilder: React.FC<SchemaBuilderProps> = ({
 
         // Auto-create items for array type
         if (updates.type === 'array' && !currentNode.items) {
-          const newSubFieldKey = generateRandomKey({});
+          const newSubFieldKey = generateRandomKeyStatic({});
 
           currentNode.items = {
             type: 'object',
@@ -208,7 +224,7 @@ export const SchemaBuilder: React.FC<SchemaBuilderProps> = ({
             },
           };
         } else if (updates.type === 'object') {
-          const newSubFieldKey = generateRandomKey({});
+          const newSubFieldKey = generateRandomKeyStatic({});
 
           currentNode.properties = {
             [newSubFieldKey]: {
@@ -295,20 +311,6 @@ export const SchemaBuilder: React.FC<SchemaBuilderProps> = ({
     [onChange]
   );
 
-  const generateRandomKey = (properties: Record<string, any>) => {
-    const chars = 'abcdefghijklmnopqrstuvwxyz';
-    let newKey = '';
-    do {
-      let randomStr = '';
-      for (let i = 0; i < 4; i++) {
-        randomStr += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-      // newKey = `field_${randomStr}`;
-      newKey = `field_${randomStr}`;
-    } while (properties[newKey]);
-    return newKey;
-  };
-
   const handleAddChild = useCallback(
     (path: string[], type: SchemaNodeType) => {
       setSchema(prevSchema => {
@@ -322,7 +324,7 @@ export const SchemaBuilder: React.FC<SchemaBuilderProps> = ({
             targetNode.properties = {};
           }
 
-          const newKey = generateRandomKey(targetNode.properties);
+          const newKey = generateRandomKeyStatic(targetNode.properties);
 
           let newNode: any = {
             type: type,
@@ -382,7 +384,7 @@ export const SchemaBuilder: React.FC<SchemaBuilderProps> = ({
           const propertiesNode = get(nextSchema, propertiesPath);
 
           if (propertiesNode) {
-            const newKey = generateRandomKey(propertiesNode);
+            const newKey = generateRandomKeyStatic(propertiesNode);
 
             let newNode: any = {
               type: type,
@@ -432,12 +434,21 @@ export const SchemaBuilder: React.FC<SchemaBuilderProps> = ({
               delete parentNode.items;
             }
           }
-          setSelectedPath([]);
         }
 
         onChange?.(nextSchema);
         return nextSchema;
       });
+
+      // 使用 setTimeout 确保 schema 更新完成后再更新 selectedPath
+      setTimeout(() => {
+        setSchema(currentSchema => {
+          const newPath = getFirstLevelNodePath(currentSchema);
+          console.info('cyril onDelete newPath: ', newPath);
+          setSelectedPath(newPath);
+          return currentSchema;
+        });
+      }, 0);
     },
     [onChange]
   );
@@ -463,40 +474,41 @@ export const SchemaBuilder: React.FC<SchemaBuilderProps> = ({
           <SchemaTree />
         </div>
         <div className="schema-builder-resizer" onMouseDown={startResizing} />
-        <div className="schema-builder-middle">
-          <PropertyEditor />
-        </div>
-        <Divider />
-        <div className="schema-builder-right">
-          <Tabs
-            id="preview-tabs"
-            selectedTabId={previewTab}
-            onChange={id => setPreviewTab(id as any)}
-          >
-            <Tab
-              id="form"
-              title="Live Preview"
-              panel={
-                <div className="preview-content">
-                  <DynamicForm schema={schema} onChange={setPreviewData} />
-                  <Divider />
-                  <div className="preview-data">
-                    <h5>Data</h5>
-                    <pre>{JSON.stringify(previewData, null, 2)}</pre>
+        <div style={{ display: 'flex', flexGrow: 1 }}>
+          <div className="schema-builder-middle">
+            <PropertyEditor />
+          </div>
+          <div className="schema-builder-right">
+            <Tabs
+              id="preview-tabs"
+              selectedTabId={previewTab}
+              onChange={id => setPreviewTab(id as any)}
+            >
+              <Tab
+                id="form"
+                title="Live Preview"
+                panel={
+                  <div className="preview-content">
+                    <DynamicForm schema={schema} onChange={setPreviewData} />
+                    <Divider />
+                    <div className="preview-data">
+                      <h5>Data</h5>
+                      <pre>{JSON.stringify(previewData, null, 2)}</pre>
+                    </div>
                   </div>
-                </div>
-              }
-            />
-            <Tab
-              id="json"
-              title="JSON Schema"
-              panel={
-                <div className="preview-content">
-                  <pre>{JSON.stringify(schema, null, 2)}</pre>
-                </div>
-              }
-            />
-          </Tabs>
+                }
+              />
+              <Tab
+                id="json"
+                title="JSON Schema"
+                panel={
+                  <div className="preview-content">
+                    <pre>{JSON.stringify(schema, null, 2)}</pre>
+                  </div>
+                }
+              />
+            </Tabs>
+          </div>
         </div>
       </div>
     </SchemaBuilderContext.Provider>

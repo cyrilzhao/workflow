@@ -25,7 +25,7 @@ export const SchemaBuilderExample: React.FC = () => {
   const [schema, setSchema] = useState<ExtendedJSONSchema>(initialSchema);
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
+    <div style={{ padding: '20px', margin: '0 auto' }}>
       <H3>Schema Builder</H3>
       <p>Visual editor for ExtendedJSONSchema with integrated preview.</p>
 
