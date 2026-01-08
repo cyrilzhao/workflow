@@ -542,7 +542,7 @@ describe('SchemaParser', () => {
         };
 
         const fields = SchemaParser.parse(schema);
-        expect(fields[0].validation?.required).toBe('此字段为必填项');
+        expect(fields[0].validation?.required).toBe('This field is required');
       });
 
       it('应该使用自定义的 required 错误消息', () => {
@@ -596,9 +596,9 @@ describe('SchemaParser', () => {
         // 测试验证函数
         const validator = fields[0].validation?.validate?.minLength;
         if (validator) {
-          expect(validator('short')).toBe('最小长度为 8 个字符');
+          expect(validator('short')).toBe('Minimum length is 8 characters');
           expect(validator('longenough')).toBe(true);
-          expect(validator(null)).toBe('最小长度为 8 个字符');
+          expect(validator(null)).toBe('Minimum length is 8 characters');
         }
       });
 
@@ -616,7 +616,7 @@ describe('SchemaParser', () => {
         const fields = SchemaParser.parse(schema);
         expect(fields[0].validation?.maxLength).toEqual({
           value: 20,
-          message: '最大长度为 20 个字符',
+          message: 'Maximum length is 20 characters',
         });
       });
 
@@ -667,7 +667,7 @@ describe('SchemaParser', () => {
         const fields = SchemaParser.parse(schema);
         expect(fields[0].validation?.min).toEqual({
           value: 18,
-          message: '最小值为 18',
+          message: 'Minimum value is 18',
         });
       });
 
@@ -685,7 +685,7 @@ describe('SchemaParser', () => {
         const fields = SchemaParser.parse(schema);
         expect(fields[0].validation?.max).toEqual({
           value: 100,
-          message: '最大值为 100',
+          message: 'Maximum value is 100',
         });
       });
 
@@ -703,7 +703,7 @@ describe('SchemaParser', () => {
         const fields = SchemaParser.parse(schema);
         expect(fields[0].validation?.min).toEqual({
           value: 0,
-          message: '最小值为 0',
+          message: 'Minimum value is 0',
         });
       });
 
@@ -745,7 +745,7 @@ describe('SchemaParser', () => {
 
         const fields = SchemaParser.parse(schema);
         expect(fields[0].validation?.pattern?.value).toEqual(/^1[3-9]\d{9}$/);
-        expect(fields[0].validation?.pattern?.message).toBe('格式不正确');
+        expect(fields[0].validation?.pattern?.message).toBe('Invalid format');
       });
 
       it('应该使用自定义的 pattern 错误消息', () => {
@@ -785,7 +785,7 @@ describe('SchemaParser', () => {
         expect(fields[0].validation?.pattern?.value).toEqual(
           /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
         );
-        expect(fields[0].validation?.pattern?.message).toBe('请输入有效的邮箱地址');
+        expect(fields[0].validation?.pattern?.message).toBe('Please enter a valid email address');
       });
 
       it('应该使用自定义的 email 格式错误消息', () => {
@@ -930,7 +930,7 @@ describe('SchemaParser', () => {
       expect(validator).toBeDefined();
       if (validator) {
         expect(validator('11010119900101001X')).toBe(true);
-        expect(validator('invalid')).toBe('idCard 格式不正确');
+        expect(validator('invalid')).toBe('Invalid idCard format');
       }
     });
 
@@ -1008,6 +1008,485 @@ describe('SchemaParser', () => {
       // 应该使用自定义验证器，而不是内置的 pattern 验证
       expect(fields[0].validation?.validate?.email).toBeDefined();
       expect(fields[0].validation?.pattern).toBeUndefined();
+    });
+  });
+
+  describe('buildFieldPath - 路径构建', () => {
+    it('应该为空父路径返回字段名', () => {
+      const path = SchemaParser.buildFieldPath('', 'name', false);
+      expect(path).toBe('name');
+    });
+
+    it('应该使用 . 连接普通字段', () => {
+      const path = SchemaParser.buildFieldPath('user', 'name', false);
+      expect(path).toBe('user.name');
+    });
+
+    it('应该使用 ~~ 连接 flattenPath 字段', () => {
+      const path = SchemaParser.buildFieldPath('region', 'market', true);
+      expect(path).toBe('region~~market');
+    });
+
+    it('应该在父级是 flattenPath 链时使用 ~~', () => {
+      const path = SchemaParser.buildFieldPath('region~~market', 'contacts', false);
+      expect(path).toBe('region~~market~~contacts');
+    });
+
+    it('应该处理混合的 . 和 ~~ 分隔符', () => {
+      const path = SchemaParser.buildFieldPath('region~~market~~contacts.0', 'category', true);
+      expect(path).toBe('region~~market~~contacts.0~~category');
+    });
+
+    it('应该在 flattenPath 链中继续使用 ~~', () => {
+      const path = SchemaParser.buildFieldPath('region~~market~~contacts.0~~category', 'group', true);
+      expect(path).toBe('region~~market~~contacts.0~~category~~group');
+    });
+
+    it('应该在 flattenPath 链末尾添加普通字段时使用 ~~', () => {
+      const path = SchemaParser.buildFieldPath('region~~market~~contacts.0~~category~~group', 'name', false);
+      expect(path).toBe('region~~market~~contacts.0~~category~~group~~name');
+    });
+
+    it('应该正确判断最后一个分隔符类型', () => {
+      // 最后是 .，当前不是 flattenPath，应该用 .
+      const path1 = SchemaParser.buildFieldPath('user.address', 'street', false);
+      expect(path1).toBe('user.address.street');
+
+      // 最后是 ~~，即使当前不是 flattenPath，也应该用 ~~
+      const path2 = SchemaParser.buildFieldPath('region~~market', 'name', false);
+      expect(path2).toBe('region~~market~~name');
+    });
+  });
+
+  describe('hasFlattenPath - 检测路径扁平化', () => {
+    it('应该为非对象类型返回 false', () => {
+      const schema: ExtendedJSONSchema = {
+        type: 'string',
+      };
+      expect(SchemaParser.hasFlattenPath(schema)).toBe(false);
+    });
+
+    it('应该为没有 properties 的对象返回 false', () => {
+      const schema: ExtendedJSONSchema = {
+        type: 'object',
+      };
+      expect(SchemaParser.hasFlattenPath(schema)).toBe(false);
+    });
+
+    it('应该检测到直接子字段的 flattenPath', () => {
+      const schema: ExtendedJSONSchema = {
+        type: 'object',
+        properties: {
+          region: {
+            type: 'object',
+            ui: { flattenPath: true },
+            properties: {
+              name: { type: 'string' },
+            },
+          },
+        },
+      };
+      expect(SchemaParser.hasFlattenPath(schema)).toBe(true);
+    });
+
+    it('应该递归检测嵌套字段的 flattenPath', () => {
+      const schema: ExtendedJSONSchema = {
+        type: 'object',
+        properties: {
+          user: {
+            type: 'object',
+            properties: {
+              address: {
+                type: 'object',
+                ui: { flattenPath: true },
+                properties: {
+                  street: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+      };
+      expect(SchemaParser.hasFlattenPath(schema)).toBe(true);
+    });
+
+    it('应该为没有 flattenPath 的 schema 返回 false', () => {
+      const schema: ExtendedJSONSchema = {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          age: { type: 'number' },
+          address: {
+            type: 'object',
+            properties: {
+              street: { type: 'string' },
+            },
+          },
+        },
+      };
+      expect(SchemaParser.hasFlattenPath(schema)).toBe(false);
+    });
+
+    it('应该跳过布尔类型的 property', () => {
+      const schema: ExtendedJSONSchema = {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          invalid: true as any,
+        },
+      };
+      expect(SchemaParser.hasFlattenPath(schema)).toBe(false);
+    });
+  });
+
+  describe('flattenPath - 路径扁平化功能', () => {
+    it('应该扁平化嵌套对象的字段', () => {
+      const schema: ExtendedJSONSchema = {
+        type: 'object',
+        properties: {
+          region: {
+            type: 'object',
+            title: 'Region',
+            ui: { flattenPath: true },
+            properties: {
+              name: { type: 'string', title: 'Region Name' },
+              code: { type: 'string', title: 'Region Code' },
+            },
+          },
+        },
+      };
+
+      const fields = SchemaParser.parse(schema);
+
+      expect(fields).toHaveLength(2);
+      // flattenPath 只影响当前字段的路径构建，子字段使用普通的 . 连接
+      expect(fields[0].name).toBe('region.name');
+      expect(fields[1].name).toBe('region.code');
+    });
+
+    it('应该在 flattenPath 字段上添加标签前缀', () => {
+      const schema: ExtendedJSONSchema = {
+        type: 'object',
+        properties: {
+          region: {
+            type: 'object',
+            title: 'Region',
+            ui: {
+              flattenPath: true,
+              flattenPrefix: true,
+            },
+            properties: {
+              name: { type: 'string', title: 'Name' },
+              code: { type: 'string', title: 'Code' },
+            },
+          },
+        },
+      };
+
+      const fields = SchemaParser.parse(schema);
+
+      expect(fields[0].label).toBe('Region - Name');
+      expect(fields[1].label).toBe('Region - Code');
+    });
+
+    it('应该在没有 flattenPrefix 时不添加标签前缀', () => {
+      const schema: ExtendedJSONSchema = {
+        type: 'object',
+        properties: {
+          region: {
+            type: 'object',
+            title: 'Region',
+            ui: {
+              flattenPath: true,
+              flattenPrefix: false,
+            },
+            properties: {
+              name: { type: 'string', title: 'Name' },
+            },
+          },
+        },
+      };
+
+      const fields = SchemaParser.parse(schema);
+
+      expect(fields[0].label).toBe('Name');
+    });
+
+    it('应该处理多层嵌套的 flattenPath', () => {
+      const schema: ExtendedJSONSchema = {
+        type: 'object',
+        properties: {
+          region: {
+            type: 'object',
+            title: 'Region',
+            ui: {
+              flattenPath: true,
+              flattenPrefix: true,
+            },
+            properties: {
+              market: {
+                type: 'object',
+                title: 'Market',
+                ui: {
+                  flattenPath: true,
+                  flattenPrefix: true,
+                },
+                properties: {
+                  name: { type: 'string', title: 'Name' },
+                },
+              },
+            },
+          },
+        },
+      };
+
+      const fields = SchemaParser.parse(schema);
+
+      expect(fields).toHaveLength(1);
+      expect(fields[0].name).toBe('region~~market~~name');
+      expect(fields[0].label).toBe('Region - Market - Name');
+    });
+
+    it('应该继承父级的 UI 配置（layout）', () => {
+      const schema: ExtendedJSONSchema = {
+        type: 'object',
+        properties: {
+          region: {
+            type: 'object',
+            ui: {
+              flattenPath: true,
+              layout: 'horizontal',
+            },
+            properties: {
+              name: { type: 'string', title: 'Name' },
+            },
+          },
+        },
+      };
+
+      const fields = SchemaParser.parse(schema);
+
+      expect(fields[0].schema?.ui?.layout).toBe('horizontal');
+    });
+
+    it('应该继承父级的 UI 配置（labelWidth）', () => {
+      const schema: ExtendedJSONSchema = {
+        type: 'object',
+        properties: {
+          region: {
+            type: 'object',
+            ui: {
+              flattenPath: true,
+              labelWidth: 120,
+            },
+            properties: {
+              name: { type: 'string', title: 'Name' },
+            },
+          },
+        },
+      };
+
+      const fields = SchemaParser.parse(schema);
+
+      expect(fields[0].schema?.ui?.labelWidth).toBe(120);
+    });
+
+    it('应该允许子字段覆盖继承的 UI 配置', () => {
+      const schema: ExtendedJSONSchema = {
+        type: 'object',
+        properties: {
+          region: {
+            type: 'object',
+            ui: {
+              flattenPath: true,
+              layout: 'horizontal',
+              labelWidth: 120,
+            },
+            properties: {
+              name: {
+                type: 'string',
+                title: 'Name',
+                ui: {
+                  layout: 'vertical',
+                  labelWidth: 80,
+                },
+              },
+            },
+          },
+        },
+      };
+
+      const fields = SchemaParser.parse(schema);
+
+      expect(fields[0].schema?.ui?.layout).toBe('vertical');
+      expect(fields[0].schema?.ui?.labelWidth).toBe(80);
+    });
+
+    it('应该处理三层嵌套的 flattenPath 且累积标签前缀', () => {
+      const schema: ExtendedJSONSchema = {
+        type: 'object',
+        properties: {
+          company: {
+            type: 'object',
+            title: 'Company',
+            ui: {
+              flattenPath: true,
+              flattenPrefix: true,
+            },
+            properties: {
+              region: {
+                type: 'object',
+                title: 'Region',
+                ui: {
+                  flattenPath: true,
+                  flattenPrefix: true,
+                },
+                properties: {
+                  market: {
+                    type: 'object',
+                    title: 'Market',
+                    ui: {
+                      flattenPath: true,
+                      flattenPrefix: true,
+                    },
+                    properties: {
+                      name: { type: 'string', title: 'Name' },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      };
+
+      const fields = SchemaParser.parse(schema);
+
+      expect(fields).toHaveLength(1);
+      // 测试累积的标签前缀：Company - Region - Market - Name
+      expect(fields[0].label).toBe('Company - Region - Market - Name');
+    });
+
+    it('应该从父级继承 UI 配置到多层嵌套的子字段', () => {
+      const schema: ExtendedJSONSchema = {
+        type: 'object',
+        properties: {
+          section1: {
+            type: 'object',
+            ui: {
+              flattenPath: true,
+              layout: 'horizontal',
+              labelWidth: 100,
+            },
+            properties: {
+              section2: {
+                type: 'object',
+                ui: {
+                  flattenPath: true,
+                },
+                properties: {
+                  field: { type: 'string', title: 'Field' },
+                },
+              },
+            },
+          },
+        },
+      };
+
+      const fields = SchemaParser.parse(schema);
+
+      // section2 没有设置 layout 和 labelWidth，应该继承自 section1
+      expect(fields[0].schema?.ui?.layout).toBe('horizontal');
+      expect(fields[0].schema?.ui?.labelWidth).toBe(100);
+    });
+
+    it('应该处理 flattenPath 字段没有 UI 配置的情况', () => {
+      const schema: ExtendedJSONSchema = {
+        type: 'object',
+        properties: {
+          section: {
+            type: 'object',
+            title: 'Section',
+            ui: {
+              flattenPath: true,
+              flattenPrefix: true,
+            },
+            properties: {
+              field: { type: 'string', title: 'Field' },
+            },
+          },
+        },
+      };
+
+      const fields = SchemaParser.parse(schema);
+
+      // 没有 inheritedUI，layout 和 labelWidth 应该是 undefined
+      expect(fields[0].schema?.ui?.layout).toBeUndefined();
+      expect(fields[0].schema?.ui?.labelWidth).toBeUndefined();
+      // 但应该有标签前缀
+      expect(fields[0].label).toBe('Section - Field');
+    });
+
+    it('应该在嵌套 flattenPath 中正确继承父级 UI 配置', () => {
+      const schema: ExtendedJSONSchema = {
+        type: 'object',
+        properties: {
+          parent: {
+            type: 'object',
+            title: 'Parent',
+            ui: {
+              flattenPath: true,
+              layout: 'horizontal',
+              labelWidth: 150,
+            },
+            properties: {
+              child: {
+                type: 'object',
+                title: 'Child',
+                ui: {
+                  flattenPath: true,
+                  flattenPrefix: true,
+                },
+                properties: {
+                  field: { type: 'string', title: 'Field' },
+                },
+              },
+            },
+          },
+        },
+      };
+
+      const fields = SchemaParser.parse(schema);
+
+      // child 没有设置 layout 和 labelWidth，应该从 parent 继承
+      expect(fields[0].schema?.ui?.layout).toBe('horizontal');
+      expect(fields[0].schema?.ui?.labelWidth).toBe(150);
+      expect(fields[0].label).toBe('Child - Field');
+    });
+  });
+
+  describe('getValidationRules - 参数默认值测试', () => {
+    it('应该在不传递 required 参数时使用默认值 false', () => {
+      const schema: ExtendedJSONSchema = {
+        type: 'string',
+        minLength: 5,
+      };
+
+      // 不传递 required 参数，应该使用默认值 false
+      const rules = SchemaParser.getValidationRules(schema);
+
+      expect(rules.required).toBeUndefined();
+      expect(rules.validate?.minLength).toBeDefined();
+    });
+
+    it('应该在传递 required=true 时添加 required 规则', () => {
+      const schema: ExtendedJSONSchema = {
+        type: 'string',
+      };
+
+      const rules = SchemaParser.getValidationRules(schema, true);
+
+      expect(rules.required).toBe('This field is required');
     });
   });
 
