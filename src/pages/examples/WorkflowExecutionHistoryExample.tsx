@@ -275,6 +275,47 @@ const mockExecutions: WorkflowExecutionSnapshot[] = [
           },
         ],
       },
+      'message-1767859245147': {
+        nodeId: 'message-1767859245147',
+        status: 'success',
+        runCount: 1,
+        records: [
+          {
+            nodeId: 'message-1767859245147',
+            iterationIndex: 1,
+            startTime: Date.now() - 99500,
+            endTime: Date.now() - 99450,
+            status: 'success',
+            inputs: { value: 6, result: 'true' },
+            outputs: { message: 'Value is greater than 5' },
+          },
+        ],
+      },
+      'message-1767859246752': {
+        nodeId: 'message-1767859246752',
+        status: 'success',
+        runCount: 2,
+        records: [
+          {
+            nodeId: 'message-1767859246752',
+            iterationIndex: 0,
+            startTime: Date.now() - 99700,
+            endTime: Date.now() - 99650,
+            status: 'success',
+            inputs: { value: 1, result: 'false' },
+            outputs: { message: 'Value is less than or equal to 5' },
+          },
+          {
+            nodeId: 'message-1767859246752',
+            iterationIndex: 2,
+            startTime: Date.now() - 99300,
+            endTime: Date.now() - 99250,
+            status: 'success',
+            inputs: { value: 3, result: 'false' },
+            outputs: { message: 'Value is less than or equal to 5' },
+          },
+        ],
+      },
       end: {
         nodeId: 'end',
         status: 'success',
@@ -358,6 +399,28 @@ const mockExecutions: WorkflowExecutionSnapshot[] = [
           },
         ],
       },
+      'message-1767859245147': {
+        nodeId: 'message-1767859245147',
+        status: 'success',
+        runCount: 1,
+        records: [
+          {
+            nodeId: 'message-1767859245147',
+            iterationIndex: 0,
+            startTime: Date.now() - 49700,
+            endTime: Date.now() - 49650,
+            status: 'success',
+            inputs: { value: 10, result: 'true' },
+            outputs: { message: 'Value is greater than 5' },
+          },
+        ],
+      },
+      'message-1767859246752': {
+        nodeId: 'message-1767859246752',
+        status: 'skipped',
+        runCount: 0,
+        records: [],
+      },
     },
   },
 ];
@@ -373,6 +436,9 @@ const MessageNode: React.FC<CustomNodeProps> = ({ data, selected }) => {
         { type: 'target', position: Position.Left },
         { type: 'source', position: Position.Right },
       ]}
+      executionStatus={data._status}
+      executionCount={data._runCount}
+      executionDuration={data._duration}
     >
       <div style={{ fontSize: '12px', color: '#6b7280' }}>{data.content as string}</div>
     </BaseNode>
