@@ -8,6 +8,7 @@ import {
   type CustomNodeProps,
   type NodeConfigSchema,
 } from '@/components/Workflow';
+import { ExpressionInput } from '@/components/Workflow/ExpressionInput';
 import { Position } from 'reactflow';
 import { Mail } from 'lucide-react';
 import '@/styles/pages/Home.scss';
@@ -178,6 +179,7 @@ const ColorPicker = ({ value, onChange }: { value: string; onChange: (val: strin
 
 const formComponents = {
   'color-picker': ColorPicker,
+  'expression-input': ExpressionInput,
 };
 
 const nodeConfigSchemas: Record<string, NodeConfigSchema> = {
@@ -232,6 +234,12 @@ const nodeConfigSchemas: Record<string, NodeConfigSchema> = {
         type: 'string',
         widget: 'color-picker', // Custom widget
         title: 'Theme Color',
+      },
+      dynamicContent: {
+        type: 'string',
+        widget: 'expression-input',
+        title: 'Dynamic Content (Template)',
+        description: 'Use {{ variable }} to insert dynamic values',
       },
     },
   },
