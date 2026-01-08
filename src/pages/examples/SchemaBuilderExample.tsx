@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { SchemaBuilder } from '../../components/DynamicForm/SchemaBuilder/SchemaBuilder';
+import { SchemaBuilder } from '../../components/SchemaBuilder/SchemaBuilder';
 import type { ExtendedJSONSchema } from '../../components/DynamicForm/types/schema';
 import { H3 } from '@blueprintjs/core';
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { FormGroup, InputGroup, Switch, Card, Elevation, Button, Tag } from '@blueprintjs/core';
-import type { LinkageEffect, LinkageType } from '../types/linkage';
+import type { LinkageEffect, LinkageType } from '../DynamicForm/types/linkage';
 
 interface EffectEditorProps {
   value?: LinkageEffect;

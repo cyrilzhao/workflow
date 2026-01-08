@@ -1,4 +1,4 @@
-import type { ExtendedJSONSchema } from '../types/schema';
+import type { ExtendedJSONSchema } from '../DynamicForm/types/schema';
 
 export interface SchemaBuilderProps {
   /**

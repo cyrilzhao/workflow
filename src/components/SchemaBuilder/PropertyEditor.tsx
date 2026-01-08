@@ -19,7 +19,7 @@ import { get } from 'lodash';
 import { useSchemaBuilder } from './SchemaBuilder';
 import type { SchemaNodeType } from './types';
 import { LinkageEditor } from './LinkageEditor';
-import type { LinkageConfig } from '../types/linkage';
+import type { LinkageConfig } from '../DynamicForm/types/linkage';
 import { FieldPathSelector } from './FieldPathSelector';
 import { SchemaValidationEditor } from './SchemaValidationEditor';
 

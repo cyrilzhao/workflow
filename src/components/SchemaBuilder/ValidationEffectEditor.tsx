@@ -11,7 +11,7 @@ import {
   NumericInput,
 } from '@blueprintjs/core';
 import { FieldPathSelector } from './FieldPathSelector';
-import type { ExtendedJSONSchema } from '../types/schema';
+import type { ExtendedJSONSchema } from '../DynamicForm/types/schema';
 
 interface ValidationEffectEditorProps {
   value?: {
@@ -41,7 +41,9 @@ export const ValidationEffectEditor: React.FC<ValidationEffectEditorProps> = ({
   label,
 }) => {
   const [selectedField, setSelectedField] = useState('');
-  const [validationType, setValidationType] = useState<'required' | 'pattern' | 'minLength' | 'maxLength' | 'minimum' | 'maximum'>('required');
+  const [validationType, setValidationType] = useState<
+    'required' | 'pattern' | 'minLength' | 'maxLength' | 'minimum' | 'maximum'
+  >('required');
   const [validationValue, setValidationValue] = useState('');
 
   const requiredFields = value.required || [];
@@ -126,8 +128,17 @@ export const ValidationEffectEditor: React.FC<ValidationEffectEditorProps> = ({
 
   return (
     <Card style={{ padding: 12, marginBottom: 12 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <Tag intent="primary" minimal>{label}</Tag>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 12,
+        }}
+      >
+        <Tag intent="primary" minimal>
+          {label}
+        </Tag>
         {hasConfig && (
           <Button
             icon="trash"
@@ -168,7 +179,10 @@ export const ValidationEffectEditor: React.FC<ValidationEffectEditorProps> = ({
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
             {Object.entries(properties).map(([fieldName, rules]) => (
-              <div key={fieldName} style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+              <div
+                key={fieldName}
+                style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}
+              >
                 <Tag minimal>{fieldName}:</Tag>
                 {Object.entries(rules as Record<string, any>).map(([ruleType, ruleValue]) => (
                   <Tag
@@ -243,7 +257,9 @@ export const ValidationEffectEditor: React.FC<ValidationEffectEditorProps> = ({
           intent="primary"
           small
           onClick={validationType === 'required' ? handleAddRequired : handleAddValidation}
-          disabled={disabled || !selectedField || (validationType !== 'required' && !validationValue)}
+          disabled={
+            disabled || !selectedField || (validationType !== 'required' && !validationValue)
+          }
         />
       </div>
 

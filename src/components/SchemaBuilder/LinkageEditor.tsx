@@ -11,8 +11,13 @@ import {
   Tag,
   Divider,
 } from '@blueprintjs/core';
-import type { LinkageConfig, LinkageType, ConditionExpression, LinkageEffect } from '../types/linkage';
-import type { ExtendedJSONSchema } from '../types/schema';
+import type {
+  LinkageConfig,
+  LinkageType,
+  ConditionExpression,
+  LinkageEffect,
+} from '../DynamicForm/types/linkage';
+import type { ExtendedJSONSchema } from '../DynamicForm/types/schema';
 import { ConditionEditor } from './ConditionEditor';
 import { EffectEditor } from './EffectEditor';
 import { FieldPathSelector } from './FieldPathSelector';
@@ -233,10 +238,7 @@ export const LinkageEditor: React.FC<LinkageEditorProps> = ({
       <Divider style={{ margin: '16px 0' }} />
 
       {/* 条件配置 */}
-      <FormGroup
-        label="Condition (When)"
-        helperText="Define when this linkage should be triggered"
-      >
+      <FormGroup label="Condition (When)" helperText="Define when this linkage should be triggered">
         <ConditionEditor
           value={typeof value?.when === 'object' ? value.when : undefined}
           onChange={handleConditionChange}
@@ -250,10 +252,7 @@ export const LinkageEditor: React.FC<LinkageEditorProps> = ({
       <Divider style={{ margin: '16px 0' }} />
 
       {/* Fulfill 效果 */}
-      <FormGroup
-        label="Effect (Fulfill)"
-        helperText="What happens when the condition is met"
-      >
+      <FormGroup label="Effect (Fulfill)" helperText="What happens when the condition is met">
         <EffectEditor
           value={value?.fulfill}
           onChange={handleFulfillChange}

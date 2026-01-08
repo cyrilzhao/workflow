@@ -6,11 +6,11 @@ import type {
   SchemaNode,
   SchemaNodeType,
 } from './types';
-import type { ExtendedJSONSchema } from '../types/schema';
+import type { ExtendedJSONSchema } from '../DynamicForm/types/schema';
 import { SchemaTree } from './SchemaTree';
 import { PropertyEditor } from './PropertyEditor';
 import { Card, Divider, Tabs, Tab } from '@blueprintjs/core';
-import { DynamicForm } from '../../DynamicForm';
+import { DynamicForm } from '../DynamicForm';
 import './SchemaBuilder.scss';
 
 const defaultSchema: ExtendedJSONSchema = {

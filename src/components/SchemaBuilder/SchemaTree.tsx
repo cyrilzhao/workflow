@@ -13,7 +13,7 @@ import {
 } from '@blueprintjs/core';
 import type { TreeNodeInfo } from '@blueprintjs/core';
 import { useSchemaBuilder } from './SchemaBuilder';
-import type { ExtendedJSONSchema } from '../types/schema';
+import type { ExtendedJSONSchema } from '../DynamicForm/types/schema';
 import type { SchemaNodeType } from './types';
 
 export const SchemaTree: React.FC = () => {

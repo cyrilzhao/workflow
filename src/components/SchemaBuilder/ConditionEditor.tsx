@@ -12,8 +12,8 @@ import {
   MenuItem,
   Popover,
 } from '@blueprintjs/core';
-import type { ConditionExpression, ConditionOperator } from '../types/linkage';
-import type { ExtendedJSONSchema } from '../types/schema';
+import type { ConditionExpression, ConditionOperator } from '../DynamicForm/types/linkage';
+import type { ExtendedJSONSchema } from '../DynamicForm/types/schema';
 import { FieldPathSelector } from './FieldPathSelector';
 
 // 单条件表达式类型
@@ -312,11 +312,7 @@ const RecursiveConditionEditor: React.FC<RecursiveConditionEditorProps> = ({
                   text="Add AND Group"
                   onClick={() => handleAddCondition('and')}
                 />
-                <MenuItem
-                  icon="add"
-                  text="Add OR Group"
-                  onClick={() => handleAddCondition('or')}
-                />
+                <MenuItem icon="add" text="Add OR Group" onClick={() => handleAddCondition('or')} />
               </Menu>
             }
             placement="bottom-start"
@@ -353,11 +349,19 @@ const RecursiveConditionEditor: React.FC<RecursiveConditionEditorProps> = ({
   // 获取条件类型标签
   const getConditionTypeTag = () => {
     if (isSingleCondition(value)) {
-      return <Tag intent="none" minimal>Single</Tag>;
+      return (
+        <Tag intent="none" minimal>
+          Single
+        </Tag>
+      );
     }
     if (isLogicalCondition(value)) {
       const type = 'and' in value ? 'AND' : 'OR';
-      return <Tag intent={type === 'AND' ? 'primary' : 'success'} minimal>{type}</Tag>;
+      return (
+        <Tag intent={type === 'AND' ? 'primary' : 'success'} minimal>
+          {type}
+        </Tag>
+      );
     }
     return null;
   };
@@ -372,7 +376,14 @@ const RecursiveConditionEditor: React.FC<RecursiveConditionEditorProps> = ({
         backgroundColor: depth % 2 === 0 ? '#ffffff' : '#f5f8fa',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 8,
+        }}
+      >
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {getConditionTypeTag()}
           {depth > 0 && <Tag minimal>Level {depth}</Tag>}
@@ -488,8 +499,17 @@ export const ConditionEditor: React.FC<ConditionEditorProps> = ({
 
   return (
     <div className="condition-editor">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <Tag intent="primary" minimal>Condition Configuration</Tag>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 8,
+        }}
+      >
+        <Tag intent="primary" minimal>
+          Condition Configuration
+        </Tag>
         <Button
           text="Clear All"
           icon="cross"

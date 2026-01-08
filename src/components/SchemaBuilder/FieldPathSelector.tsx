@@ -11,7 +11,7 @@ import {
   Classes,
   Tooltip,
 } from '@blueprintjs/core';
-import type { ExtendedJSONSchema } from '../types/schema';
+import type { ExtendedJSONSchema } from '../DynamicForm/types/schema';
 
 interface FieldPathSelectorProps {
   schema: ExtendedJSONSchema;
@@ -21,9 +21,9 @@ interface FieldPathSelectorProps {
   disabled?: boolean;
   placeholder?: string;
   // 字段过滤控制
-  visibleFields?: string[];             // 可见字段列表(fieldPath 数组),如果指定则只显示这些字段
-  selectableFields?: string[];          // 可选字段列表(fieldPath 数组),如果指定则只有这些字段可选
-  excludeCurrentField?: boolean;        // 是否排除当前字段(默认 true)
+  visibleFields?: string[]; // 可见字段列表(fieldPath 数组),如果指定则只显示这些字段
+  selectableFields?: string[]; // 可选字段列表(fieldPath 数组),如果指定则只有这些字段可选
+  excludeCurrentField?: boolean; // 是否排除当前字段(默认 true)
 }
 
 /**
@@ -78,7 +78,15 @@ export const FieldPathSelector: React.FC<FieldPathSelectorProps> = ({
       selectableFields,
       excludeCurrentField
     );
-  }, [schema, currentFieldPath, selectedPath, expandedNodes, visibleFields, selectableFields, excludeCurrentField]);
+  }, [
+    schema,
+    currentFieldPath,
+    selectedPath,
+    expandedNodes,
+    visibleFields,
+    selectableFields,
+    excludeCurrentField,
+  ]);
 
   // 滚动到选中的节点
   useEffect(() => {
@@ -133,7 +141,9 @@ export const FieldPathSelector: React.FC<FieldPathSelectorProps> = ({
     }
 
     const parentPath = currentFieldPath.substring(0, lastPropertiesIndex);
-    const currentFieldName = currentFieldPath.substring(lastPropertiesIndex + '/properties/'.length);
+    const currentFieldName = currentFieldPath.substring(
+      lastPropertiesIndex + '/properties/'.length
+    );
 
     // 从 schema 根节点开始，逐步导航到父级 schema
     let parentSchema: ExtendedJSONSchema = schema;
