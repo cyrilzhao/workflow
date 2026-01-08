@@ -31,6 +31,7 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
   nodeConfigSchemas = {},
   onNodesChange: onNodesChangeProp,
   onEdgesChange: _onEdgesChangeProp,
+  formComponents,
   readonly = false,
   undoRedoOptions,
   onSave,
@@ -539,6 +540,7 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
         onClose={() => setIsConfigModalOpen(false)}
         node={selectedNode}
         schema={selectedNode ? nodeConfigSchemas[selectedNode.type || ''] : undefined}
+        formComponents={formComponents}
         onSave={handleSaveNodeConfig}
       />
       <ExecutionDetailModal

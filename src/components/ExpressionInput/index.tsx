@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Braces } from 'lucide-react';
 import './index.scss';
 
@@ -31,22 +32,25 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
   value = '',
   onChange,
   variables = DEFAULT_VARIABLES,
-  placeholder = 'Type {{ to select variable...',
+  placeholder = 'Type ${ to select variable...',
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [cursorPos, setCursorPos] = useState(0);
   const [filteredVars, setFilteredVars] = useState<Variable[]>([]);
   const [activeVarIndex, setActiveVarIndex] = useState(0);
+  const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0 });
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   // --- Syntax Highlighting Logic ---
   const highlights = useMemo(() => {
-    // Simple regex to find {{ ... }} blocks
+    // Simple regex to find ${ ... } blocks
     // We split by the regex and keep delimiters to map them back
-    const regex = /({{[^}]+}})/g;
+    const regex = /(\$\{[^}]+\})/g;
     const parts = value.split(regex);
 
     return parts.map((part, index) => {
@@ -61,28 +65,84 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
     });
   }, [value]);
 
-  // --- Scroll Sync ---
-  const handleScroll = () => {
-    if (textareaRef.current && backdropRef.current) {
-      backdropRef.current.scrollTop = textareaRef.current.scrollTop;
-      backdropRef.current.scrollLeft = textareaRef.current.scrollLeft;
+  // --- Helper: Find variable boundaries at cursor position ---
+  const findVariableAtCursor = (
+    text: string,
+    cursor: number
+  ): { start: number; end: number } | null => {
+    // Find all variables in the text
+    const regex = /\$\{[^}]+\}/g;
+    let match;
+
+    while ((match = regex.exec(text)) !== null) {
+      const start = match.index;
+      const end = start + match[0].length;
+
+      // Check if cursor is at the boundaries or inside the variable
+      if (cursor >= start && cursor <= end) {
+        return { start, end };
+      }
     }
+
+    return null;
   };
+
+  // --- Scroll Sync ---
+  const handleScroll = useCallback(() => {
+    if (textareaRef.current && backdropRef.current) {
+      const scrollTop = textareaRef.current.scrollTop;
+      const scrollLeft = textareaRef.current.scrollLeft;
+
+      // Calculate scrollbar width
+      const scrollbarWidth = textareaRef.current.offsetWidth - textareaRef.current.clientWidth;
+      console.info('cyril scrollbarWidth: ', scrollbarWidth);
+
+      // Use transform to move the backdrop content
+      const highlightsDiv = backdropRef.current.querySelector('.highlights') as HTMLElement;
+      if (highlightsDiv) {
+        highlightsDiv.style.transform = `translate(-${scrollLeft}px, -${scrollTop}px)`;
+
+        // Adjust padding to keep visual consistency when scrollbar appears
+        // Reduce padding-right to compensate for scrollbar width
+        console.info('cyril scrollbarWidth: ', scrollbarWidth);
+        if (scrollbarWidth > 0) {
+          const adjustedPadding = Math.max(8, 30 - scrollbarWidth);
+          console.info('cyril adjustedPadding: ', adjustedPadding);
+          textareaRef.current.style.paddingRight = `${adjustedPadding}px`;
+          // highlightsDiv.style.paddingRight = `${adjustedPadding + 10}px`;
+          highlightsDiv.style.paddingRight = '30px';
+
+          // Adjust button position when scrollbar appears
+          if (buttonRef.current) {
+            buttonRef.current.style.right = `${scrollbarWidth}px`;
+          }
+        } else {
+          textareaRef.current.style.paddingRight = '30px';
+          highlightsDiv.style.paddingRight = '30px';
+
+          // Reset button position
+          if (buttonRef.current) {
+            buttonRef.current.style.right = '8px';
+          }
+        }
+      }
+    }
+  }, []);
 
   // --- Autocomplete Logic ---
   // Parse the context at cursor to determine what to show
   const getContextAtCursor = (text: string, cursor: number) => {
-    // Look backwards from cursor for "{{"
+    // Look backwards from cursor for "${"
     const textBefore = text.slice(0, cursor);
-    const lastOpenBrace = textBefore.lastIndexOf('{{');
-    const lastCloseBrace = textBefore.lastIndexOf('}}');
+    const lastOpenBrace = textBefore.lastIndexOf('${');
+    const lastCloseBrace = textBefore.lastIndexOf('}');
 
-    // If we are not inside {{ ... }} (open brace found after last close brace)
+    // If we are not inside ${ ... } (open brace found after last close brace)
     if (lastOpenBrace === -1 || lastOpenBrace < lastCloseBrace) {
       return null;
     }
 
-    // Extract the content inside {{ up to cursor
+    // Extract the content inside ${ up to cursor
     const content = textBefore.slice(lastOpenBrace + 2);
     // Remove leading whitespace
     return content.trimStart();
@@ -181,6 +241,65 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
     setActiveVarIndex(0);
   }, [value, cursorPos, isOpen, variables]);
 
+  // Sync scrollbar width when value changes
+  useEffect(() => {
+    handleScroll();
+  }, [value]);
+
+  // Calculate popover position when it opens
+  useEffect(() => {
+    if (isOpen && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      setPopoverPosition({
+        top: rect.bottom + 4,
+        left: rect.left,
+      });
+    }
+  }, [isOpen]);
+
+  // Handle click outside to close popover
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+
+      // Check if click is outside both container and popover
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(target) &&
+        popoverRef.current &&
+        !popoverRef.current.contains(target)
+      ) {
+        setIsOpen(false);
+      }
+    };
+
+    // Add event listener
+    document.addEventListener('mousedown', handleClickOutside);
+
+    // Cleanup
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  // Monitor textarea resize to handle scrollbar changes
+  useEffect(() => {
+    if (!textareaRef.current) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      // Trigger scroll handler to recalculate padding when size changes
+      handleScroll();
+    });
+
+    resizeObserver.observe(textareaRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [handleScroll]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
     const newPos = e.target.selectionStart;
@@ -191,21 +310,21 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
     const charBefore = newValue.slice(newPos - 1, newPos);
     const twoCharsBefore = newValue.slice(newPos - 2, newPos);
 
-    // Trigger on "{{" or "." (if inside braces)
-    if (twoCharsBefore === '{{' || charBefore === '.') {
+    // Trigger on "${" or "." (if inside braces)
+    if (twoCharsBefore === '${' || charBefore === '.') {
       setIsOpen(true);
     }
   };
 
   const insertVariable = (variableValue: string) => {
-    const rawVar = variableValue.replace(/^{{|}}$/g, '');
+    const rawVar = variableValue.replace(/^\$\{|\}$/g, '');
     const context = getContextAtCursor(value, cursorPos) || '';
 
     // We want to replace the current "context" (what user typed) with the selected variable
-    // value = "Hello {{St|}}" (cursor at |)
+    // value = "Hello ${St|}" (cursor at |)
     // context = "St"
     // variable = "Start.data"
-    // Result should be "Hello {{Start.data}}"
+    // Result should be "Hello ${Start.data}"
 
     const textBefore = value.slice(0, cursorPos);
     const textAfter = value.slice(cursorPos);
@@ -218,22 +337,22 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
     // If context was "Start.", we replace "Start." with "Start.data"?
     // Wait, if I select "Start.data", I want the full thing.
 
-    const newText = prefix + rawVar + '}}' + textAfter;
+    const newText = prefix + rawVar + '}' + textAfter;
     // Note: we close the braces automatically if we are inserting a full variable
-    // But if we were already editing inside braces "}}", we might duplicate }}
+    // But if we were already editing inside braces "}", we might duplicate }
     // Let's check textAfter.
 
     let finalAfter = textAfter;
-    if (textAfter.trim().startsWith('}}')) {
+    if (textAfter.trim().startsWith('}')) {
       // Remove existing closing braces if we added them
-      finalAfter = textAfter.trim().replace(/^}}/, '');
+      finalAfter = textAfter.trim().replace(/^\}/, '');
     } else {
-      // If we created the {{ via button, maybe we don't have }} yet.
-      // The regex split logic suggests we just insert the var inside {{ }}
+      // If we created the ${ via button, maybe we don't have } yet.
+      // The regex split logic suggests we just insert the var inside ${ }
     }
 
     // Simplest logic:
-    // If we are inside {{ }}, replace everything inside with the variable.
+    // If we are inside ${ }, replace everything inside with the variable.
     // Actually standard behavior: Autocomplete replaces the *current token*.
 
     onChange(newText);
@@ -243,28 +362,103 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
     setTimeout(() => {
       if (textareaRef.current) {
         textareaRef.current.focus();
-        const newCursor = prefix.length + rawVar.length + 2; // +2 for }}
+        const newCursor = prefix.length + rawVar.length + 1; // +1 for }
         textareaRef.current.setSelectionRange(newCursor, newCursor);
       }
     }, 0);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!isOpen) return;
+  const handleClick = (e: React.MouseEvent<HTMLTextAreaElement>) => {
+    const textarea = e.currentTarget;
+    const clickPos = textarea.selectionStart;
 
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setActiveVarIndex(prev => (prev + 1) % filteredVars.length);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setActiveVarIndex(prev => (prev - 1 + filteredVars.length) % filteredVars.length);
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (filteredVars[activeVarIndex]) {
-        insertVariable(filteredVars[activeVarIndex].value);
+    // Check if click is inside a variable
+    const variable = findVariableAtCursor(value, clickPos);
+
+    if (variable && clickPos > variable.start && clickPos < variable.end) {
+      // Click is inside variable, move cursor to the right edge
+      setTimeout(() => {
+        textarea.setSelectionRange(variable.end, variable.end);
+        setCursorPos(variable.end);
+      }, 0);
+    } else {
+      setCursorPos(clickPos);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    const textarea = e.currentTarget as HTMLTextAreaElement;
+    const currentPos = textarea.selectionStart;
+
+    // Handle autocomplete popover navigation
+    if (isOpen) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setActiveVarIndex(prev => (prev + 1) % filteredVars.length);
+        return;
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setActiveVarIndex(prev => (prev - 1 + filteredVars.length) % filteredVars.length);
+        return;
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (filteredVars[activeVarIndex]) {
+          insertVariable(filteredVars[activeVarIndex].value);
+        }
+        return;
+      } else if (e.key === 'Escape') {
+        setIsOpen(false);
+        return;
       }
-    } else if (e.key === 'Escape') {
-      setIsOpen(false);
+    }
+
+    // Handle variable navigation and deletion
+    const variable = findVariableAtCursor(value, currentPos);
+
+    if (variable) {
+      // ArrowLeft: Jump to the left of the variable
+      if (e.key === 'ArrowLeft' && currentPos > variable.start && currentPos <= variable.end) {
+        e.preventDefault();
+        setTimeout(() => {
+          textarea.setSelectionRange(variable.start, variable.start);
+          setCursorPos(variable.start);
+        }, 0);
+        return;
+      }
+
+      // ArrowRight: Jump to the right of the variable
+      if (e.key === 'ArrowRight' && currentPos >= variable.start && currentPos < variable.end) {
+        e.preventDefault();
+        setTimeout(() => {
+          textarea.setSelectionRange(variable.end, variable.end);
+          setCursorPos(variable.end);
+        }, 0);
+        return;
+      }
+
+      // Backspace: Delete entire variable when cursor is at the right edge
+      if (e.key === 'Backspace' && currentPos === variable.end) {
+        e.preventDefault();
+        const newValue = value.slice(0, variable.start) + value.slice(variable.end);
+        onChange(newValue);
+        setTimeout(() => {
+          textarea.setSelectionRange(variable.start, variable.start);
+          setCursorPos(variable.start);
+        }, 0);
+        return;
+      }
+
+      // Delete: Delete entire variable when cursor is at the left edge
+      if (e.key === 'Delete' && currentPos === variable.start) {
+        e.preventDefault();
+        const newValue = value.slice(0, variable.start) + value.slice(variable.end);
+        onChange(newValue);
+        setTimeout(() => {
+          textarea.setSelectionRange(variable.start, variable.start);
+          setCursorPos(variable.start);
+        }, 0);
+        return;
+      }
     }
   };
 
@@ -284,19 +478,20 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
           value={value}
           onChange={handleInputChange}
           onScroll={handleScroll}
-          onClick={e => setCursorPos(e.currentTarget.selectionStart)}
+          onClick={handleClick}
           onKeyUp={e => setCursorPos(e.currentTarget.selectionStart)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           spellCheck={false}
         />
         <button
+          ref={buttonRef}
           className="variable-trigger-btn"
           onClick={() => {
-            // Insert {{ at cursor and open
+            // Insert ${ at cursor and open
             const textBefore = value.slice(0, cursorPos);
             const textAfter = value.slice(cursorPos);
-            onChange(textBefore + '{{' + textAfter);
+            onChange(textBefore + '${' + textAfter);
             setTimeout(() => {
               textareaRef.current?.focus();
               setCursorPos(cursorPos + 2);
@@ -311,27 +506,38 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
         </button>
       </div>
 
-      {isOpen && filteredVars.length > 0 && (
-        <div className="variable-picker-popover">
-          <div className="variable-group">
-            {/* Grouping logic simplified for demo: just show filtered list */}
-            {filteredVars.map((v, idx) => (
-              <div
-                key={v.value}
-                className={`variable-item ${idx === activeVarIndex ? 'active' : ''}`}
-                onClick={() => insertVariable(v.value)}
-                onMouseEnter={() => setActiveVarIndex(idx)}
-              >
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span>{v.label}</span>
-                  <span style={{ fontSize: 10, color: '#9ca3af' }}>{v.value}</span>
+      {isOpen &&
+        filteredVars.length > 0 &&
+        createPortal(
+          <div
+            ref={popoverRef}
+            className="variable-picker-popover"
+            style={{
+              position: 'fixed',
+              top: `${popoverPosition.top}px`,
+              left: `${popoverPosition.left}px`,
+            }}
+          >
+            <div className="variable-group">
+              {/* Grouping logic simplified for demo: just show filtered list */}
+              {filteredVars.map((v, idx) => (
+                <div
+                  key={v.value}
+                  className={`variable-item ${idx === activeVarIndex ? 'active' : ''}`}
+                  onClick={() => insertVariable(v.value)}
+                  onMouseEnter={() => setActiveVarIndex(idx)}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span>{v.label}</span>
+                    <span style={{ fontSize: 10, color: '#9ca3af' }}>{v.value}</span>
+                  </div>
+                  {v.type && <span className="var-type">{v.type}</span>}
                 </div>
-                {v.type && <span className="var-type">{v.type}</span>}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+              ))}
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

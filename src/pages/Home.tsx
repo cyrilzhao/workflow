@@ -8,7 +8,7 @@ import {
   type CustomNodeProps,
   type NodeConfigSchema,
 } from '@/components/Workflow';
-import { ExpressionInput } from '@/components/Workflow/ExpressionInput';
+import { ExpressionInput } from '@/components/ExpressionInput';
 import { Position } from 'reactflow';
 import { Mail } from 'lucide-react';
 import '@/styles/pages/Home.scss';
@@ -190,10 +190,12 @@ const nodeConfigSchemas: Record<string, NodeConfigSchema> = {
       description: { type: 'string', title: 'Description' },
       triggerType: {
         type: 'string',
-        widget: 'select',
         title: 'Trigger Type',
         enum: ['manual', 'webhook', 'schedule'],
         enumNames: ['Manual', 'Webhook', 'Schedule'],
+        ui: {
+          widget: 'select',
+        },
       },
     },
   },
@@ -203,10 +205,12 @@ const nodeConfigSchemas: Record<string, NodeConfigSchema> = {
       label: { type: 'string', title: 'Label' },
       outputType: {
         type: 'string',
-        widget: 'radio',
         title: 'Output Type',
         enum: ['json', 'html'],
         enumNames: ['JSON', 'HTML'],
+        ui: {
+          widget: 'radio',
+        },
       },
     },
   },
@@ -222,24 +226,36 @@ const nodeConfigSchemas: Record<string, NodeConfigSchema> = {
     type: 'object',
     properties: {
       label: { type: 'string', title: 'Label' },
-      content: { type: 'string', widget: 'textarea', title: 'Message Content' },
+      content: {
+        type: 'string',
+        title: 'Message Content',
+        ui: {
+          widget: 'textarea',
+        },
+      },
       priority: {
         type: 'string',
-        widget: 'select',
         title: 'Priority',
         enum: ['high', 'medium', 'low'],
         enumNames: ['High', 'Medium', 'Low'],
+        ui: {
+          widget: 'select',
+        },
       },
       themeColor: {
         type: 'string',
-        widget: 'color-picker', // Custom widget
         title: 'Theme Color',
+        ui: {
+          widget: 'color-picker', // Custom widget
+        },
       },
       dynamicContent: {
         type: 'string',
-        widget: 'expression-input',
         title: 'Dynamic Content (Template)',
         description: 'Use {{ variable }} to insert dynamic values',
+        ui: {
+          widget: 'expression-input',
+        },
       },
     },
   },

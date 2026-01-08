@@ -89,10 +89,14 @@
 - [x] 关于字段联动，是不是可能存在更复杂的拓扑结构，当前架构是否能覆盖
 - [x] 将 Nested-form 作为 object 类型字段的默认渲染组件，不需要显式配置
 - [x] 将所有对用户显示的内容改为英文
-- [ ] 支持配置 schema 的组件
-- [ ] 支持基于 CodeMirror 功能的表达式输入组件
+- [x] 支持配置 schema 的组件
+- [x] 支持表达式输入组件
+  - [x] 变量操作原子化（光标移动、删除）
+  - [x] 滚动条出现时的右边距
+  - [x] 支持悬浮编辑模式
+- [x] NestedFormWidget 字段不支持渲染 array 类型的字段，需要新增一个 ArrayFieldWidget 组件，专门用于 array 类型字段的默认渲染
+- [ ] 支持基于 codeMirror 的代码输入组件
 - [ ] 添加自定义 nested form widget 的代码示例
-- [ ] NestedFormWidget 字段不支持渲染 array 类型的字段，需要新增一个 ArrayFieldWidget 组件，专门用于 array 类型字段的默认渲染
 - [ ] 补充使用 schemaLoader 的代码示例
 - [ ] 大规模表单性能
 - [ ] 文档与代码实现对齐

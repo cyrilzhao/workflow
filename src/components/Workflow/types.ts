@@ -1,13 +1,7 @@
-import type { JSONSchema7 } from 'json-schema';
 import type { Node, Edge, NodeProps } from 'reactflow';
+import type { ExtendedJSONSchema } from '@/components/DynamicForm/types/schema';
 
-export interface NodeConfigSchema extends JSONSchema7 {
-  widget?: string;
-  enumNames?: string[];
-  props?: Record<string, any>;
-  rules?: any;
-  properties?: Record<string, NodeConfigSchema>;
-}
+export type NodeConfigSchema = ExtendedJSONSchema;
 
 export interface WorkflowNodeData {
   label: string;

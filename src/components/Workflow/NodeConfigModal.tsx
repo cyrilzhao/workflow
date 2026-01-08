@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { WorkflowNode, NodeConfigSchema } from './types';
-import { SchemaForm } from './SchemaForm';
+import { DynamicForm } from '@/components/DynamicForm';
 import { X } from 'lucide-react';
 import './NodeConfigModal.scss';
 
@@ -8,7 +8,7 @@ interface NodeConfigModalProps {
   isOpen: boolean;
   onClose: () => void;
   node: WorkflowNode | null;
-  schema: NodeConfigSchema | undefined; // Updated type
+  schema: NodeConfigSchema | undefined;
   formComponents?: Record<string, React.ComponentType<any>>;
   onSave: (nodeId: string, data: any) => void;
 }
@@ -47,11 +47,13 @@ export const NodeConfigModal: React.FC<NodeConfigModalProps> = ({
         </div>
         <div className="node-config-modal-body">
           {schema ? (
-            <SchemaForm
+            <DynamicForm
               schema={schema}
-              data={formData}
+              defaultValues={formData}
               onChange={setFormData}
-              formComponents={formComponents}
+              widgets={formComponents}
+              showSubmitButton={false}
+              renderAsForm={false}
             />
           ) : (
             <div className="no-schema">No configuration available for this node type.</div>

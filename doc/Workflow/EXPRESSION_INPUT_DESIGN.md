@@ -7,8 +7,9 @@
 **核心目标**：
 
 1.  提供文本输入能力。
-2.  支持通过 `{{` 语法快捷选择并插入变量。
+2.  支持通过 `${` 语法快捷选择并插入变量。
 3.  提供可视化的变量选择器。
+4.  提供变量的原子性操作体验（光标不能停留在变量内部）。
 
 ## 2. 交互设计
 
@@ -16,7 +17,7 @@
 
 组件支持两种方式触发变量选择面板：
 
-1.  **键盘触发**：当用户在输入框中输入双大括号 `{{` 时，自动弹出变量选择下拉框。
+1.  **键盘触发**：当用户在输入框中输入 `${` 时，自动弹出变量选择下拉框。
 2.  **按钮触发**：输入框右侧（或工具栏）提供一个 `{}` 图标按钮，点击后弹出变量选择下拉框。
 
 ### 2.2 变量选择面板
@@ -27,8 +28,25 @@
 
 ### 2.3 插入行为
 
-- 用户选择变量后，编辑器自动补全为 Mustache 语法格式，例如 `{{Start.data.userId}}`。
-- 如果是通过输入 `{{` 触发的，补全时应避免重复括号。
+- 用户选择变量后，编辑器自动补全为 `${变量名}` 格式，例如 `${Start.data.userId}`。
+- 如果是通过输入 `${` 触发的，补全时应避免重复括号。
+
+### 2.4 变量导航与编辑
+
+为了保持变量的原子性操作体验，实现了以下交互规则：
+
+1.  **光标导航**：
+    - 当光标在变量内部或右侧时，按 **左方向键** 直接跳转到变量左侧。
+    - 当光标在变量内部或左侧时，按 **右方向键** 直接跳转到变量右侧。
+    - 光标不会停留在变量内部。
+
+2.  **变量删除**：
+    - 当光标在变量右侧时，按 **Backspace** 键删除整个变量。
+    - 当光标在变量左侧时，按 **Delete** 键删除整个变量。
+
+3.  **鼠标点击**：
+    - 当用户点击变量内部时，光标自动移动到变量右侧。
+    - 确保用户无法通过点击将光标放置在变量内部。
 
 ## 3. 技术架构设计
 
@@ -37,7 +55,7 @@
 ```typescript
 export interface Variable {
   label: string; // 显示名称 (e.g. "User ID")
-  value: string; // 实际值/路径 (e.g. "{{Start.userId}}")
+  value: string; // 实际值/路径 (e.g. "Start.userId")
   type?: string; // 数据类型 (e.g. "string", "number")
   group?: string; // 分组名称 (e.g. "Start Node")
 }
@@ -48,7 +66,6 @@ interface ExpressionInputProps {
   // 核心依赖：可用的变量列表
   variables?: Variable[];
   placeholder?: string;
-  disabled?: boolean;
 }
 ```
 
@@ -99,7 +116,7 @@ const formComponents = {
       "type": "string",
       "title": "URL",
       "widget": "expression-input", // 指定使用该组件
-      "description": "输入 URL，支持使用 {{变量}}"
+      "description": "输入 URL，支持使用 ${变量}"
     }
   }
 }
@@ -113,7 +130,7 @@ const formComponents = {
 
 1.  **结构**:
     ```html
-    <div class="container">
+    <div class="editor-wrapper">
       <div class="backdrop">
         <div class="highlights"><!-- 高亮渲染的内容 --></div>
       </div>
@@ -121,17 +138,27 @@ const formComponents = {
     </div>
     ```
 2.  **原理**:
-    - `textarea` 背景透明，文字颜色透明 (或者仅在选中时显示)。
+    - `textarea` 背景透明，文字颜色透明，使用 `caret-color` 保持光标可见。
     - `highlights` 层完全重叠在 `textarea` 下方。
     - 实时将 `textarea` 的值经过 Tokenize 处理后渲染到 `highlights`。
-    - **Tokenize 规则**: 识别 `{{ ... }}` 块，将其包裹在 `<span class="token-variable">` 中给予特定颜色（如蓝色/紫色）。
+    - **Tokenize 规则**: 识别 `${ ... }` 块，将其包裹在 `<span class="token-variable">` 中给予特定颜色（紫色 #7c3aed）。
+
+3.  **滚动同步**:
+    - `.backdrop` 设置 `overflow: auto` 以支持滚动。
+    - `.highlights` 必须与 `textarea` 具有完全相同的样式（padding、font-family、font-size、line-height、white-space 等）。
+    - 通过 `onScroll` 事件监听 textarea 的滚动，实时同步 `backdrop.scrollTop` 和 `backdrop.scrollLeft`。
+    - `.backdrop` 的滚动条通过 CSS 隐藏（`scrollbar-width: none` 和 `::-webkit-scrollbar`）。
+
+4.  **关键实现细节**:
+    - `.backdrop` 不应有 padding，padding 应该设置在 `.highlights` 上。
+    - `.highlights` 需要继承所有影响文本布局的样式，确保与 textarea 完美对齐。
 
 ### 5.2 级联自动补全 (Cascading Autocomplete)
 
 支持属性访问符 `.` 的触发：
 
 1.  **触发逻辑**:
-    - 当用户在 `{{` 内部输入 `.` 时触发。
+    - 当用户在 `${` 内部输入 `.` 时触发。
     - 解析光标前的 Token（例如 `Start.data`）。
 2.  **Schema 解析**:
     - 系统需要提供变量的层级 Schema (Tree Structure)。
@@ -140,11 +167,50 @@ const formComponents = {
 
 ### 5.3 表达式支持
 
-允许在 `{{ }}` 内输入复杂表达式（如 `a + b`）：
+允许在 `${ }` 内输入复杂表达式（如 `a + b`）：
 
 - 自动补全仅针对变量名生效。
-- 高亮逻辑需识别 Mustache 边界，内部内容统一高亮，或者进一步进行 JS 语法分析（成本较高，初期可暂不实现完整的 JS 高亮）。
+- 高亮逻辑需识别 `${ }` 边界，内部内容统一高亮，或者进一步进行 JS 语法分析（成本较高，初期可暂不实现完整的 JS 高亮）。
+
+### 5.4 变量原子性操作
+
+为了提供更好的用户体验，实现了变量的原子性操作：
+
+1.  **findVariableAtCursor 辅助函数**:
+    - 使用正则表达式 `/\$\{[^}]+\}/g` 查找所有变量。
+    - 检测光标位置是否在某个变量的边界内。
+    - 返回变量的 `start` 和 `end` 位置。
+
+2.  **键盘导航处理**:
+    - 在 `handleKeyDown` 中检测方向键事件。
+    - 如果光标在变量内部，自动跳转到变量边界。
+    - 如果是删除键（Backspace/Delete），删除整个变量。
+
+3.  **鼠标点击处理**:
+    - 在 `handleClick` 中检测点击位置。
+    - 如果点击在变量内部（不包括边界），自动将光标移动到变量右侧。
 
 ## 6. 总结
 
-本设计采用轻量级实现方案，优先解决“变量插入”的核心痛点。通过解耦 UI 与数据解析逻辑，确保组件的可复用性，同时为未来支持更复杂的变量推导机制预留接口。
+本设计采用轻量级实现方案，优先解决"变量插入"的核心痛点。通过解耦 UI 与数据解析逻辑，确保组件的可复用性，同时为未来支持更复杂的变量推导机制预留接口。
+
+### 6.1 已实现的核心功能
+
+1. **变量语法**: 使用 `${变量名}` 格式，符合 JavaScript 模板字符串习惯。
+2. **语法高亮**: 通过 Backdrop Overlay 技术实现，保持原生 textarea 体验。
+3. **自动补全**: 支持 `${` 和 `.` 触发，提供级联变量选择。
+4. **变量原子性**: 光标无法停留在变量内部，提供一致的编辑体验。
+5. **滚动同步**: 完美同步 backdrop 和 textarea 的滚动状态。
+
+### 6.2 技术亮点
+
+- **轻量级实现**: 不依赖重型编辑器，使用原生 textarea + CSS overlay。
+- **完美对齐**: 通过精确的样式配置确保高亮层与文本层完全重合。
+- **用户体验**: 变量作为原子单元操作，避免误编辑。
+- **可扩展性**: 组件接口清晰，易于集成到 SchemaForm 系统。
+
+---
+
+**文档版本**: v2.0
+**最后更新**: 2026-01-08
+**变更说明**: 更新变量语法为 `${}`，新增变量原子性操作、滚动同步等实现细节

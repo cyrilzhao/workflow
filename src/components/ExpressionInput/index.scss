@@ -42,21 +42,43 @@
     position: absolute;
     top: 0;
     left: 0;
-    height: 100%;
+    right: 0;
+    bottom: 0;
     pointer-events: none; // Allow clicks to pass through to textarea
     background: transparent;
     z-index: 1;
     color: transparent; // Hide default text
-    overflow: hidden; // Match textarea scrolling usually handled by JS sync or height expansion
+    overflow: hidden; // Backdrop should not scroll itself, only sync with textarea
+
+    // Hide scrollbar but keep scrolling functionality
+    scrollbar-width: none; // Firefox
+    -ms-overflow-style: none; // IE and Edge
+
+    &::-webkit-scrollbar {
+      display: none; // Chrome, Safari, Opera
+    }
   }
 
   .highlights {
     // This is where we render the colored text
-    color: transparent; // Base text transparent
+    // Must match textarea styles exactly for perfect alignment
+    width: 100%;
+    min-height: 38px;
+    padding: 8px 30px 8px 12px;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    box-sizing: border-box;
+    margin: 0;
+    border: none;
+    // color: transparent; // Base text transparent
+    color: black; // Base text transparent
 
     .token-variable {
       color: #7c3aed; // violet-600
-      background-color: rgba(124, 58, 237, 0.1);
+      // background-color: rgba(124, 58, 237, 0.1);
       border-radius: 3px;
       padding: 0 2px;
       margin: 0 -2px; // Compensate padding to keep alignment
@@ -74,10 +96,13 @@
     // If we want FULL highlighting, textarea text should be transparent (color: transparent; caret-color: black;)
     // But caret-color support is good.
     color: transparent;
+    // color: black; // Base text transparent
+
     caret-color: #374151; // Visible cursor
     resize: vertical;
     outline: none;
     display: block; // Fix weird spacing
+    scrollbar-width: thin; /* 细滚动条 */
   }
 
   .variable-trigger-btn {
@@ -100,67 +125,64 @@
       color: #3b82f6;
     }
   }
+}
 
-  .variable-picker-popover {
-    position: absolute;
-    top: 100%;
-    left: 0; // Default, might need dynamic positioning
-    width: 250px;
-    max-height: 200px;
-    overflow-y: auto;
-    background: white;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    z-index: 50;
-    margin-top: 4px;
+.variable-picker-popover {
+  // Position is set via inline style (fixed positioning via Portal)
+  width: 250px;
+  max-height: 200px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  z-index: 9999;
 
-    .variable-group {
-      .group-title {
-        padding: 6px 12px;
-        background: #f9fafb;
-        font-size: 11px;
-        font-weight: 600;
-        color: #6b7280;
-        text-transform: uppercase;
-        border-bottom: 1px solid #f3f4f6;
-      }
-
-      .variable-item {
-        padding: 8px 12px;
-        font-size: 12px;
-        color: #374151;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-
-        &:hover {
-          background: #eff6ff;
-          color: #3b82f6;
-        }
-
-        &.active {
-          background: #eff6ff;
-          color: #3b82f6;
-        }
-
-        .var-type {
-          font-size: 10px;
-          color: #9ca3af;
-          background: #f3f4f6;
-          padding: 1px 4px;
-          border-radius: 3px;
-        }
-      }
+  .variable-group {
+    .group-title {
+      padding: 6px 12px;
+      background: #f9fafb;
+      font-size: 11px;
+      font-weight: 600;
+      color: #6b7280;
+      text-transform: uppercase;
+      border-bottom: 1px solid #f3f4f6;
     }
 
-    .empty-vars {
-      padding: 12px;
-      text-align: center;
-      color: #9ca3af;
+    .variable-item {
+      padding: 8px 12px;
       font-size: 12px;
-      font-style: italic;
+      color: #374151;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+
+      &:hover {
+        background: #eff6ff;
+        color: #3b82f6;
+      }
+
+      &.active {
+        background: #eff6ff;
+        color: #3b82f6;
+      }
+
+      .var-type {
+        font-size: 10px;
+        color: #9ca3af;
+        background: #f3f4f6;
+        padding: 1px 4px;
+        border-radius: 3px;
+      }
     }
+  }
+
+  .empty-vars {
+    padding: 12px;
+    text-align: center;
+    color: #9ca3af;
+    font-size: 12px;
+    font-style: italic;
   }
 }
