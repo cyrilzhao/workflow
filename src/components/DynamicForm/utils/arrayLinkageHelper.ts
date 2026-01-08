@@ -284,7 +284,6 @@ export function resolveDependencyPath({
 
   // 3. 已经是运行时的绝对路径（如 contacts.0.type），直接返回
   // 这种情况发生在联动配置已经被实例化后再次调用 resolveArrayElementLinkage 时
-  console.log('[resolveDependencyPath] 路径已是运行时格式，直接返回:', depPath);
   return depPath;
 }
 
@@ -333,17 +332,8 @@ function resolveConditionPaths(
 
   // 解析 field 字段
   if (resolved.field) {
-    const originalField = resolved.field;
     if (schema) {
       resolved.field = resolveDependencyPath({ depPath: resolved.field, currentPath, schema });
-      console.log(
-        '[resolveConditionPaths] 解析条件字段路径:',
-        JSON.stringify({
-          originalField,
-          currentPath,
-          resolvedField: resolved.field,
-        })
-      );
     } else if (resolved.field.startsWith('./')) {
       resolved.field = resolveRelativePath(resolved.field, currentPath);
     }
