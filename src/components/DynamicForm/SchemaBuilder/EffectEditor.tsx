@@ -112,7 +112,11 @@ export const EffectEditor: React.FC<EffectEditorProps> = ({
           <Switch
             label={`Set ${linkageType === 'visibility' ? 'visible' : linkageType}`}
             checked={
-              value.state?.[linkageType === 'visibility' ? 'visible' : (linkageType as any)] ?? true
+              value.state?.[
+                linkageType === 'visibility'
+                  ? 'visible'
+                  : (linkageType as keyof NonNullable<LinkageEffect['state']>)
+              ] ?? true
             }
             onChange={e =>
               handleStateChange(
