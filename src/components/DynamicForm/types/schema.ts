@@ -45,7 +45,7 @@ export interface ErrorMessages {
  * UI 配置类型
  */
 export interface UIConfig {
-  widget?: WidgetType;
+  widget?: WidgetType | string;
   placeholder?: string;
   disabled?: boolean;
   readonly?: boolean;
