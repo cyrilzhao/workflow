@@ -62,6 +62,7 @@
     overflow: hidden; // Tabs manage scroll
     padding: 20px;
     flex-grow: 1;
+    min-width: 40%;
 
     .bp6-tabs {
       display: flex;
