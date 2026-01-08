@@ -17,10 +17,11 @@ import { Undo, Redo, Play, Save } from 'lucide-react';
 import { isEqual } from 'lodash';
 
 import { nodeTypes as defaultNodeTypes } from './nodes';
-import type { WorkflowProps, WorkflowNode } from './types';
+import type { WorkflowProps, WorkflowNode, NodeExecutionSummary } from './types';
 import './Workflow.scss';
 import { WorkflowPanel } from './WorkflowPanel';
 import { NodeConfigModal } from './NodeConfigModal';
+import { ExecutionDetailModal } from './ExecutionDetailModal';
 import { useUndoRedo } from './useUndoRedo';
 
 const WorkflowContent: React.FC<WorkflowProps> = ({
@@ -34,13 +35,19 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
   undoRedoOptions,
   onSave,
   onTest,
+  mode = 'edit',
+  executionData,
+  onNodeClick,
 }) => {
   const { enabled: undoRedoEnabled = true, maxHistorySize = 50 } = undoRedoOptions || {};
+  const isHistoryMode = mode === 'history';
+  const isReadonly = readonly || isHistoryMode;
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [selectedNode, setSelectedNode] = React.useState<WorkflowNode | null>(null);
   const [highlightedLoopId, setHighlightedLoopId] = React.useState<string | null>(null);
-  const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [isConfigModalOpen, setIsConfigModalOpen] = React.useState(false);
+  const [isExecutionModalOpen, setIsExecutionModalOpen] = React.useState(false);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const { screenToFlowPosition } = useReactFlow();
 
@@ -49,6 +56,9 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
     { nodes: initialNodes, edges: initialEdges },
     { maxHistorySize }
   );
+
+  console.info('cyril nodes: ', nodes);
+  console.info('cyril edges: ', edges);
 
   // 用于标记是否正在执行 undo/redo，避免记录历史
   const isUndoingRef = React.useRef(false);
@@ -65,19 +75,68 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
     edgesRef.current = edges;
   }, [edges]);
 
+  // Inject execution data into nodes when in history mode
+  useEffect(() => {
+    if (isHistoryMode && executionData) {
+      setNodes(nds =>
+        nds.map(node => {
+          const summary = executionData[node.id];
+          if (summary) {
+            // Check if data actually changed to avoid infinite loops if setNodes triggers re-render
+            const newData = {
+              ...node.data,
+              _status: summary.status,
+              _runCount: summary.runCount,
+              // Calculate duration from the last record or aggregate?
+              // Let's use the last record's duration for now, or sum if needed.
+              // For simplicity, let's assume summary has duration or we calc it here.
+              // The types say records have startTime/endTime.
+              _duration: summary.records.reduce((acc, r) => {
+                if (r.startTime && r.endTime) return acc + (r.endTime - r.startTime);
+                return acc;
+              }, 0),
+            };
+
+            if (!isEqual(node.data, newData)) {
+              return { ...node, data: newData };
+            }
+          } else {
+            // Reset status if not found (e.g. cleared execution data)
+            if (node.data._status) {
+              const { _status, _runCount, _duration, ...rest } = node.data;
+              return { ...node, data: rest };
+            }
+          }
+          return node;
+        })
+      );
+    } else if (!isHistoryMode) {
+      // Clear execution status when switching back to edit mode
+      setNodes(nds =>
+        nds.map(node => {
+          if (node.data._status) {
+            const { _status, _runCount, _duration, ...rest } = node.data;
+            return { ...node, data: rest };
+          }
+          return node;
+        })
+      );
+    }
+  }, [isHistoryMode, executionData, setNodes]);
+
   // 记录初始状态（只在组件挂载时执行一次）
   const isInitializedRef = React.useRef(false);
   useEffect(() => {
-    if (!isInitializedRef.current && undoRedoEnabled && !readonly) {
+    if (!isInitializedRef.current && undoRedoEnabled && !isReadonly) {
       // 立即记录初始状态
       workflowHistory.set({ nodes, edges }, true);
       isInitializedRef.current = true;
     }
-  }, [undoRedoEnabled, readonly, nodes, edges, workflowHistory]);
+  }, [undoRedoEnabled, isReadonly, nodes, edges, workflowHistory]);
 
   // 辅助函数：记录当前状态到历史
   const takeSnapshot = useCallback(() => {
-    if (!undoRedoEnabled || readonly || isUndoingRef.current) return;
+    if (!undoRedoEnabled || isReadonly || isUndoingRef.current) return;
 
     // 使用 ref 获取最新的 nodes 和 edges
     const currentNodes = nodesRef.current;
@@ -117,7 +176,7 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
     }
 
     workflowHistory.set({ nodes: cleanNodes, edges: cleanEdges });
-  }, [undoRedoEnabled, readonly, workflowHistory]);
+  }, [undoRedoEnabled, isReadonly, workflowHistory]);
 
   // 连接节点时记录历史
   const onConnect = useCallback(
@@ -139,7 +198,7 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
 
   // 同步 undo/redo（nodes 和 edges 需要同步操作）
   const undo = useCallback(() => {
-    if (!undoRedoEnabled || readonly || !workflowHistory.canUndo) return;
+    if (!undoRedoEnabled || isReadonly || !workflowHistory.canUndo) return;
 
     // 先获取历史状态
     const prevState = workflowHistory.past[workflowHistory.past.length - 1];
@@ -160,10 +219,10 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
     setTimeout(() => {
       isUndoingRef.current = false;
     }, 300);
-  }, [undoRedoEnabled, readonly, workflowHistory, setNodes, setEdges]);
+  }, [undoRedoEnabled, isReadonly, workflowHistory, setNodes, setEdges]);
 
   const redo = useCallback(() => {
-    if (!undoRedoEnabled || readonly || !workflowHistory.canRedo) return;
+    if (!undoRedoEnabled || isReadonly || !workflowHistory.canRedo) return;
 
     // 先获取未来状态
     const nextState = workflowHistory.future[0];
@@ -184,14 +243,14 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
     setTimeout(() => {
       isUndoingRef.current = false;
     }, 300);
-  }, [undoRedoEnabled, readonly, workflowHistory, setNodes, setEdges]);
+  }, [undoRedoEnabled, isReadonly, workflowHistory, setNodes, setEdges]);
 
-  const canUndo = undoRedoEnabled && !readonly && workflowHistory.canUndo;
-  const canRedo = undoRedoEnabled && !readonly && workflowHistory.canRedo;
+  const canUndo = undoRedoEnabled && !isReadonly && workflowHistory.canUndo;
+  const canRedo = undoRedoEnabled && !isReadonly && workflowHistory.canRedo;
 
   // 键盘快捷键支持
   useEffect(() => {
-    if (!undoRedoEnabled || readonly) return;
+    if (!undoRedoEnabled || isReadonly) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Undo: Ctrl+Z / Cmd+Z
@@ -208,7 +267,7 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, undoRedoEnabled, readonly]);
+  }, [undo, redo, undoRedoEnabled, isReadonly]);
 
   // Wrap onNodesChange to sync with parent if needed
   const handleNodesChange = useCallback(
@@ -242,11 +301,26 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
 
   const onNodeDoubleClick = useCallback(
     (_: React.MouseEvent, node: WorkflowNode) => {
+      if (isHistoryMode) return; // In history mode, use click/onNodeClick
       if (readonly) return;
       setSelectedNode(node);
-      setIsModalOpen(true);
+      setIsConfigModalOpen(true);
     },
-    [readonly]
+    [readonly, isHistoryMode]
+  );
+
+  const handleNodeClick = useCallback(
+    (event: React.MouseEvent, node: WorkflowNode) => {
+      if (isHistoryMode) {
+        const summary = executionData?.[node.id];
+        setSelectedNode(node);
+        setIsExecutionModalOpen(true);
+        if (onNodeClick) {
+          onNodeClick(event, node, summary);
+        }
+      }
+    },
+    [isHistoryMode, executionData, onNodeClick]
   );
 
   // 计算 Loop 节点的高亮流
@@ -456,32 +530,39 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
   return (
     <div
       className="workflow-container"
-      onDrop={readonly ? undefined : onDrop}
-      onDragOver={readonly ? undefined : onDragOver}
+      onDrop={isReadonly ? undefined : onDrop}
+      onDragOver={isReadonly ? undefined : onDragOver}
     >
-      {!readonly && <WorkflowPanel />}
+      {!isReadonly && <WorkflowPanel />}
       <NodeConfigModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        isOpen={isConfigModalOpen}
+        onClose={() => setIsConfigModalOpen(false)}
         node={selectedNode}
         schema={selectedNode ? nodeConfigSchemas[selectedNode.type || ''] : undefined}
         onSave={handleSaveNodeConfig}
+      />
+      <ExecutionDetailModal
+        isOpen={isExecutionModalOpen}
+        onClose={() => setIsExecutionModalOpen(false)}
+        node={selectedNode}
+        executionSummary={selectedNode ? executionData?.[selectedNode.id] : undefined}
       />
       <ReactFlow
         nodes={nodes}
         edges={edges}
         onNodesChange={handleNodesChange}
         onEdgesChange={onEdgesChange}
-        onConnect={readonly ? undefined : onConnect}
-        onNodesDelete={readonly ? undefined : onNodesDelete}
-        onEdgesDelete={readonly ? undefined : onEdgesDelete}
-        onNodeDragStop={readonly ? undefined : onNodeDragStop}
+        onConnect={isReadonly ? undefined : onConnect}
+        onNodesDelete={isReadonly ? undefined : onNodesDelete}
+        onEdgesDelete={isReadonly ? undefined : onEdgesDelete}
+        onNodeDragStop={isReadonly ? undefined : onNodeDragStop}
         nodeTypes={mergedNodeTypes}
         fitView
         onNodeDoubleClick={onNodeDoubleClick}
-        nodesDraggable={!readonly}
-        nodesConnectable={!readonly}
-        elementsSelectable={!readonly}
+        onNodeClick={handleNodeClick}
+        nodesDraggable={!isReadonly}
+        nodesConnectable={!isReadonly}
+        elementsSelectable={!isReadonly}
         onSelectionChange={onSelectionChange}
         defaultEdgeOptions={{
           type: 'default',
@@ -492,7 +573,7 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
         }}
       >
         <Controls position="top-right">
-          {!readonly && (
+          {!isReadonly && (
             <>
               <ControlButton onClick={handleSave} title="保存">
                 <Save size={16} />
@@ -502,7 +583,7 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
               </ControlButton>
             </>
           )}
-          {undoRedoEnabled && !readonly && (
+          {undoRedoEnabled && !isReadonly && (
             <>
               <ControlButton onClick={undo} disabled={!canUndo} title="撤销 (Ctrl+Z)">
                 <Undo size={16} />

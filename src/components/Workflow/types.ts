@@ -12,6 +12,10 @@ export interface NodeConfigSchema extends JSONSchema7 {
 export interface WorkflowNodeData {
   label: string;
   description?: string;
+  // Execution specific data
+  _status?: ExecutionStatus;
+  _runCount?: number;
+  _duration?: number;
   [key: string]: unknown;
 }
 
@@ -31,6 +35,47 @@ export interface UndoRedoOptions {
   debounceMs?: number; // 防抖延迟，默认 500ms
 }
 
+// --- Execution History Types ---
+
+export type ExecutionStatus = 'pending' | 'running' | 'success' | 'failure' | 'skipped';
+
+// 单次执行记录
+export interface NodeExecutionRecord {
+  nodeId: string;
+  status: ExecutionStatus;
+  startTime: number;
+  endTime?: number;
+  inputs?: any;
+  outputs?: any;
+  error?: {
+    message: string;
+    stack?: string;
+    code?: string;
+  };
+  iterationIndex?: number; // 在循环中的索引 (0, 1, 2...)
+}
+
+// 节点的聚合状态（用于渲染画布）
+export interface NodeExecutionSummary {
+  nodeId: string;
+  status: ExecutionStatus; // 整体状态（如果又一次失败则视为失败，或取最后一次状态）
+  runCount: number; // 总运行次数
+  records: NodeExecutionRecord[]; // 详细记录列表
+}
+
+// 整个 Workflow 的一次运行快照
+export interface WorkflowExecutionSnapshot {
+  executionId: string;
+  workflowId: string;
+  startTime: number;
+  endTime?: number;
+  status: ExecutionStatus;
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+  // 键为 nodeId，值为该节点的执行摘要
+  nodeExecutions: Record<string, NodeExecutionSummary>;
+}
+
 export interface WorkflowProps {
   initialNodes?: WorkflowNode[];
   initialEdges?: WorkflowEdge[];
@@ -44,4 +89,13 @@ export interface WorkflowProps {
   undoRedoOptions?: UndoRedoOptions;
   onSave?: (data: { nodes: WorkflowNode[]; edges: WorkflowEdge[] }) => void;
   onTest?: (data: { nodes: WorkflowNode[]; edges: WorkflowEdge[] }) => void;
+
+  // New props for execution history
+  mode?: 'edit' | 'history' | 'readonly';
+  executionData?: Record<string, NodeExecutionSummary>;
+  onNodeClick?: (
+    event: React.MouseEvent,
+    node: WorkflowNode,
+    executionSummary?: NodeExecutionSummary
+  ) => void;
 }

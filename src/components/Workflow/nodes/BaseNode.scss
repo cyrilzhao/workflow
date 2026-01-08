@@ -21,6 +21,58 @@
       border-bottom: none;
     }
   }
+
+  // Execution Status Styles
+  &.status-success {
+    border-color: #10b981; // emerald-500
+    .workflow-node-header {
+      background: #ecfdf5; // emerald-50
+      border-bottom-color: #10b981;
+      .workflow-node-title {
+        color: #047857;
+      } // emerald-700
+      .workflow-node-icon {
+        color: #059669;
+      } // emerald-600
+    }
+    &.selected {
+      box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+    }
+  }
+
+  &.status-failure {
+    border-color: #ef4444; // red-500
+    .workflow-node-header {
+      background: #fef2f2; // red-50
+      border-bottom-color: #ef4444;
+      .workflow-node-title {
+        color: #b91c1c;
+      } // red-700
+      .workflow-node-icon {
+        color: #dc2626;
+      } // red-600
+    }
+    &.selected {
+      box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+    }
+  }
+
+  &.status-running {
+    border-color: #3b82f6; // blue-500
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+    .workflow-node-header {
+      background: #eff6ff; // blue-50
+      border-bottom-color: #3b82f6;
+    }
+  }
+
+  &.status-skipped {
+    opacity: 0.6;
+    border-style: dashed;
+    .workflow-node-header {
+      background: #f3f4f6; // gray-100
+    }
+  }
 }
 
 .workflow-node-header {
@@ -30,6 +82,7 @@
   border-bottom: 1px solid #e5e7eb;
   background: #f9fafb;
   border-radius: 8px 8px 0 0;
+  position: relative; // For badge positioning
 
   .workflow-node-icon {
     margin-right: 8px;
@@ -42,6 +95,44 @@
     font-weight: 600;
     color: #374151;
     font-size: 14px;
+    flex: 1;
+    margin-right: 8px;
+  }
+
+  .workflow-node-status {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+
+    .status-icon {
+      &.success {
+        color: #059669;
+      }
+      &.failure {
+        color: #dc2626;
+      }
+      &.running {
+        color: #3b82f6;
+      }
+      &.skipped {
+        color: #9ca3af;
+      }
+    }
+  }
+
+  .workflow-node-badge {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #3b82f6;
+    color: white;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 10px;
+    border: 2px solid white;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    z-index: 10;
   }
 }
 
@@ -49,6 +140,16 @@
   padding: 12px;
   font-size: 12px;
   color: #6b7280;
+}
+
+.workflow-node-footer {
+  padding: 4px 12px;
+  border-top: 1px solid #f3f4f6; // gray-100
+  font-size: 10px;
+  color: #9ca3af; // gray-400
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .workflow-handle {
@@ -62,4 +163,17 @@
     width: 10px;
     height: 10px;
   }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
 }

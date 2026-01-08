@@ -12,6 +12,9 @@ const StartNode: React.FC<CustomNodeProps> = ({ data, selected }) => {
       selected={selected}
       handles={[{ type: 'source', position: Position.Right }]}
       className="start-node"
+      executionStatus={data._status}
+      executionCount={data._runCount}
+      executionDuration={data._duration}
     >
       {data.description && <p>{data.description}</p>}
     </BaseNode>

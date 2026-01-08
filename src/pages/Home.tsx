@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import {
   Workflow,
   type WorkflowNode,
@@ -249,12 +250,37 @@ const Home = () => {
       className="home-page"
       style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}
     >
-      <div style={{ padding: '20px', borderBottom: '1px solid #eee' }}>
-        <h1>Workflow Demo</h1>
-        <p>
-          Double click on nodes to configure them. Supports dynamic JSON Schema forms with Custom
-          Components (e.g. Color Picker).
-        </p>
+      <div
+        style={{
+          padding: '20px',
+          borderBottom: '1px solid #eee',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
+        <div>
+          <h1>Workflow Demo</h1>
+          <p>
+            Double click on nodes to configure them. Supports dynamic JSON Schema forms with Custom
+            Components (e.g. Color Picker).
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <Link
+            to="/workflow-history"
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#3b82f6',
+              color: 'white',
+              borderRadius: '6px',
+              textDecoration: 'none',
+              fontSize: '14px',
+            }}
+          >
+            Execution History Demo
+          </Link>
+        </div>
       </div>
       <div style={{ flex: 1, padding: '20px' }}>
         <Workflow

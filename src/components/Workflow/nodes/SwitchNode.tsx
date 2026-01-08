@@ -27,6 +27,9 @@ const SwitchNode: React.FC<CustomNodeProps> = ({ data, selected }) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       handles={handles as any}
       className="switch-node"
+      executionStatus={data._status}
+      executionCount={data._runCount}
+      executionDuration={data._duration}
     >
       {data.description && <p>{data.description}</p>}
       <div className="switch-cases">

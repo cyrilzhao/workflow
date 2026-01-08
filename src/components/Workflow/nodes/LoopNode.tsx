@@ -18,6 +18,9 @@ const LoopNode: React.FC<CustomNodeProps> = ({ data, selected }) => {
         { type: 'target', position: Position.Bottom, id: 'loop-end', className: 'loop-end' },
       ]}
       className="loop-node"
+      executionStatus={data._status}
+      executionCount={data._runCount}
+      executionDuration={data._duration}
     >
       {data.description && <p>{data.description}</p>}
       <div className="loop-handles-footer">
