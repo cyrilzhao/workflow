@@ -22,6 +22,7 @@ export interface BaseNodeProps {
   executionStatus?: ExecutionStatus;
   executionCount?: number;
   executionDuration?: number;
+  customFooter?: ReactNode;
 }
 
 const StatusIcon: React.FC<{ status: ExecutionStatus }> = ({ status }) => {
@@ -50,6 +51,7 @@ const BaseNode: React.FC<BaseNodeProps> = ({
   executionStatus,
   executionCount,
   executionDuration,
+  customFooter,
 }) => {
   const hasBody = !!children;
   const statusClass = executionStatus ? `status-${executionStatus}` : '';
@@ -77,8 +79,11 @@ const BaseNode: React.FC<BaseNodeProps> = ({
 
       {executionDuration !== undefined && (
         <div className="workflow-node-footer">
-          <Clock size={10} style={{ marginRight: 4 }} />
-          {executionDuration}ms
+          <div className="execution-time">
+            <Clock size={10} style={{ marginRight: 4 }} />
+            {executionDuration}ms
+          </div>
+          {customFooter}
         </div>
       )}
 

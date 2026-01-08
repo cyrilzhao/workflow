@@ -144,12 +144,18 @@
 
 .workflow-node-footer {
   padding: 4px 12px;
-  border-top: 1px solid #f3f4f6; // gray-100
+  border-top: 1px solid #f3f4f6;
   font-size: 10px;
-  color: #9ca3af; // gray-400
+  color: #9ca3af;
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
+  flex-direction: column;
+  gap: 4px;
+
+  .execution-time {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+  }
 }
 
 .workflow-handle {

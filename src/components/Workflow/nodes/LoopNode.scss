@@ -1,5 +1,5 @@
 .loop-node {
-  position: relative; // Ensure handles are positioned relative to this
+  position: relative;
 
   .workflow-handle {
     &.loop-start {
@@ -10,28 +10,55 @@
     }
   }
 
+  // 编辑模式下的 footer（在 body 内）
   .loop-handles-footer {
     display: flex;
     justify-content: space-between;
-    margin-top: 8px;
-    padding-top: 8px;
+    padding: 8px 0 4px 0;
+    position: relative;
 
     .loop-handle-label {
       font-size: 10px;
       color: #9ca3af;
       text-transform: uppercase;
       font-weight: 500;
-      position: absolute;
-      bottom: 4px; // Position inside the node, above handles
+      flex: 1;
+      text-align: center;
 
       &.start {
-        left: 25%;
-        transform: translateX(-50%);
+        text-align: left;
+        padding-left: calc(25% - 20px);
       }
 
       &.end {
-        left: 75%;
-        transform: translateX(-50%);
+        text-align: right;
+        padding-right: calc(25% - 20px);
+      }
+    }
+  }
+
+  // History 模式下的 footer（在 workflow-node-footer 内）
+  .loop-handles-footer-with-execution {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    padding-top: 4px;
+
+    .loop-handle-label {
+      font-size: 10px;
+      color: #9ca3af;
+      text-transform: uppercase;
+      font-weight: 500;
+      flex: 1;
+
+      &.start {
+        text-align: left;
+        padding-left: calc(25% - 12px);
+      }
+
+      &.end {
+        text-align: right;
+        padding-right: calc(25% - 12px);
       }
     }
   }

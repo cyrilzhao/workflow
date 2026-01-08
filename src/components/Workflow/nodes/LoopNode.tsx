@@ -6,6 +6,8 @@ import type { CustomNodeProps } from '../types';
 import './LoopNode.scss';
 
 const LoopNode: React.FC<CustomNodeProps> = ({ data, selected }) => {
+  const hasExecutionData = data._status || data._runCount || data._duration !== undefined;
+
   return (
     <BaseNode
       title={data.label || 'Loop'}
@@ -21,12 +23,22 @@ const LoopNode: React.FC<CustomNodeProps> = ({ data, selected }) => {
       executionStatus={data._status}
       executionCount={data._runCount}
       executionDuration={data._duration}
+      customFooter={
+        hasExecutionData ? (
+          <div className="loop-handles-footer-with-execution">
+            <span className="loop-handle-label start">Start</span>
+            <span className="loop-handle-label end">End</span>
+          </div>
+        ) : undefined
+      }
     >
       {data.description && <p>{data.description}</p>}
-      <div className="loop-handles-footer">
-        <span className="loop-handle-label start">Start</span>
-        <span className="loop-handle-label end">End</span>
-      </div>
+      {!hasExecutionData && (
+        <div className="loop-handles-footer">
+          <span className="loop-handle-label start">Start</span>
+          <span className="loop-handle-label end">End</span>
+        </div>
+      )}
     </BaseNode>
   );
 };

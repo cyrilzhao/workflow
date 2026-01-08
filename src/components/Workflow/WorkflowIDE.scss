@@ -98,7 +98,13 @@
         display: flex;
         gap: 8px;
 
-        .search-bar {
+        .filters-container {
+          flex: 1;
+          display: flex;
+          gap: 8px;
+        }
+
+        .filter-bar {
           flex: 1;
           display: flex;
           align-items: center;
@@ -106,12 +112,18 @@
           padding: 6px 8px;
           border-radius: 4px;
 
-          input {
+          .filter-select {
             border: none;
             background: none;
             outline: none;
             width: 100%;
             font-size: 12px;
+            cursor: pointer;
+            color: #374151;
+
+            &:focus {
+              outline: none;
+            }
           }
         }
 
@@ -126,6 +138,43 @@
           &:hover {
             color: #374151;
             background: #f9fafb;
+          }
+        }
+      }
+
+      .custom-date-range {
+        padding: 8px 12px;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        gap: 12px;
+        background: #f9fafb;
+        flex-wrap: wrap;
+
+        .date-input-group {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+
+          label {
+            font-size: 12px;
+            color: #6b7280;
+            white-space: nowrap;
+            display: inline-block;
+            width: 40px;
+          }
+
+          .date-input {
+            padding: 4px 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #374151;
+            background: white;
+
+            &:focus {
+              outline: none;
+              border-color: #3b82f6;
+            }
           }
         }
       }
