@@ -13,6 +13,7 @@ import { StaticNestedExample } from './examples/NestedForm/StaticNestedExample';
 import { DynamicNestedExample } from './examples/NestedForm/DynamicNestedExample';
 import { JsonPointerNestedExample } from './examples/NestedForm/JsonPointerNestedExample';
 import { ArrayNestedExample } from './examples/NestedForm/ArrayNestedExample';
+import { SchemaLoaderExample } from './examples/NestedForm/SchemaLoaderExample';
 
 // 数组字段
 import { BasicArrayExample } from './examples/ArrayField/BasicArrayExample';
@@ -59,7 +60,11 @@ export const DynamicFormExamples: React.FC = () => {
   return (
     <div style={{ padding: '20px' }}>
       <h1>动态表单示例</h1>
-      <Tabs selectedTabId={selectedTab} onChange={id => setSelectedTab(id as string)}>
+      <Tabs
+        selectedTabId={selectedTab}
+        onChange={id => setSelectedTab(id as string)}
+        renderActiveTabPanelOnly={true}
+      >
         <Tab id="schemaBuilder" title="Schema Builder" panel={<SchemaBuilderExample />} />
         <Tab id="basic" title="基础表单" panel={<BasicFormPanel />} />
         <Tab id="conditional" title="条件渲染" panel={<ConditionalFormPanel />} />
@@ -78,7 +83,11 @@ const ArrayFieldPanel: React.FC = () => {
 
   return (
     <div style={{ marginTop: '20px' }}>
-      <Tabs selectedTabId={selectedExample} onChange={id => setSelectedExample(id as string)}>
+      <Tabs
+        selectedTabId={selectedExample}
+        onChange={id => setSelectedExample(id as string)}
+        renderActiveTabPanelOnly={true}
+      >
         <Tab id="basic" title="基本类型数组" panel={<BasicArrayExample />} />
         <Tab id="enum" title="枚举数组" panel={<EnumArrayExample />} />
         <Tab id="object" title="对象数组" panel={<ObjectArrayExample />} />
@@ -107,11 +116,16 @@ const NestedFormPanel: React.FC = () => {
 
   return (
     <div style={{ marginTop: '20px' }}>
-      <Tabs selectedTabId={selectedExample} onChange={id => setSelectedExample(id as string)}>
+      <Tabs
+        selectedTabId={selectedExample}
+        onChange={id => setSelectedExample(id as string)}
+        renderActiveTabPanelOnly={true}
+      >
         <Tab id="static" title="静态嵌套" panel={<StaticNestedExample />} />
         <Tab id="dynamic" title="动态嵌套" panel={<DynamicNestedExample />} />
         <Tab id="jsonPointer" title="JSON Pointer 跨层级" panel={<JsonPointerNestedExample />} />
         <Tab id="arrayNested" title="数组嵌套" panel={<ArrayNestedExample />} />
+        <Tab id="schemaLoader" title="异步加载 Schema" panel={<SchemaLoaderExample />} />
       </Tabs>
     </div>
   );
@@ -122,7 +136,11 @@ const FlattenPathPanel: React.FC = () => {
 
   return (
     <div style={{ marginTop: '20px' }}>
-      <Tabs selectedTabId={selectedExample} onChange={id => setSelectedExample(id as string)}>
+      <Tabs
+        selectedTabId={selectedExample}
+        onChange={id => setSelectedExample(id as string)}
+        renderActiveTabPanelOnly={true}
+      >
         <Tab id="basic" title="基础用法" panel={<BasicFlattenExample />} />
         <Tab id="withPrefix" title="带前缀" panel={<WithPrefixFlattenExample />} />
         <Tab id="multiLevel" title="多层前缀" panel={<MultiLevelPrefixExample />} />
@@ -138,7 +156,11 @@ const LayoutPanel: React.FC = () => {
 
   return (
     <div style={{ marginTop: '20px' }}>
-      <Tabs selectedTabId={selectedExample} onChange={id => setSelectedExample(id as string)}>
+      <Tabs
+        selectedTabId={selectedExample}
+        onChange={id => setSelectedExample(id as string)}
+        renderActiveTabPanelOnly={true}
+      >
         <Tab id="vertical" title="垂直布局" panel={<VerticalLayoutExample />} />
         <Tab id="horizontal" title="水平布局" panel={<HorizontalLayoutExample />} />
         <Tab id="inline" title="内联布局" panel={<InlineLayoutExample />} />

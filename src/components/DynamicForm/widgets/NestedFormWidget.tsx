@@ -63,6 +63,9 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
     // 保存当前的 schema key 值，用于检测切换
     const previousKeyRef = useRef<string | undefined>();
 
+    // 保存上次的 value 序列化值，用于检测 value 是否真正变化
+    const previousValueRef = useRef<string>('');
+
     // 注册当前 schema 到 Context（当 currentSchema 变化时更新）
     useEffect(() => {
       nestedSchemaRegistry.register(fullPath, currentSchema);
@@ -194,13 +197,50 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
 
     // 处理异步 schema 加载
     useEffect(() => {
-      if (schemaLoader && value) {
+      if (!schemaLoader) return;
+
+      // 监听整个表单的变化
+      const subscription = watch((formData) => {
+        // 序列化表单数据用于比较
+        const currentFormDataStr = JSON.stringify(formData);
+
+        // 如果表单数据没有真正变化，不触发加载
+        if (currentFormDataStr === previousValueRef.current) {
+          return;
+        }
+
+        // 更新缓存的表单数据
+        previousValueRef.current = currentFormDataStr;
+
+        console.log('[NestedFormWidget] schemaLoader 触发，formData:', formData);
+
+        // 调用 schemaLoader，传入整个表单数据
         setLoading(true);
-        schemaLoader(value)
-          .then(setCurrentSchema)
+        schemaLoader(formData)
+          .then((loadedSchema) => {
+            console.log('[NestedFormWidget] schemaLoader 加载完成:', loadedSchema);
+            setCurrentSchema(loadedSchema);
+          })
+          .finally(() => setLoading(false));
+      });
+
+      // 初始化时也触发一次加载
+      const initialFormData = getValues();
+      const initialFormDataStr = JSON.stringify(initialFormData);
+      if (initialFormDataStr !== previousValueRef.current) {
+        previousValueRef.current = initialFormDataStr;
+        console.log('[NestedFormWidget] schemaLoader 初始化触发，formData:', initialFormData);
+        setLoading(true);
+        schemaLoader(initialFormData)
+          .then((loadedSchema) => {
+            console.log('[NestedFormWidget] schemaLoader 初始化加载完成:', loadedSchema);
+            setCurrentSchema(loadedSchema);
+          })
           .finally(() => setLoading(false));
       }
-    }, [schemaLoader, value]);
+
+      return () => subscription.unsubscribe();
+    }, [schemaLoader, watch, getValues]);
 
     if (loading) {
       return (
