@@ -63,18 +63,6 @@ export interface UIConfig {
   flattenPath?: boolean; // 是否将嵌套对象的子字段提升到当前层级渲染
   flattenPrefix?: boolean; // 是否在字段标签前添加父级标题作为前缀
 
-  // 嵌套表单配置（用于动态场景）
-  schemaKey?: string; // 动态 schema 的依赖字段
-  schemas?: Record<
-    string,
-    {
-      // 多个子表单 schema 片段
-      properties?: Record<string, ExtendedJSONSchema>;
-      required?: string[];
-    }
-  >;
-  schemaLoader?: (value: any) => Promise<ExtendedJSONSchema>; // 异步加载 schema
-
   // 数组特有配置
   arrayMode?: 'dynamic' | 'static'; // 渲染模式：dynamic 可增删，static 不可增删
   showAddButton?: boolean; // 是否显示添加按钮

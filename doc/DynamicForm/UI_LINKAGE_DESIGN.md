@@ -31,7 +31,7 @@
 ```typescript
 interface UILinkageConfig {
   // 联动类型
-  type: 'visibility' | 'disabled' | 'readonly' | 'value' | 'options';
+  type: 'visibility' | 'disabled' | 'readonly' | 'value' | 'options' | 'schema';
 
   // 依赖的字段
   dependencies: string[];
@@ -60,6 +60,8 @@ interface LinkageEffect {
   options?: Array<{ label: string; value: any }>;
   // 通过函数计算（根据 linkage.type 决定计算结果的用途）
   function?: string;
+  // 直接指定 schema（用于 schema 类型，不推荐，建议使用 function）
+  schema?: any;
 }
 ```
 
@@ -69,8 +71,10 @@ interface LinkageEffect {
 - **统一接口**：`function` 字段根据 `linkage.type` 自动适配：
   - `value` 类型：函数返回值赋给 `result.value`
   - `options` 类型：函数返回值赋给 `result.options`
+  - `schema` 类型：函数返回值赋给 `result.schema`（支持异步加载）
   - `visibility`/`disabled`/`readonly` 类型：函数返回值转为 boolean
-- **灵活性**：支持直接指定值/选项（`value`/`options`），也支持函数计算（`function`）
+- **灵活性**：支持直接指定值/选项/schema（`value`/`options`/`schema`），也支持函数计算（`function`）
+- **异步支持**：所有联动函数都支持异步操作，系统会自动处理异步竞态条件
 
 ### 2.2 条件表达式语法
 
@@ -289,6 +293,79 @@ const linkageFunctions = {
 };
 ```
 
+### 3.5 动态 Schema（异步加载）
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "productType": {
+      "type": "string",
+      "title": "Product Type",
+      "enum": ["laptop", "smartphone", "tablet"],
+      "enumNames": ["Laptop", "Smartphone", "Tablet"]
+    },
+    "configuration": {
+      "type": "object",
+      "title": "Product Configuration",
+      "properties": {},
+      "ui": {
+        "widget": "nested-form",
+        "linkage": {
+          "type": "schema",
+          "dependencies": ["#/properties/productType"],
+          "when": {
+            "field": "#/properties/productType",
+            "operator": "isNotEmpty"
+          },
+          "fulfill": {
+            "function": "loadProductSchema"
+          }
+        }
+      }
+    }
+  },
+  "required": ["productType"]
+}
+```
+
+对应的 schema 加载函数：
+
+```typescript
+const linkageFunctions = {
+  /**
+   * 异步加载产品配置 schema
+   */
+  loadProductSchema: async (formData: any, context?: LinkageFunctionContext) => {
+    const productType = formData?.productType;
+
+    if (!productType) {
+      return { type: 'object', properties: {} };
+    }
+
+    // 模拟 API 调用
+    const response = await fetch(`/api/products/${productType}/schema`);
+    const schema = await response.json();
+
+    return schema;
+  },
+};
+```
+
+**重要说明**：
+
+1. **Schema 更新范围**：返回的 schema 只会更新以下字段，不会覆盖原有的 `ui.linkage` 配置：
+   - `properties`：字段定义
+   - `required`：必填字段
+   - 校验相关字段：`minProperties`、`maxProperties`、`dependencies`、`if/then/else`、`allOf/anyOf/oneOf/not`
+
+2. **异步竞态条件处理**：系统会自动处理异步请求的竞态条件。当用户快速切换 `productType` 时，只有最后一次请求的结果会被应用，之前的过期结果会被自动丢弃。
+
+3. **使用场景**：
+   - 根据用户选择动态加载表单结构
+   - 从服务器获取配置化的表单定义
+   - 实现多步骤表单的动态流程
+
 ## 4. 复杂联动场景
 
 ### 4.1 多字段联动
@@ -472,7 +549,7 @@ UI 联动和数据验证是独立的：
 /**
  * 联动类型
  */
-export type LinkageType = 'visibility' | 'disabled' | 'readonly' | 'value' | 'options';
+export type LinkageType = 'visibility' | 'disabled' | 'readonly' | 'value' | 'options' | 'schema';
 
 /**
  * 条件操作符
@@ -548,6 +625,7 @@ export interface LinkageResult {
   readonly?: boolean;
   value?: any;
   options?: Array<{ label: string; value: any }>;
+  schema?: any; // ExtendedJSONSchema，用于 schema 类型联动
 }
 
 /**
@@ -1065,6 +1143,87 @@ const linkageFunctions = {
 };
 ```
 
+### 6.9 异步竞态条件处理
+
+**问题描述**：
+
+当用户快速切换依赖字段时，异步联动函数可能会出现竞态条件（Race Condition）：
+
+```
+用户操作：
+1. 选择 "laptop" → 发起请求 A
+2. 快速切换到 "smartphone" → 发起请求 B
+3. 请求 B 先返回 → 更新 schema
+4. 请求 A 后返回 → 错误地覆盖了 schema ❌
+```
+
+**解决方案**：
+
+系统使用 **请求序列号管理器（AsyncSequenceManager）** 自动处理异步竞态条件。
+
+**实现原理**：
+
+```typescript
+/**
+ * 异步请求序列号管理器
+ */
+class AsyncSequenceManager {
+  private sequences: Map<string, number> = new Map();
+
+  // 为字段生成新的序列号
+  next(fieldName: string): number {
+    const current = this.sequences.get(fieldName) || 0;
+    const next = current + 1;
+    this.sequences.set(fieldName, next);
+    return next;
+  }
+
+  // 检查序列号是否是最新的
+  isLatest(fieldName: string, sequence: number): boolean {
+    const current = this.sequences.get(fieldName) || 0;
+    return sequence === current;
+  }
+}
+```
+
+**工作流程**：
+
+```typescript
+// 在调用异步函数之前生成序列号
+const sequence = asyncSequenceManager.next(fieldPath); // 例如: 1
+
+// 执行异步函数
+const fnResult = await fn(formData, context);
+
+// 异步函数返回后，检查序列号是否仍然是最新的
+if (!asyncSequenceManager.isLatest(fieldPath, sequence)) {
+  // 如果不是最新的，说明用户又触发了新的请求
+  // 丢弃这个过期的结果
+  return {};
+}
+
+// 只有最新的结果才会被应用
+result.schema = fnResult;
+```
+
+**效果**：
+
+```
+用户操作：
+1. 选择 "laptop" → 生成序列号 1，发起请求 A
+2. 快速切换到 "smartphone" → 生成序列号 2，发起请求 B
+3. 请求 B 先返回 → 检查序列号 2 是最新的 ✅ → 更新 schema
+4. 请求 A 后返回 → 检查序列号 1 不是最新的 ❌ → 丢弃结果
+```
+
+**适用范围**：
+
+这个方案对所有使用异步联动函数的场景都有效：
+- `schema` 联动（异步加载 schema）
+- `options` 联动（异步加载选项）
+- `value` 联动（异步计算值）
+- 其他任何使用异步函数的联动类型
+
 ---
 
 ## 7. 完整的端到端示例
@@ -1478,8 +1637,10 @@ dependencyGraph.getAffectedFields('items.0.quantity')
 4. **类型安全**：完整的 TypeScript 类型定义
 5. **易于扩展**：支持自定义联动函数
 6. **异步支持**：完整支持同步和异步联动函数
-7. **分层计算**：嵌套表单自动分层，避免重复计算
-8. **路径透明化**：自动处理 flattenPath 场景
+7. **竞态条件处理**：自动处理异步请求的竞态条件，确保结果正确性
+8. **动态 Schema**：支持基于表单数据异步加载 schema 结构
+9. **分层计算**：嵌套表单自动分层，避免重复计算
+10. **路径透明化**：自动处理 flattenPath 场景
 
 ---
 
@@ -1497,6 +1658,19 @@ dependencyGraph.getAffectedFields('items.0.quantity')
 
 可以。系统完整支持异步联动函数，详见第 6.8 节。
 
+### Q4: Schema 联动会覆盖原有的 ui.linkage 配置吗？
+
+不会。Schema 联动只会更新以下字段：
+- `properties`：字段定义
+- `required`：必填字段
+- 校验相关字段：`minProperties`、`maxProperties`、`dependencies`、`if/then/else`、`allOf/anyOf/oneOf/not`
+
+原有的 `ui` 配置（包括 `ui.linkage`）会被完整保留。详见第 3.5 节。
+
+### Q5: 如何处理异步联动函数的竞态条件？
+
+系统会自动处理异步请求的竞态条件。当用户快速切换依赖字段时，只有最后一次请求的结果会被应用，之前的过期结果会被自动丢弃。详见第 6.9 节。
+
 ---
 
 ## 相关文档
@@ -1508,12 +1682,42 @@ dependencyGraph.getAffectedFields('items.0.quantity')
 
 ---
 
-**文档版本**: 2.0  
-**创建日期**: 2025-12-26  
-**最后更新**: 2025-12-30  
-**文档状态**: 已重构
+**文档版本**: 2.1
+**创建日期**: 2025-12-26
+**最后更新**: 2026-01-09
+**文档状态**: 已更新
 
 ## 变更历史
+
+### v2.1 (2026-01-09)
+
+**新增功能**：Schema 联动和异步竞态条件处理
+
+**主要变更**：
+
+1. **新增 Schema 联动类型**
+   - ✅ 扩展 `LinkageType` 支持 `'schema'` 类型
+   - ✅ 支持基于表单数据异步加载 schema 结构
+   - ✅ Schema 更新只影响 properties 和校验字段，保留原有 ui 配置
+   - ✅ 新增第 3.5 节：动态 Schema（异步加载）示例
+
+2. **异步竞态条件处理**
+   - ✅ 实现 AsyncSequenceManager 序列号管理器
+   - ✅ 自动处理异步请求的竞态条件
+   - ✅ 确保只有最新的异步结果会被应用
+   - ✅ 新增第 6.9 节：异步竞态条件处理详细说明
+
+3. **文档更新**
+   - ✅ 更新类型定义，添加 `schema` 字段到 `LinkageResult`
+   - ✅ 更新设计说明，补充异步支持和竞态条件处理
+   - ✅ 新增 Q4 和 Q5 常见问题
+   - ✅ 更新核心优势列表
+
+**实现文件**：
+- `src/components/DynamicForm/types/linkage.ts`
+- `src/components/DynamicForm/hooks/useLinkageManager.ts`
+- `src/components/DynamicForm/widgets/NestedFormWidget.tsx`
+- `src/pages/examples/NestedForm/SchemaLoaderExample.tsx`
 
 ### v2.0 (2025-12-30)
 

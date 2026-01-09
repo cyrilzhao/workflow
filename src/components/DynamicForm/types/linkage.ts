@@ -1,7 +1,7 @@
 /**
  * 联动类型
  */
-export type LinkageType = 'visibility' | 'disabled' | 'readonly' | 'value' | 'options';
+export type LinkageType = 'visibility' | 'disabled' | 'readonly' | 'value' | 'options' | 'schema';
 
 /**
  * 条件操作符
@@ -79,6 +79,7 @@ export interface LinkageResult {
   readonly?: boolean;
   value?: any;
   options?: Array<{ label: string; value: any }>;
+  schema?: any; // ExtendedJSONSchema，用于 schema 类型联动
 }
 
 /**

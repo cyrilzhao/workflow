@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useState } from 'react';
+import { useMemo, useEffect, useState, useRef } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
 import type {
   LinkageConfig,
@@ -12,6 +12,46 @@ import { DependencyGraph } from '../utils/dependencyGraph';
 import { PathResolver } from '../utils/pathResolver';
 import type { PathMapping } from '../utils/schemaLinkageParser';
 import { physicalToLogicalPath } from '../utils/schemaLinkageParser';
+
+/**
+ * 异步请求序列号管理器
+ * 用于解决异步联动函数的竞态条件问题
+ */
+class AsyncSequenceManager {
+  private sequences: Map<string, number> = new Map();
+
+  /**
+   * 为指定字段生成新的序列号
+   */
+  next(fieldName: string): number {
+    const current = this.sequences.get(fieldName) || 0;
+    const next = current + 1;
+    this.sequences.set(fieldName, next);
+    return next;
+  }
+
+  /**
+   * 检查序列号是否是最新的
+   */
+  isLatest(fieldName: string, sequence: number): boolean {
+    const current = this.sequences.get(fieldName) || 0;
+    return sequence === current;
+  }
+
+  /**
+   * 清除指定字段的序列号
+   */
+  clear(fieldName: string): void {
+    this.sequences.delete(fieldName);
+  }
+
+  /**
+   * 清除所有序列号
+   */
+  clearAll(): void {
+    this.sequences.clear();
+  }
+}
 
 /**
  * 获取嵌套对象的值
@@ -80,6 +120,9 @@ export function useLinkageManager({
 }: LinkageManagerOptions) {
   const { watch, getValues } = form;
 
+  // 创建异步序列号管理器实例（使用 useRef 保持引用稳定）
+  const asyncSequenceManager = useRef(new AsyncSequenceManager()).current;
+
   // 构建依赖图
   const dependencyGraph = useMemo(() => {
     const graph = new DependencyGraph();
@@ -140,7 +183,13 @@ export function useLinkageManager({
         if (!linkage) continue;
 
         try {
-          const result = await evaluateLinkage(linkage, formData, linkageFunctions, fieldName);
+          const result = await evaluateLinkage({
+            linkage,
+            formData,
+            linkageFunctions,
+            fieldPath: fieldName,
+            asyncSequenceManager,
+          });
           states[fieldName] = result;
 
           // 如果是值联动，更新 formData 以供后续字段使用
@@ -186,7 +235,13 @@ export function useLinkageManager({
           if (!linkage) continue;
 
           try {
-            const result = await evaluateLinkage(linkage, formData, linkageFunctions, fieldName);
+            const result = await evaluateLinkage({
+              linkage,
+              formData,
+              linkageFunctions,
+              fieldPath: fieldName,
+              asyncSequenceManager,
+            });
             newStates[fieldName] = result;
 
             // 处理值联动：自动更新表单字段值和 formData
@@ -226,12 +281,19 @@ export function useLinkageManager({
 /**
  * 求值单个联动配置（支持异步函数）
  */
-async function evaluateLinkage(
-  linkage: LinkageConfig,
-  formData: Record<string, any>,
-  linkageFunctions: Record<string, LinkageFunction>,
-  fieldPath: string
-): Promise<LinkageResult> {
+async function evaluateLinkage({
+  linkage,
+  formData,
+  linkageFunctions,
+  fieldPath,
+  asyncSequenceManager,
+}: {
+  linkage: LinkageConfig;
+  formData: Record<string, any>;
+  linkageFunctions: Record<string, LinkageFunction>;
+  fieldPath: string;
+  asyncSequenceManager: AsyncSequenceManager;
+}): Promise<LinkageResult> {
   const result: LinkageResult = {};
 
   // 构建联动函数上下文
@@ -260,8 +322,20 @@ async function evaluateLinkage(
   if (effect.function) {
     const fn = linkageFunctions[effect.function];
     if (fn) {
+      // 生成新的序列号（在调用异步函数之前）
+      const sequence = asyncSequenceManager.next(fieldPath);
+
       // 使用 await 支持异步函数，传递 context
       const fnResult = await fn(formData, context);
+
+      // 检查序列号是否仍然是最新的（防止竞态条件）
+      if (!asyncSequenceManager.isLatest(fieldPath, sequence)) {
+        console.log(
+          `[useLinkageManager] 检测到过期的异步结果，字段: ${fieldPath}, 序列号: ${sequence}`
+        );
+        // 返回空结果，不更新状态
+        return {};
+      }
 
       // 根据 linkage.type 决定将结果赋值给哪个字段
       switch (linkage.type) {
@@ -270,6 +344,9 @@ async function evaluateLinkage(
           break;
         case 'options':
           result.options = fnResult;
+          break;
+        case 'schema':
+          result.schema = fnResult;
           break;
         case 'visibility':
           result.visible = Boolean(fnResult);

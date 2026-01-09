@@ -48,18 +48,6 @@ export interface UIConfig {
   flattenPath?: boolean; // 是否跳过该对象层级
   flattenPrefix?: boolean; // 是否添加当前字段 title 作为前缀
 
-  // 动态嵌套表单配置（详见 NESTED_FORM.md）
-  schemaKey?: string; // 动态 schema 的依赖字段
-  schemas?: Record<
-    string,
-    {
-      // 多个子表单 schema 片段
-      properties?: Record<string, ExtendedJSONSchema>;
-      required?: string[];
-    }
-  >;
-  schemaLoader?: (value: any) => Promise<ExtendedJSONSchema>; // 异步加载 schema
-
   // 数组特有配置（详见 ARRAY_FIELD_WIDGET.md）
   arrayMode?: 'dynamic' | 'static'; // 数组渲染模式：dynamic 可增删，static 不可增删
   showAddButton?: boolean; // 是否显示添加按钮

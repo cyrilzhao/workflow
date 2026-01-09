@@ -100,5 +100,6 @@
 - [x] 支持基于 codeMirror 的代码输入组件
 - [ ] 添加自定义 nested form widget 的代码示例
 - [x] 补充使用 schemaLoader 的代码示例
+- [x] schemaLoader 和 schemaKey 改为使用联动来更新 schema
 - [ ] 大规模表单性能
 - [ ] 文档与代码实现对齐

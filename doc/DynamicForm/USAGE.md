@@ -580,9 +580,35 @@ const schema = {
 
 #### Dynamic Nested Forms
 
-Switch between different schemas based on field values:
+Switch between different schemas based on field values using linkage:
 
 ```typescript
+// Define schemas for different user types
+const userSchemas = {
+  personal: {
+    type: 'object',
+    properties: {
+      firstName: { type: 'string', title: 'First Name' },
+      lastName: { type: 'string', title: 'Last Name' },
+    },
+  },
+  company: {
+    type: 'object',
+    properties: {
+      companyName: { type: 'string', title: 'Company Name' },
+      taxId: { type: 'string', title: 'Tax ID' },
+    },
+  },
+};
+
+// Define linkage function to load schema
+const linkageFunctions = {
+  loadUserSchema: (formData: Record<string, any>) => {
+    const userType = formData?.userType;
+    return userSchemas[userType] || { type: 'object', properties: {} };
+  },
+};
+
 const schema = {
   type: 'object',
   properties: {
@@ -596,26 +622,24 @@ const schema = {
       type: 'object',
       title: 'Details',
       ui: {
-        widget: 'nested-form', // Explicitly specified here for clarity when using schemaKey/schemas
-        schemaKey: 'userType',
-        schemas: {
-          personal: {
-            properties: {
-              firstName: { type: 'string', title: 'First Name' },
-              lastName: { type: 'string', title: 'Last Name' },
-            },
-          },
-          company: {
-            properties: {
-              companyName: { type: 'string', title: 'Company Name' },
-              taxId: { type: 'string', title: 'Tax ID' },
-            },
-          },
+        widget: 'nested-form',
+        linkage: {
+          type: 'schema',
+          dependencies: ['userType'],
+          when: { field: 'userType', operator: 'isNotEmpty' },
+          fulfill: { function: 'loadUserSchema' },
         },
       },
     },
   },
 };
+
+// Use in component
+<DynamicForm
+  schema={schema}
+  linkageFunctions={linkageFunctions}
+  onSubmit={handleSubmit}
+/>
 ```
 
 ### Field Path Flattening

@@ -4,7 +4,7 @@ import type { ExtendedJSONSchema } from '../types/schema';
 /**
  * NestedSchemaContext 用于收集所有嵌套表单的当前 schema
  *
- * 当嵌套表单使用动态 schema（通过 schemaKey 切换）时，
+ * 当嵌套表单使用动态 schema（通过 schema 联动切换）时，
  * 每个 NestedFormWidget 会将自己当前使用的 schema 注册到这个 Context 中。
  *
  * 在表单提交时，DynamicForm 会使用这些注册的 schema 来正确过滤数据。

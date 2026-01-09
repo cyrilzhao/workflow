@@ -116,40 +116,61 @@ const fetchProductSchema = async (productType: string): Promise<ExtendedJSONSche
 export const SchemaLoaderExample: React.FC = () => {
   const [submittedData, setSubmittedData] = useState<any>(null);
 
-  // 使用 useMemo 缓存 schema，避免每次渲染都创建新的 schemaLoader 函数
-  const schema: ExtendedJSONSchema = useMemo(() => ({
-    type: 'object',
-    properties: {
-      productType: {
-        type: 'string',
-        title: 'Product Type',
-        enum: ['laptop', 'smartphone', 'tablet'],
-        enumNames: ['Laptop', 'Smartphone', 'Tablet'],
-        ui: {
-          widget: 'radio',
-        },
+  // 定义联动函数：根据 productType 加载对应的 schema
+  const linkageFunctions = useMemo(
+    () => ({
+      loadProductSchema: async (formData: Record<string, any>) => {
+        const productType = formData?.productType;
+        if (!productType) {
+          return { type: 'object', properties: {} };
+        }
+        return fetchProductSchema(productType);
       },
-      configuration: {
-        type: 'object',
-        title: 'Product Configuration',
-        properties: {},
-        ui: {
-          widget: 'nested-form',
-          schemaLoader: async (formData: any) => {
-            const productType = formData?.productType;
-            if (!productType) {
-              return { type: 'object', properties: {} };
-            }
-            return fetchProductSchema(productType);
+    }),
+    []
+  );
+
+  // 使用 useMemo 缓存 schema，避免每次渲染都创建新的 schemaLoader 函数
+  const schema: ExtendedJSONSchema = useMemo(
+    () => ({
+      type: 'object',
+      properties: {
+        productType: {
+          type: 'string',
+          title: 'Product Type',
+          enum: ['laptop', 'smartphone', 'tablet'],
+          enumNames: ['Laptop', 'Smartphone', 'Tablet'],
+          ui: {
+            widget: 'radio',
+          },
+        },
+        configuration: {
+          type: 'object',
+          title: 'Product Configuration',
+          properties: {},
+          ui: {
+            widget: 'nested-form',
+            linkage: {
+              type: 'schema',
+              dependencies: ['productType'],
+              when: {
+                field: 'productType',
+                operator: 'isNotEmpty',
+              },
+              fulfill: {
+                function: 'loadProductSchema',
+              },
+            },
           },
         },
       },
-    },
-    required: ['productType'],
-  }), []); // 空依赖数组，schema 只创建一次
+      required: ['productType'],
+    }),
+    []
+  ); // 空依赖数组，schema 只创建一次
 
   const handleSubmit = (data: any) => {
-    console.log('Schema Loader Example - Submitted data:', data);
+    console.log('Schema Loader Example - 提交数据:', data);
     setSubmittedData(data);
   };
 
@@ -160,8 +181,8 @@ export const SchemaLoaderExample: React.FC = () => {
       <Callout intent="primary" style={{ marginBottom: '20px' }}>
         <h4>Scenario: Dynamic Product Configuration</h4>
         <p>
-          This example demonstrates using <code>schemaLoader</code> to asynchronously load
-          product configuration schemas from a server based on the selected product type.
+          This example demonstrates using <code>schemaLoader</code> to asynchronously load product
+          configuration schemas from a server based on the selected product type.
         </p>
         <ul style={{ marginBottom: 0 }}>
           <li>Select a product type (Laptop, Smartphone, or Tablet)</li>
@@ -171,14 +192,12 @@ export const SchemaLoaderExample: React.FC = () => {
         </ul>
       </Callout>
 
-      <DynamicForm schema={schema} onSubmit={handleSubmit} />
+      <DynamicForm schema={schema} onSubmit={handleSubmit} linkageFunctions={linkageFunctions} />
 
       {submittedData && (
         <Callout intent="success" style={{ marginTop: '20px' }}>
           <h4>Submitted Data:</h4>
-          <pre style={{ marginBottom: 0 }}>
-            {JSON.stringify(submittedData, null, 2)}
-          </pre>
+          <pre style={{ marginBottom: 0 }}>{JSON.stringify(submittedData, null, 2)}</pre>
         </Callout>
       )}
     </Card>

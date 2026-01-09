@@ -8,7 +8,7 @@
 4. [类型定义和接口设计](#4-类型定义和接口设计)
 5. [组件实现](#5-组件实现)
 6. [使用示例](#6-使用示例)
-7. [SchemaKey 路径格式与数据过滤机制](#7-schemakey-路径格式与数据过滤机制)
+7. [数据过滤机制](#7-数据过滤机制)
 8. [高级特性](#8-高级特性)
 9. [最佳实践](#9-最佳实践)
 10. [注意事项](#10-注意事项)
@@ -55,6 +55,32 @@
 ### 2.2 场景 2: 可配置的子表单（同级字段依赖）
 
 ```typescript
+// 定义不同类型的 schema
+const detailSchemas = {
+  personal: {
+    type: 'object',
+    properties: {
+      firstName: { type: 'string', title: 'First Name' },
+      lastName: { type: 'string', title: 'Last Name' }
+    }
+  },
+  company: {
+    type: 'object',
+    properties: {
+      companyName: { type: 'string', title: 'Company Name' },
+      taxId: { type: 'string', title: 'Tax ID' }
+    }
+  }
+};
+
+// 定义联动函数
+const linkageFunctions = {
+  loadDetailSchema: (formData: Record<string, any>) => {
+    const type = formData?.type;
+    return detailSchemas[type] || { type: 'object', properties: {} };
+  }
+};
+
 // 根据类型动态加载不同的子表单
 {
   type: 'object',
@@ -69,20 +95,11 @@
       title: 'Details',
       ui: {
         widget: 'nested-form',
-        schemaKey: 'type', // 简单字段名：依赖同级的 type 字段
-        schemas: {
-          personal: {
-            properties: {
-              firstName: { type: 'string', title: 'First Name' },
-              lastName: { type: 'string', title: 'Last Name' }
-            }
-          },
-          company: {
-            properties: {
-              companyName: { type: 'string', title: 'Company Name' },
-              taxId: { type: 'string', title: 'Tax ID' }
-            }
-          }
+        linkage: {
+          type: 'schema',
+          dependencies: ['type'], // 依赖同级的 type 字段
+          when: { field: 'type', operator: 'isNotEmpty' },
+          fulfill: { function: 'loadDetailSchema' }
         }
       }
     }
@@ -99,6 +116,32 @@
 ### 2.3 场景 3: 跨层级字段依赖（JSON Pointer）
 
 ```typescript
+// 定义不同公司类型的 schema
+const companySchemas = {
+  startup: {
+    type: 'object',
+    properties: {
+      foundedYear: { type: 'number', title: 'Founded Year' },
+      funding: { type: 'string', title: 'Funding Stage' }
+    }
+  },
+  enterprise: {
+    type: 'object',
+    properties: {
+      employeeCount: { type: 'number', title: 'Employee Count' },
+      revenue: { type: 'number', title: 'Annual Revenue' }
+    }
+  }
+};
+
+// 定义联动函数
+const linkageFunctions = {
+  loadCompanySchema: (formData: Record<string, any>) => {
+    const companyType = formData?.company?.type;
+    return companySchemas[companyType] || { type: 'object', properties: {} };
+  }
+};
+
 // 使用 JSON Pointer 依赖嵌套字段
 {
   type: 'object',
@@ -116,21 +159,12 @@
           title: 'Company Details',
           ui: {
             widget: 'nested-form',
-            // 使用 JSON Pointer 依赖 company.type
-            schemaKey: '#/properties/company/type',
-            schemas: {
-              startup: {
-                properties: {
-                  foundedYear: { type: 'number', title: 'Founded Year' },
-                  funding: { type: 'string', title: 'Funding Stage' }
-                }
-              },
-              enterprise: {
-                properties: {
-                  employeeCount: { type: 'number', title: 'Employee Count' },
-                  revenue: { type: 'number', title: 'Annual Revenue' }
-                }
-              }
+            linkage: {
+              type: 'schema',
+              // 使用 JSON Pointer 格式依赖 company.type
+              dependencies: ['#/properties/company/properties/type'],
+              when: { field: '#/properties/company/properties/type', operator: 'isNotEmpty' },
+              fulfill: { function: 'loadCompanySchema' }
             }
           }
         }
@@ -142,7 +176,7 @@
 
 **说明**：
 
-- `schemaKey: '#/properties/company/type'` 使用 JSON Pointer 格式
+- `dependencies` 使用 JSON Pointer 格式：`#/properties/company/properties/type`
 - 可以依赖任意层级的字段，不限于同级
 - 同样支持自动数据清除机制
 
@@ -204,23 +238,15 @@ export interface UIConfig {
   style?: React.CSSProperties;
   order?: string[];
   errorMessages?: ErrorMessages;
-
-  // 嵌套表单配置（用于动态场景）
-  schemaKey?: string; // 动态 schema 的依赖字段（支持简单字段名或 JSON Pointer 格式）
-  // 示例: 'type' 或 '#/properties/company/type'
-  schemas?: Record<
-    string,
-    {
-      // 多个子表单 schema 片段
-      properties?: Record<string, ExtendedJSONSchema>;
-      required?: string[];
-    }
-  >;
-  schemaLoader?: (value: any) => Promise<ExtendedJSONSchema>; // 异步加载 schema
+  linkage?: LinkageConfig; // UI 联动配置（包括动态 schema 加载）
 
   [key: string]: any;
 }
 ```
+
+> **💡 动态嵌套表单**
+>
+> 动态 schema 加载现在通过 `linkage` 配置实现，详见 [UI 联动设计方案](./UI_LINKAGE_DESIGN.md)。
 
 ### 4.2 NestedFormWidget 组件属性
 
@@ -231,22 +257,18 @@ export interface NestedFormWidgetProps extends FieldWidgetProps {
   // 当前字段的 schema（包含 properties）
   schema: ExtendedJSONSchema;
 
-  // 动态 Schema 配置（可选）
-  schemaKey?: string;
-  schemas?: Record<
-    string,
-    {
-      properties?: Record<string, ExtendedJSONSchema>;
-      required?: string[];
-    }
-  >;
-  schemaLoader?: (value: any) => Promise<ExtendedJSONSchema>;
+  // 当前字段值（对象）
+  value?: Record<string, any>;
+
+  // 值变化回调
+  onChange?: (value: Record<string, any>) => void;
 
   // 其他配置
   disabled?: boolean;
   readonly?: boolean;
   layout?: 'vertical' | 'horizontal' | 'inline'; // 布局方式
   labelWidth?: number | string; // 标签宽度
+  noCard?: boolean; // 是否不渲染 Card 容器
 }
 ```
 
@@ -260,242 +282,23 @@ export interface NestedFormWidgetProps extends FieldWidgetProps {
 
 ## 5. 组件实现
 
-### 5.1 完整的 NestedFormWidget 实现
+### 5.1 NestedFormWidget 核心机制
 
-```typescript
-// src/components/DynamicForm/widgets/NestedFormWidget.tsx
+NestedFormWidget 组件的完整实现请参考源代码：`src/components/DynamicForm/widgets/NestedFormWidget.tsx`
 
-import React, { forwardRef, useState, useEffect, useRef } from 'react';
-import { useFormContext } from 'react-hook-form';
-import { Card } from '@blueprintjs/core';
-import { DynamicForm } from '../DynamicForm';
-import type { FieldWidgetProps } from '../types';
-import type { ExtendedJSONSchema } from '../types/schema';
-import { PathResolver } from '@/utils/pathResolver';
-import { useNestedSchemaRegistry } from '../context/NestedSchemaContext';
-import { usePathPrefix, joinPath, removePrefix } from '../context/PathPrefixContext';
+**核心特性**：
 
-export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps>(
-  ({ name, value = {}, schema, disabled, readonly, layout, labelWidth }, ref) => {
-    const [currentSchema, setCurrentSchema] = useState(schema);
-    const [loading, setLoading] = useState(false);
+1. **Schema 注册机制**：使用 `NestedSchemaContext` 注册当前使用的 schema，用于表单提交时的数据过滤
+2. **联动支持**：通过 `LinkageStateContext` 接收来自父表单的 schema 联动结果
+3. **选择性合并**：当接收到新的 schema 时，只更新 properties 和验证字段，保留原有的 ui 配置
+4. **路径管理**：使用 `PathPrefixContext` 管理嵌套字段的完整路径
+5. **FormContext 共享**：与父表单共享同一个 FormContext，实现数据的自动同步
 
-    // 保存外层表单的 context
-    const parentFormContext = useFormContext();
-    const { watch, getValues } = parentFormContext;
+**动态 Schema 加载**：
 
-    // 获取父级路径前缀和嵌套 schema 注册表
-    const parentPathPrefix = usePathPrefix();
-    const fullPath = joinPath(parentPathPrefix, name);
-    const nestedSchemaRegistry = useNestedSchemaRegistry();
-
-    // 从 schema.ui 中获取嵌套表单配置
-    const schemaKey = schema.ui?.schemaKey;
-    const schemas = schema.ui?.schemas;
-    const schemaLoader = schema.ui?.schemaLoader;
-
-    // 保存当前的 schema key 值，用于检测切换
-    const previousKeyRef = useRef<string | undefined>();
-
-    // 【关键】注册当前 schema 到 Context（当 currentSchema 变化时更新）
-    useEffect(() => {
-      nestedSchemaRegistry.register(fullPath, currentSchema);
-      console.info(`[NestedFormWidget] 注册字段 "${fullPath}" 的 schema 到 Context`);
-
-      return () => {
-        nestedSchemaRegistry.unregister(fullPath);
-        console.info(`[NestedFormWidget] 注销字段 "${fullPath}" 的 schema`);
-      };
-    }, [fullPath, currentSchema, nestedSchemaRegistry]);
-
-    // 处理动态 schema 加载
-    useEffect(() => {
-      if (!schemaKey || !schemas) return;
-
-      // 转换为 react-hook-form 的字段路径用于监听
-      const watchFieldPath = PathResolver.toFieldPath(schemaKey);
-
-      // 获取依赖字段的值（支持 JSON Pointer）
-      const getSchemaKeyValue = () => {
-        const currentFormValues = getValues();
-        const fullFieldPath = PathResolver.toFieldPath(schemaKey);
-        const value = PathResolver.getNestedValue(
-          currentFormValues,
-          removePrefix(fullFieldPath, parentPathPrefix)
-        );
-        return value;
-      };
-
-      // 初始化时检查当前值
-      const currentKey = getSchemaKeyValue();
-      if (currentKey && schemas[currentKey]) {
-        setCurrentSchema({
-          ...schema,
-          properties: schemas[currentKey].properties,
-          required: schemas[currentKey].required,
-        });
-        previousKeyRef.current = currentKey;
-      }
-
-      // 监听依赖字段变化
-      const subscription = watch((formValues, { name: changedField }) => {
-        const fullChangedField = parentPathPrefix
-          ? joinPath(parentPathPrefix, changedField || '')
-          : changedField;
-
-        if (fullChangedField === watchFieldPath) {
-          const key = getSchemaKeyValue();
-          const dynamicSchema = schemas[key];
-
-          if (dynamicSchema) {
-            // 检测到类型切换，保留旧数据（不清除）
-            if (previousKeyRef.current && previousKeyRef.current !== key) {
-              console.info(
-                `[NestedFormWidget] 类型从 "${previousKeyRef.current}" 切换到 "${key}"，保留字段 "${name}" 的数据`
-              );
-            }
-
-            // 更新 schema（会触发重新注册）
-            setCurrentSchema({
-              ...schema,
-              properties: dynamicSchema.properties,
-              required: dynamicSchema.required,
-            });
-
-            previousKeyRef.current = key;
-          }
-        }
-      });
-
-      return () => subscription.unsubscribe();
-    }, [schemaKey, schemas, watch, schema, getValues, name, parentPathPrefix]);
-
-    // 处理异步 schema 加载
-    useEffect(() => {
-      if (schemaLoader && value) {
-        setLoading(true);
-        schemaLoader(value)
-          .then(setCurrentSchema)
-          .finally(() => setLoading(false));
-      }
-    }, [schemaLoader, value]);
-
-    if (loading) {
-      return (
-        <div ref={ref} className="nested-form-loading">
-          加载中...
-        </div>
-      );
-    }
-
-    if (!currentSchema || !currentSchema.properties) {
-      return null;
-    }
-
-    return (
-      <Card
-        ref={ref}
-        className="nested-form-widget"
-        data-name={name}
-        elevation={1}
-        style={{ padding: '15px' }}
-      >
-        <DynamicForm
-          schema={currentSchema}
-          disabled={disabled}
-          readonly={readonly}
-          layout={layout}
-          labelWidth={labelWidth}
-          showSubmitButton={false}
-          renderAsForm={false}
-          onSubmit={() => {}}
-          pathPrefix={fullPath}
-          asNestedForm={true}
-        />
-      </Card>
-    );
-  }
-);
-
-NestedFormWidget.displayName = 'NestedFormWidget';
-```
-
-**关键变化说明**：
-
-1. **移除了 Controller 组件**：不再使用 `react-hook-form` 的 `Controller` 包裹
-2. **使用 asNestedForm 模式**：通过 `asNestedForm={true}` 让内层 DynamicForm 复用父表单的 FormContext
-3. **移除了 defaultValues 和 onChange**：数据通过父表单的 FormContext 自动管理
-4. **添加了 layout 和 labelWidth**：支持布局配置的传递
-5. **使用 pathPrefix**：字段名会自动添加完整路径前缀（如 `company.details.name`）
-
-### 5.2 关键实现要点
-
-#### 5.2.1 Schema 注册机制
-
-```typescript
-// 每次 currentSchema 变化时，重新注册到 Context
-useEffect(() => {
-  nestedSchemaRegistry.register(fullPath, currentSchema);
-  return () => {
-    nestedSchemaRegistry.unregister(fullPath);
-  };
-}, [fullPath, currentSchema, nestedSchemaRegistry]);
-```
-
-**说明**：
-
-- 当 `schemaKey` 依赖字段变化时，`currentSchema` 会更新
-- `useEffect` 会自动重新注册新的 schema
-- 这确保注册表中始终是最新的 schema
-
-#### 5.2.2 路径计算
-
-```typescript
-const parentPathPrefix = usePathPrefix();
-const fullPath = joinPath(parentPathPrefix, name);
-```
-
-**说明**：
-
-- 支持多层嵌套表单的路径计算
-- 例如：`company.details` 表示 `company` 字段下的 `details` 嵌套表单
-
-#### 5.2.3 嵌套表单模式（asNestedForm）
-
-NestedFormWidget 使用 `asNestedForm={true}` 参数让内层 DynamicForm 复用父表单的 FormContext：
-
-```typescript
-<DynamicForm
-  schema={currentSchema}
-  pathPrefix={fullPath}
-  asNestedForm={true}
-  // ...其他配置
-/>
-```
-
-**工作原理**：
-
-1. **FormContext 复用**：
-   - 内层 DynamicForm 检测到 `asNestedForm={true}` 时，不会创建新的 `useForm` 实例
-   - 而是通过 `useFormContext()` 获取并复用父表单的 FormContext
-   - 所有字段直接注册到父表单中
-
-2. **字段路径前缀**：
-   - 通过 `pathPrefix={fullPath}` 参数传递完整路径（如 `company.details`）
-   - 内层表单的字段名会自动添加前缀（如 `name` → `company.details.name`）
-   - 这样可以避免字段名冲突，并保持正确的数据结构
-
-3. **数据自动管理**：
-   - 不需要手动传递 `defaultValues` 和 `onChange`
-   - 字段值通过父表单的 FormContext 自动读取和更新
-   - 验证规则也会自动注册到父表单中
-
-**优势**：
-
-- ✅ 简化了数据传递逻辑，无需手动同步值
-- ✅ 避免了 Controller 的额外包裹层
-- ✅ 统一的验证和提交流程
-- ✅ 更好的性能，减少了不必要的重渲染
+动态 schema 加载通过 UI 联动系统实现，配置方式请参考：
+- [UI 联动设计方案](./UI_LINKAGE_DESIGN.md)
+- 本文档第 2.2 和 2.3 节的示例代码
 
 ---
 
@@ -527,106 +330,63 @@ const schema = {
 
 // 使用
 <DynamicForm schema={schema} onSubmit={handleSubmit} />
-
-// 提交的数据结构
-{
-  name: 'John Doe',
-  address: {
-    street: '123 Main St',
-    city: 'New York',
-    zipCode: '10001'
-  }
-}
-
-// 说明：
-// - address 字段会自动渲染为 NestedFormWidget（因为 type: 'object' 默认使用 nested-form widget）
-// - 内层字段（street, city, zipCode）会自动添加路径前缀（address.street, address.city, address.zipCode）
-// - 数据通过父表单的 FormContext 自动管理，无需手动传递 value 和 onChange
 ```
+
+**说明**：
+- address 字段会自动渲染为 NestedFormWidget（因为 type: 'object' 默认使用 nested-form widget）
+- 内层字段会自动添加路径前缀（address.street, address.city, address.zipCode）
+- 数据通过父表单的 FormContext 自动管理
 
 ### 6.2 示例 2: 动态嵌套表单（根据字段值切换）
 
-```typescript
-const schema = {
-  type: 'object',
-  properties: {
-    userType: {
-      type: 'string',
-      title: 'User Type',
-      enum: ['personal', 'company'],
-      enumNames: ['Personal', 'Company'],
-    },
-    details: {
-      type: 'object',
-      title: 'Details',
-      ui: {
-        widget: 'nested-form',
-        schemaKey: 'userType',
-        schemas: {
-          personal: {
-            type: 'object',
-            properties: {
-              firstName: { type: 'string', title: 'First Name' },
-              lastName: { type: 'string', title: 'Last Name' },
-              birthDate: { type: 'string', title: 'Birth Date', ui: { widget: 'date' } },
-            },
-          },
-          company: {
-            type: 'object',
-            properties: {
-              companyName: { type: 'string', title: 'Company Name' },
-              taxId: { type: 'string', title: 'Tax ID' },
-              industry: { type: 'string', title: 'Industry' },
-            },
-          },
-        },
-      },
-    },
-  },
-};
-```
+动态嵌套表单的示例请参考本文档第 2.2 节和第 2.3 节，这些示例展示了如何使用 linkage 配置实现动态 schema 加载。
 
 ---
 
 ## 7. 数据过滤机制
 
-### 7.1 SchemaKey 路径格式
+### 7.1 数据过滤概述
 
-嵌套表单的 `schemaKey` 支持两种路径格式来引用依赖字段：
+当使用动态嵌套表单（通过 linkage 配置动态加载 schema）时，用户在不同 schema 之间切换会导致表单数据包含多个 schema 的字段。为了确保提交的数据只包含当前 schema 定义的字段，系统实现了自动数据过滤机制。
 
-- **简单字段名**：用于同级字段依赖（如 `'userType'`）
-- **JSON Pointer**：用于跨层级字段依赖（如 `'#/properties/company/type'`）
+**核心机制**：
 
-**示例：**
+1. **Schema 注册**：每个 NestedFormWidget 会将当前使用的 schema 注册到 `NestedSchemaContext`
+2. **数据过滤**：表单提交时，使用 `filterValueWithNestedSchemas` 函数根据注册的 schema 过滤数据
+3. **选择性保留**：只保留当前 schema 中定义的字段，过滤掉其他字段
+
+**示例场景**：
+
+用户在 personal 和 company 类型之间切换时，details 字段会包含两种类型的数据：
 
 ```typescript
-// 简单字段名（同级依赖）
+// 用户先选择 personal，填写了个人信息
 {
-  userType: { type: 'string', enum: ['personal', 'company'] },
+  userType: 'personal',
   details: {
-    type: 'object',
-    ui: {
-      schemaKey: 'userType',  // 依赖同级的 userType 字段
-      schemas: { /* ... */ }
-    }
+    firstName: 'John',
+    lastName: 'Doe'
   }
 }
 
-// JSON Pointer（跨层级依赖）
+// 然后切换到 company，填写了公司信息
 {
-  company: {
-    type: 'object',
-    properties: {
-      type: { type: 'string' },
-      info: {
-        details: {
-          ui: {
-            schemaKey: '#/properties/company/type',  // 依赖 company.type
-            schemas: { /* ... */ }
-          }
-        }
-      }
-    }
+  userType: 'company',
+  details: {
+    firstName: 'John',      // personal 类型的字段
+    lastName: 'Doe',        // personal 类型的字段
+    companyName: 'Acme',    // company 类型的字段
+    taxId: '123456'         // company 类型的字段
+  }
+}
+
+// 提交时，系统会根据当前 schema（company）自动过滤数据
+{
+  userType: 'company',
+  details: {
+    companyName: 'Acme',
+    taxId: '123456'
+    // firstName 和 lastName 被过滤掉了
   }
 }
 ```
@@ -635,7 +395,7 @@ const schema = {
 
 ### 7.2 智能数据过滤机制
 
-当 `schemaKey` 指向的字段值发生变化时，嵌套表单会保留所有历史数据，在表单提交时根据当前 schema 自动过滤掉不需要的字段。
+当依赖字段值发生变化导致 schema 切换时，嵌套表单会保留所有历史数据，在表单提交时根据当前 schema 自动过滤掉不需要的字段。
 
 #### 7.2.1 数据保留行为
 
@@ -762,7 +522,7 @@ function filterValueWithNestedSchemas(
 
 **适用场景**：
 
-- 动态嵌套表单（使用 `schemaKey` 和 `schemas` 配置）
+- 动态嵌套表单（使用 linkage 配置动态加载 schema）
 - 需要根据当前激活的 schema 过滤数据
 - 多层嵌套表单场景
 
@@ -873,7 +633,7 @@ const cleanData = filterValueWithNestedSchemas(dirtyData, schema, nestedSchemas)
 
 1. DynamicForm 创建 NestedSchemaProvider，初始化注册表
 2. NestedFormWidget 挂载时注册当前 schema
-3. 用户修改 schemaKey 依赖字段时，NestedFormWidget 更新并重新注册 schema
+3. 当依赖字段变化触发 schema 联动时，NestedFormWidget 更新并重新注册 schema
 4. 表单提交时，使用注册表过滤数据，只保留当前 schema 定义的字段
 
 详细的实现机制和分层计算策略，请参考：[UI 联动设计方案 - 分层计算策略](./UI_LINKAGE_DESIGN.md#65-分层计算策略)
@@ -885,6 +645,20 @@ const cleanData = filterValueWithNestedSchemas(dirtyData, schema, nestedSchemas)
 ### 8.1 异步加载 Schema
 
 ```typescript
+// 定义异步加载函数
+const linkageFunctions = {
+  loadProductConfigSchema: async (formData: Record<string, any>) => {
+    const productId = formData?.productId;
+    if (!productId) {
+      return { type: 'object', properties: {} };
+    }
+
+    // 根据产品 ID 异步加载配置 schema
+    const response = await api.getProductConfigSchema(productId);
+    return response.schema;
+  }
+};
+
 const schema = {
   type: 'object',
   properties: {
@@ -896,15 +670,24 @@ const schema = {
       type: 'object',
       title: 'Configuration',
       ui: {
-        schemaLoader: async value => {
-          // 根据产品 ID 异步加载配置 schema
-          const response = await api.getProductConfigSchema(value.productId);
-          return response.schema;
-        },
+        widget: 'nested-form',
+        linkage: {
+          type: 'schema',
+          dependencies: ['productId'],
+          when: { field: 'productId', operator: 'isNotEmpty' },
+          fulfill: { function: 'loadProductConfigSchema' }
+        }
       },
     },
   },
 };
+
+// 使用时传入 linkageFunctions
+<DynamicForm
+  schema={schema}
+  linkageFunctions={linkageFunctions}
+  onSubmit={handleSubmit}
+/>
 ```
 
 ### 8.2 数组中的嵌套表单
@@ -1090,11 +873,27 @@ export const NestedFormWidget = memo(
 ---
 
 **创建日期**: 2025-12-24
-**最后更新**: 2025-12-31
-**版本**: 2.1
-**文档状态**: 已优化
+**最后更新**: 2026-01-09
+**版本**: 3.0
+**文档状态**: 已更新（废弃 schemaKey/schemas，改用 linkage）
 
 ## 变更历史
+
+### v3.0 (2026-01-09)
+
+**重大变更**：废弃 schemaKey/schemas/schemaLoader，改用 linkage 配置
+
+**主要变更**：
+
+- 废弃了 `ui.schemaKey`、`ui.schemas`、`ui.schemaLoader` 字段
+- 动态 schema 加载现在通过 `ui.linkage` 配置实现（type: 'schema'）
+- 更新了所有示例代码，使用 linkage 配置替代旧的 schemaKey/schemas 方式
+- 简化了第 5 节（组件实现），改为核心机制说明并指向源代码
+- 更新了第 7 节（数据过滤机制），删除了过时的 schemaKey 路径格式说明
+- 更新了类型定义，移除了废弃字段
+- 文档更加简洁，重点突出 linkage 系统的使用
+
+**迁移指南**：详见 [UI 联动设计方案](./UI_LINKAGE_DESIGN.md) 和本文档第 2.2、2.3 节的示例
 
 ### v2.1 (2025-12-31)
 

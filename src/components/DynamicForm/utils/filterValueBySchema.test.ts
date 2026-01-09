@@ -396,7 +396,7 @@ describe('filterValueBySchema', () => {
   });
 
   describe('实际使用场景', () => {
-    it('应该模拟动态表单 schemaKey 切换场景', () => {
+    it('应该模拟动态表单 schema 切换场景', () => {
       // 模拟用户填写了多个表单版本的数据
       const allFormData = {
         // 表单版本 1 的字段

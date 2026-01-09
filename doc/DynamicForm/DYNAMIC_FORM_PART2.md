@@ -250,11 +250,10 @@ UI 配置通过 `ui` 字段扩展，支持以下属性：
 | `labelWidth`    | `number \| string`                       | 标签宽度（仅在 horizontal layout 下生效）                                                     |
 | `flattenPath`   | `boolean`                                | 路径透明化：是否跳过该对象层级（详见 [FIELD_PATH_FLATTENING.md](./FIELD_PATH_FLATTENING.md)） |
 | `flattenPrefix` | `boolean`                                | 路径透明化：是否添加当前字段 title 作为前缀                                                   |
-| `schemaKey`     | `string`                                 | 动态嵌套表单：依赖字段（详见 [NESTED_FORM.md](./NESTED_FORM.md)）                             |
-| `schemas`       | `Record<string, {...}>`                  | 动态嵌套表单：多个子表单 schema 片段                                                          |
-| `schemaLoader`  | `Function`                               | 动态嵌套表单：异步加载 schema                                                                 |
 
 > **完整类型定义**：详见 [PART3 - 组件架构设计](./DYNAMIC_FORM_PART3.md#核心类型定义)
+>
+> **动态嵌套表单**：使用 `linkage` 配置实现动态 schema 加载，详见 [UI_LINKAGE_DESIGN.md](./UI_LINKAGE_DESIGN.md) 和 [NESTED_FORM.md](./NESTED_FORM.md)
 
 **ErrorMessages 错误信息配置**：
 

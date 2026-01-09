@@ -96,7 +96,7 @@ describe('filterValueWithNestedSchemas', () => {
       });
     });
 
-    it('应该模拟动态表单 schemaKey 切换场景', () => {
+    it('应该模拟动态表单 schema 切换场景', () => {
       const schema: ExtendedJSONSchema = {
         type: 'object',
         properties: {
@@ -326,11 +326,6 @@ describe('filterValueWithNestedSchemas', () => {
         properties: {},
         ui: {
           widget: 'nested-form',
-          schemaKey: '#/properties/company/type',
-          schemas: {
-            startup: startupDetailsSchema,
-            enterprise: enterpriseDetailsSchema,
-          },
         },
       };
 

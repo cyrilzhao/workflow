@@ -1,9 +1,86 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { DynamicForm } from '@/components/DynamicForm';
 import type { ExtendedJSONSchema } from '@/components/DynamicForm/types/schema';
 import { Card } from '@blueprintjs/core';
 
 export const JsonPointerNestedExample: React.FC = () => {
+  // 定义不同公司类型的 schema
+  const companySchemas = useMemo(
+    () => ({
+      startup: {
+        type: 'object' as const,
+        properties: {
+          foundedYear: {
+            type: 'number' as const,
+            title: '成立年份',
+            minimum: 2000,
+            maximum: 2025,
+            ui: { placeholder: '请输入成立年份' },
+          },
+          funding: {
+            type: 'string' as const,
+            title: '融资阶段',
+            enum: ['seed', 'seriesA', 'seriesB', 'seriesC'],
+            enumNames: ['种子轮', 'A轮', 'B轮', 'C轮'],
+            ui: { widget: 'select', placeholder: '请选择融资阶段' },
+          },
+          teamSize: {
+            type: 'integer' as const,
+            title: '团队规模',
+            minimum: 1,
+            maximum: 500,
+            ui: { placeholder: '请输入团队人数' },
+          },
+        },
+        required: ['foundedYear', 'funding'],
+      },
+      enterprise: {
+        type: 'object' as const,
+        properties: {
+          employeeCount: {
+            type: 'number' as const,
+            title: '员工数量',
+            minimum: 500,
+            ui: { placeholder: '请输入员工数量' },
+          },
+          revenue: {
+            type: 'number' as const,
+            title: '年营收（万元）',
+            minimum: 0,
+            ui: { placeholder: '请输入年营收' },
+          },
+          stockCode: {
+            type: 'string' as const,
+            title: '股票代码',
+            ui: { placeholder: '如已上市，请输入股票代码' },
+          },
+          branches: {
+            type: 'integer' as const,
+            title: '分支机构数量',
+            minimum: 0,
+            ui: { placeholder: '请输入分支机构数量' },
+          },
+        },
+        required: ['employeeCount', 'revenue'],
+      },
+    }),
+    []
+  );
+
+  // 定义联动函数
+  const linkageFunctions = useMemo(
+    () => ({
+      loadCompanySchema: (formData: Record<string, any>) => {
+        const companyType = formData?.company?.type;
+        if (!companyType) {
+          return { type: 'object', properties: {} };
+        }
+        return companySchemas[companyType as keyof typeof companySchemas] || { type: 'object', properties: {} };
+      },
+    }),
+    [companySchemas]
+  );
+
   const schema: ExtendedJSONSchema = {
     type: 'object',
     properties: {
@@ -33,77 +110,15 @@ export const JsonPointerNestedExample: React.FC = () => {
             properties: {},
             ui: {
               widget: 'nested-form',
-              // 使用 JSON Pointer 格式依赖 company.type
-              schemaKey: '#/properties/company/type',
-              schemas: {
-                startup: {
-                  properties: {
-                    foundedYear: {
-                      type: 'number',
-                      title: '成立年份',
-                      minimum: 2000,
-                      maximum: 2025,
-                      ui: {
-                        placeholder: '请输入成立年份',
-                      },
-                    },
-                    funding: {
-                      type: 'string',
-                      title: '融资阶段',
-                      enum: ['seed', 'seriesA', 'seriesB', 'seriesC'],
-                      enumNames: ['种子轮', 'A轮', 'B轮', 'C轮'],
-                      ui: {
-                        widget: 'select',
-                        placeholder: '请选择融资阶段',
-                      },
-                    },
-                    teamSize: {
-                      type: 'integer',
-                      title: '团队规模',
-                      minimum: 1,
-                      maximum: 500,
-                      ui: {
-                        placeholder: '请输入团队人数',
-                      },
-                    },
-                  },
-                  required: ['foundedYear', 'funding'],
+              linkage: {
+                type: 'schema',
+                dependencies: ['#/properties/company/properties/type'],
+                when: {
+                  field: '#/properties/company/properties/type',
+                  operator: 'isNotEmpty',
                 },
-                enterprise: {
-                  properties: {
-                    employeeCount: {
-                      type: 'number',
-                      title: '员工数量',
-                      minimum: 500,
-                      ui: {
-                        placeholder: '请输入员工数量',
-                      },
-                    },
-                    revenue: {
-                      type: 'number',
-                      title: '年营收（万元）',
-                      minimum: 0,
-                      ui: {
-                        placeholder: '请输入年营收',
-                      },
-                    },
-                    stockCode: {
-                      type: 'string',
-                      title: '股票代码',
-                      ui: {
-                        placeholder: '如已上市，请输入股票代码',
-                      },
-                    },
-                    branches: {
-                      type: 'integer',
-                      title: '分支机构数量',
-                      minimum: 0,
-                      ui: {
-                        placeholder: '请输入分支机构数量',
-                      },
-                    },
-                  },
-                  required: ['employeeCount', 'revenue'],
+                fulfill: {
+                  function: 'loadCompanySchema',
                 },
               },
             },
@@ -133,7 +148,7 @@ export const JsonPointerNestedExample: React.FC = () => {
         <li>大型企业：显示员工数量、年营收、股票代码、分支机构数量</li>
         <li>切换类型时数据会保留，提交时自动过滤无效字段</li>
       </ul>
-      <DynamicForm schema={schema} onSubmit={handleSubmit} />
+      <DynamicForm schema={schema} onSubmit={handleSubmit} linkageFunctions={linkageFunctions} />
     </Card>
   );
 };

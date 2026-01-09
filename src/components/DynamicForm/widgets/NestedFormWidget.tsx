@@ -7,21 +7,11 @@ import type { ExtendedJSONSchema } from '../types/schema';
 import { PathResolver } from '../utils/pathResolver';
 import { useNestedSchemaRegistry } from '../context/NestedSchemaContext';
 import { usePathPrefix, joinPath, removePrefix } from '../context/PathPrefixContext';
+import { useLinkageStateContext } from '../context/LinkageStateContext';
 
 export interface NestedFormWidgetProps extends FieldWidgetProps {
   // 当前字段的 schema（包含 properties）
   schema: ExtendedJSONSchema;
-
-  // 动态 Schema 配置（可选）
-  schemaKey?: string;
-  schemas?: Record<
-    string,
-    {
-      properties?: Record<string, ExtendedJSONSchema>;
-      required?: string[];
-    }
-  >;
-  schemaLoader?: (value: any) => Promise<ExtendedJSONSchema>;
 
   // 当前字段值（对象）
   value?: Record<string, any>;
@@ -41,7 +31,7 @@ export interface NestedFormWidgetProps extends FieldWidgetProps {
 
 export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps>(
   ({ name, value = {}, schema, disabled, readonly, layout, labelWidth, noCard = false }, ref) => {
-    const [currentSchema, setCurrentSchema] = useState(schema);
+    const [currentSchema, setCurrentSchema] = useState<ExtendedJSONSchema>(schema);
     const [loading, setLoading] = useState(false);
     // 保存外层表单的 context
     const parentFormContext = useFormContext();
@@ -55,10 +45,8 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
     // 获取嵌套 schema 注册表
     const nestedSchemaRegistry = useNestedSchemaRegistry();
 
-    // 从 schema.ui 中获取嵌套表单配置
-    const schemaKey = schema.ui?.schemaKey;
-    const schemas = schema.ui?.schemas;
-    const schemaLoader = schema.ui?.schemaLoader;
+    // 获取联动状态 Context
+    const linkageStateContext = useLinkageStateContext();
 
     // 保存当前的 schema key 值，用于检测切换
     const previousKeyRef = useRef<string | undefined>();
@@ -77,170 +65,43 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
       };
     }, [fullPath, currentSchema, nestedSchemaRegistry]);
 
-    // 同步外部传入的 schema 变化
+    // 处理 schema 联动（新的联动系统）
     useEffect(() => {
-      // 如果没有动态 schema 配置，直接使用外部传入的 schema
-      if (!schemaKey && !schemaLoader) {
-        setCurrentSchema(schema);
+      // 如果没有联动状态 Context，说明不在联动环境中
+      if (!linkageStateContext) return;
+
+      const { parentLinkageStates } = linkageStateContext;
+
+      // 获取当前字段的联动状态
+      const linkageState = parentLinkageStates[fullPath];
+
+      // 如果有 schema 联动结果，更新 currentSchema
+      if (linkageState?.schema) {
+        console.log('[NestedFormWidget] 检测到 schema 联动，更新 schema:', linkageState.schema);
+
+        // 选择性合并 schema，只更新 properties 和校验相关字段
+        // 保留原有的 ui 配置（包括 ui.linkage）
+        setCurrentSchema(prevSchema => ({
+          ...prevSchema,
+          // 更新 properties
+          properties: linkageState.schema.properties || prevSchema.properties,
+          // 更新校验相关字段
+          required: linkageState.schema.required,
+          minProperties: linkageState.schema.minProperties,
+          maxProperties: linkageState.schema.maxProperties,
+          dependencies: linkageState.schema.dependencies,
+          if: linkageState.schema.if,
+          then: linkageState.schema.then,
+          else: linkageState.schema.else,
+          allOf: linkageState.schema.allOf,
+          anyOf: linkageState.schema.anyOf,
+          oneOf: linkageState.schema.oneOf,
+          not: linkageState.schema.not,
+          // 保留原有的 ui 配置
+          ui: prevSchema.ui,
+        }));
       }
-    }, [schema, schemaKey, schemaLoader]);
-
-    // 处理动态 schema 加载
-    useEffect(() => {
-      if (!schemaKey || !schemas) return;
-
-      // 转换为 react-hook-form 的字段路径用于监听
-      const watchFieldPath = PathResolver.toFieldPath(schemaKey);
-      console.info(
-        '[NestedFormWidget] 初始化监听 - schemaKey:',
-        schemaKey,
-        'watchFieldPath:',
-        watchFieldPath
-      );
-
-      // 获取依赖字段的值（支持 JSON Pointer）
-      const getSchemaKeyValue = () => {
-        const currentFormValues = getValues();
-        console.info('[NestedFormWidget] currentFormValues:', currentFormValues);
-        console.info('[NestedFormWidget] name:', name);
-        // const value = PathResolver.resolve(schemaKey, currentFormValues);
-
-        const fullFieldPath = PathResolver.toFieldPath(schemaKey);
-        const value = PathResolver.getNestedValue(
-          currentFormValues,
-          removePrefix(fullFieldPath, parentPathPrefix)
-        );
-
-        console.info('[NestedFormWidget] 获取依赖字段值:', value, 'from path:', schemaKey);
-
-        return value;
-      };
-
-      // 初始化时检查当前值
-      const currentKey = getSchemaKeyValue();
-      console.info(
-        '[NestedFormWidget] 初始 currentKey:',
-        currentKey,
-        'schemas:',
-        Object.keys(schemas)
-      );
-
-      if (currentKey && schemas[currentKey]) {
-        console.info('[NestedFormWidget] 设置初始 schema for key:', currentKey);
-        setCurrentSchema({
-          ...schema,
-          properties: schemas[currentKey].properties,
-          required: schemas[currentKey].required,
-        });
-        previousKeyRef.current = currentKey;
-      }
-
-      // 监听依赖字段变化
-      const subscription = watch((formValues, { name: changedField }) => {
-        // 拼接完整的 changedField 路径（如果有父级前缀）
-        const fullChangedField = parentPathPrefix
-          ? joinPath(parentPathPrefix, changedField || '')
-          : changedField;
-
-        console.info(
-          '[NestedFormWidget] watch 回调触发 - changedField:',
-          changedField,
-          ', fullChangedField:',
-          fullChangedField,
-          ', watchFieldPath:',
-          watchFieldPath,
-          ', parentPathPrefix:',
-          parentPathPrefix
-        );
-
-        // 检查变化的字段是否是我们监听的字段
-        if (fullChangedField === watchFieldPath) {
-          const key = getSchemaKeyValue();
-          console.info(
-            '[NestedFormWidget] 依赖字段匹配！新值:',
-            key,
-            '旧值:',
-            previousKeyRef.current
-          );
-
-          const dynamicSchema = schemas[key];
-
-          if (dynamicSchema) {
-            // 检测到类型切换，保留旧数据（不清除）
-            if (previousKeyRef.current && previousKeyRef.current !== key) {
-              console.info(
-                `[NestedFormWidget] 类型从 "${previousKeyRef.current}" 切换到 "${key}"，保留字段 "${name}" 的数据`
-              );
-            }
-
-            // 更新 schema
-            console.info('[NestedFormWidget] 更新 schema to:', key);
-            setCurrentSchema({
-              ...schema,
-              properties: dynamicSchema.properties,
-              required: dynamicSchema.required,
-            });
-
-            // 更新当前 key
-            previousKeyRef.current = key;
-          } else {
-            console.warn('[NestedFormWidget] 未找到对应的 schema for key:', key);
-          }
-        }
-      });
-
-      return () => {
-        console.info('[NestedFormWidget] 取消订阅 watch');
-        subscription.unsubscribe();
-      };
-    }, [schemaKey, schemas, watch, schema, getValues, name]);
-
-    // 处理异步 schema 加载
-    useEffect(() => {
-      if (!schemaLoader) return;
-
-      // 监听整个表单的变化
-      const subscription = watch((formData) => {
-        // 序列化表单数据用于比较
-        const currentFormDataStr = JSON.stringify(formData);
-
-        // 如果表单数据没有真正变化，不触发加载
-        if (currentFormDataStr === previousValueRef.current) {
-          return;
-        }
-
-        // 更新缓存的表单数据
-        previousValueRef.current = currentFormDataStr;
-
-        console.log('[NestedFormWidget] schemaLoader 触发，formData:', formData);
-
-        // 调用 schemaLoader，传入整个表单数据
-        setLoading(true);
-        schemaLoader(formData)
-          .then((loadedSchema) => {
-            console.log('[NestedFormWidget] schemaLoader 加载完成:', loadedSchema);
-            setCurrentSchema(loadedSchema);
-          })
-          .finally(() => setLoading(false));
-      });
-
-      // 初始化时也触发一次加载
-      const initialFormData = getValues();
-      const initialFormDataStr = JSON.stringify(initialFormData);
-      if (initialFormDataStr !== previousValueRef.current) {
-        previousValueRef.current = initialFormDataStr;
-        console.log('[NestedFormWidget] schemaLoader 初始化触发，formData:', initialFormData);
-        setLoading(true);
-        schemaLoader(initialFormData)
-          .then((loadedSchema) => {
-            console.log('[NestedFormWidget] schemaLoader 初始化加载完成:', loadedSchema);
-            setCurrentSchema(loadedSchema);
-          })
-          .finally(() => setLoading(false));
-      }
-
-      return () => subscription.unsubscribe();
-    }, [schemaLoader, watch, getValues]);
+    }, [linkageStateContext, fullPath]);
 
     if (loading) {
       return (
