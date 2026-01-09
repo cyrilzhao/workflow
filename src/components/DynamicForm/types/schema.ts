@@ -130,7 +130,7 @@ export interface ValidationRules {
 export interface FieldConfig {
   name: string;
   type: string;
-  widget: WidgetType;
+  widget: string;
   label?: string;
   placeholder?: string;
   description?: string;

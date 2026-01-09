@@ -2,6 +2,7 @@ import React from 'react';
 import { DynamicForm } from '@/components/DynamicForm';
 import type { ExtendedJSONSchema } from '@/components/DynamicForm/types/schema';
 import { Card } from '@blueprintjs/core';
+import { CodeEditorWidget } from '@/components/DynamicForm/widgets/CodeEditorWidget';
 
 export const BasicFormPanel: React.FC = () => {
   const schema: ExtendedJSONSchema = {
@@ -96,6 +97,34 @@ export const BasicFormPanel: React.FC = () => {
           placeholder: '介绍一下自己...',
         },
       },
+      config: {
+        type: 'string',
+        title: '配置信息 (JSON)',
+        ui: {
+          widget: 'code-editor',
+          widgetProps: {
+            language: 'json',
+            config: {
+              previewLines: 5,
+              previewMaxHeight: 150,
+            },
+          },
+        },
+      },
+      authScript: {
+        type: 'string',
+        title: '鉴权脚本',
+        ui: {
+          widget: 'code-editor',
+          widgetProps: {
+            language: 'javascript',
+            config: {
+              previewLines: 5,
+              previewMaxHeight: 150,
+            },
+          },
+        },
+      },
       receiveNewsletter: {
         type: 'boolean',
         title: '订阅新闻邮件',
@@ -127,7 +156,14 @@ export const BasicFormPanel: React.FC = () => {
       <p>
         包含常见的表单字段类型：文本、邮箱、手机号、密码、数字、下拉选择、单选、多行文本、开关、复选框等。
       </p>
-      <DynamicForm schema={schema} onSubmit={handleSubmit} customFormats={customFormats} />
+      <DynamicForm
+        schema={schema}
+        onSubmit={handleSubmit}
+        customFormats={customFormats}
+        widgets={{
+          'code-editor': CodeEditorWidget,
+        }}
+      />
     </Card>
   );
 };

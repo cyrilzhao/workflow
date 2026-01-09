@@ -221,7 +221,7 @@ export class SchemaParser {
   /**
    * 获取 Widget 类型
    */
-  private static getWidget(schema: ExtendedJSONSchema): WidgetType {
+  private static getWidget(schema: ExtendedJSONSchema): string {
     if (schema.ui?.widget) {
       return schema.ui.widget;
     }

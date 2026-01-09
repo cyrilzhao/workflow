@@ -235,6 +235,7 @@ UI 配置通过 `ui` 字段扩展，支持以下属性：
 | 属性            | 类型                                     | 说明                                                                                          |
 | --------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------- |
 | `widget`        | `string`                                 | 组件类型（text、select、radio 等）                                                            |
+| `widgetProps`   | `Record<string, any>`                    | Widget 专属配置（如 CodeEditor 的 language、config 等），会被展开传递给 widget 组件            |
 | `placeholder`   | `string`                                 | 占位符文本                                                                                    |
 | `disabled`      | `boolean`                                | 是否禁用                                                                                      |
 | `readonly`      | `boolean`                                | 是否只读                                                                                      |
@@ -420,7 +421,61 @@ const [isSubmitting, setIsSubmitting] = useState(false);
 - 数字：如 `120`（表示 120px）
 - 字符串：如 `"120px"`、`"10rem"`、`"20%"`
 
-#### 5.3.5 字段级 UI 配置
+#### 5.3.5 Widget 专属配置 (widgetProps)
+
+`widgetProps` 用于传递 widget 组件的专属配置，这些配置会被展开传递给对应的 widget 组件。
+
+**设计原则**：
+
+- **通用 UI 配置**（如 `placeholder`、`disabled`、`readonly`）直接放在 `ui` 顶层
+- **Widget 专属配置**（如 CodeEditor 的 `language`、`config`）放在 `ui.widgetProps` 下
+
+**配置示例**：
+
+```json
+{
+  "properties": {
+    "code": {
+      "type": "string",
+      "title": "代码编辑器",
+      "ui": {
+        "widget": "code-editor",
+        "placeholder": "请输入代码...",  // 通用配置
+        "widgetProps": {  // Widget 专属配置
+          "language": "javascript",
+          "theme": "light",
+          "config": {
+            "previewLines": 5,
+            "previewMaxHeight": 150,
+            "modalPadding": 40
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**实现原理**：
+
+FormField 组件会将 `widgetProps` 中的所有属性展开传递给 widget：
+
+```typescript
+<WidgetComponent
+  {...controllerField}
+  placeholder={field.placeholder}
+  disabled={disabled}
+  {...(field.schema?.ui?.widgetProps || {})}  // 展开 widgetProps
+/>
+```
+
+**使用场景**：
+
+1. **CodeEditor Widget**：传递 `language`、`config`、`theme`、`validator`、`formatter` 等配置
+2. **自定义 Widget**：传递任何 widget 特定的配置项
+3. **第三方 Widget**：传递第三方组件库的专属配置
+
+#### 5.3.6 字段级 UI 配置
 
 ```json
 {
@@ -439,7 +494,7 @@ const [isSubmitting, setIsSubmitting] = useState(false);
 }
 ```
 
-#### 5.3.6 自定义错误信息
+#### 5.3.7 自定义错误信息
 
 ```json
 {
@@ -478,7 +533,7 @@ const [isSubmitting, setIsSubmitting] = useState(false);
 }
 ```
 
-#### 5.3.7 支持的 Widget 类型
+#### 5.3.8 支持的 Widget 类型
 
 | Widget 类型   | 适用字段类型        | 说明                                     |
 | ------------- | ------------------- | ---------------------------------------- |
@@ -499,6 +554,7 @@ const [isSubmitting, setIsSubmitting] = useState(false);
 | `time`        | string              | 时间选择                                 |
 | `color`       | string              | 颜色选择                                 |
 | `file`        | string              | 文件上传                                 |
+| `code-editor` | string              | 代码编辑器（详见 CODE_EDITOR_WIDGET_DESIGN.md） |
 | `nested-form` | object/array        | 嵌套表单（详见 NESTED_FORM.md）          |
 
 > **注意**：
@@ -511,7 +567,7 @@ const [isSubmitting, setIsSubmitting] = useState(false);
 > - `nested-form` widget 用于渲染嵌套对象和对象数组，支持静态和动态 schema
 > - 对象数组使用 `nested-form` 时，每个数组项都会渲染为独立的嵌套表单卡片
 
-#### 5.3.8 字段路径透明化（Field Path Flattening）
+#### 5.3.9 字段路径透明化（Field Path Flattening）
 
 > **详细文档**：完整的设计和实现请参考 [字段路径透明化设计文档](./FIELD_PATH_FLATTENING.md)
 

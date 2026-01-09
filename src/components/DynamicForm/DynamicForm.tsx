@@ -16,6 +16,7 @@ import {
 } from './context/NestedSchemaContext';
 import { PathPrefixProvider } from './context/PathPrefixContext';
 import { LinkageStateProvider, useLinkageStateContext } from './context/LinkageStateContext';
+import { WidgetsProvider } from './context/WidgetsContext';
 import { PathTransformer, splitPath, rebuildPath } from './utils/pathTransformer';
 import { wrapPrimitiveArrays, unwrapPrimitiveArrays } from './utils/arrayTransformer';
 import '@blueprintjs/core/lib/css/blueprint.css';
@@ -171,7 +172,6 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
   const {
     linkages: rawLinkages,
     pathMappings,
-    hasFlattenPath,
   } = useMemo(() => {
     const parsed = parseSchemaLinkages(schema);
     if (process.env.NODE_ENV !== 'production') {
@@ -231,7 +231,7 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
       processedLinkages: linkages,
       formToUse: linkageStateContext?.form || methods,
       effectiveLinkageFunctions:
-        linkageFunctions || linkageStateContext?.linkageFunctions || EMPTY_LINKAGE_FUNCTIONS,
+        stableLinkageFunctions || linkageStateContext?.linkageFunctions || EMPTY_LINKAGE_FUNCTIONS,
     };
   }, [
     rawLinkages,
@@ -240,7 +240,7 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
     linkageStateContext?.parentLinkageStates,
     linkageStateContext?.form,
     linkageStateContext?.linkageFunctions,
-    linkageFunctions,
+    stableLinkageFunctions,
     methods,
   ]);
 
@@ -344,7 +344,6 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
               field={field}
               disabled={disabled || field.disabled || loading || linkageState?.disabled}
               readonly={readonly || field.readonly || linkageState?.readonly}
-              widgets={stableWidgets}
               linkageState={linkageState}
               layout={layout}
               labelWidth={labelWidth}
@@ -392,23 +391,36 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
   // 渲染表单内容（不包含 FormProvider）
   // 注意：在 asNestedForm 模式下，字段名已经通过 pathPrefix 参数添加了前缀，
   // 所以不应该再通过 PathPrefixProvider 提供前缀，否则会导致路径重复
-  const renderFormContent = () => (
-    <PathPrefixProvider prefix={asNestedForm ? '' : pathPrefix}>
-      {renderAsForm ? (
-        <form onSubmit={handleSubmit(onSubmitHandler)} className={formClassName} style={style}>
-          {showErrorList && Object.keys(errors).length > 0 && <ErrorList errors={errors} />}
-          {renderFields()}
-          {renderSubmitButton()}
-        </form>
-      ) : (
-        <div className={formClassName} style={style}>
-          {showErrorList && Object.keys(errors).length > 0 && <ErrorList errors={errors} />}
-          {renderFields()}
-          {renderSubmitButton()}
-        </div>
-      )}
-    </PathPrefixProvider>
-  );
+  const renderFormContent = () => {
+    const content = (
+      <PathPrefixProvider prefix={asNestedForm ? '' : pathPrefix}>
+        {renderAsForm ? (
+          <form onSubmit={handleSubmit(onSubmitHandler)} className={formClassName} style={style}>
+            {showErrorList && Object.keys(errors).length > 0 && <ErrorList errors={errors} />}
+            {renderFields()}
+            {renderSubmitButton()}
+          </form>
+        ) : (
+          <div className={formClassName} style={style}>
+            {showErrorList && Object.keys(errors).length > 0 && <ErrorList errors={errors} />}
+            {renderFields()}
+            {renderSubmitButton()}
+          </div>
+        )}
+      </PathPrefixProvider>
+    );
+
+    // 只在顶层（非嵌套表单）创建 WidgetsProvider
+    if (asNestedForm) {
+      return content;
+    }
+
+    return (
+      <WidgetsProvider widgets={stableWidgets}>
+        {content}
+      </WidgetsProvider>
+    );
+  };
 
   // 嵌套表单模式下不需要再包裹 FormProvider，因为已经复用了父表单的 context
   if (asNestedForm && parentFormContext) {

@@ -32,7 +32,7 @@ export interface ArrayFieldWidgetProps extends FieldWidgetProps {
 /**
  * 根据 items schema 决定使用什么 widget 渲染数组元素
  */
-function determineItemWidget(itemsSchema: ExtendedJSONSchema): WidgetType {
+function determineItemWidget(itemsSchema: ExtendedJSONSchema): string {
   // 优先级 1: 显式指定了 widget
   if (itemsSchema.ui?.widget) {
     return itemsSchema.ui.widget;
@@ -527,6 +527,7 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
           layout={layout}
           labelWidth={labelWidth}
           noCard={true}
+          {...(schema.ui?.widgetProps || {})}
         />
       </Card>
     );
@@ -576,6 +577,7 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
                 onChange={controllerField.onChange}
                 disabled={disabled}
                 readonly={readonly}
+                {...(schema.ui?.widgetProps || {})}
               />
               {fieldError && (
                 <div style={{ color: '#DB3737', fontSize: '12px', marginTop: '5px' }}>

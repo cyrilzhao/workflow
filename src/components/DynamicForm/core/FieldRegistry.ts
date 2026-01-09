@@ -14,8 +14,8 @@ import {
 } from '../widgets';
 
 export class FieldRegistry {
-  private static widgets: Map<WidgetType, React.ComponentType<any>> = new Map<
-    WidgetType,
+  private static widgets: Map<string, React.ComponentType<any>> = new Map<
+    string,
     React.ComponentType<any>
   >([
     ['text', TextWidget],
@@ -32,17 +32,17 @@ export class FieldRegistry {
     ['array', ArrayFieldWidget],
   ]);
 
-  static register(type: WidgetType, component: React.ComponentType<any>) {
+  static register(type: string, component: React.ComponentType<any>) {
     this.widgets.set(type, component);
   }
 
-  static getWidget(type: WidgetType): React.ComponentType<any> | undefined {
+  static getWidget(type: string): React.ComponentType<any> | undefined {
     return this.widgets.get(type);
   }
 
   static registerBatch(widgets: Record<string, React.ComponentType<any>>) {
     Object.entries(widgets).forEach(([type, component]) => {
-      this.register(type as WidgetType, component);
+      this.register(type, component);
     });
   }
 }

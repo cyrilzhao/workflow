@@ -5,6 +5,7 @@ import { FieldLabel } from '../components/FieldLabel';
 import { FieldError } from '../components/FieldError';
 import { FieldHelp } from '../components/FieldHelp';
 import { FieldRegistry } from '../core/FieldRegistry';
+import { useWidgets } from '../context/WidgetsContext';
 import type { FieldConfig } from '../types/schema';
 import type { LinkageResult } from '../types/linkage';
 
@@ -30,7 +31,6 @@ interface FormFieldProps {
   field: FieldConfig;
   disabled?: boolean;
   readonly?: boolean;
-  widgets?: Record<string, React.ComponentType<any>>;
   linkageState?: LinkageResult;
   layout?: 'vertical' | 'horizontal' | 'inline';
   labelWidth?: number | string;
@@ -40,7 +40,6 @@ export const FormField: React.FC<FormFieldProps> = ({
   field,
   disabled,
   readonly,
-  widgets = {},
   linkageState,
   layout = 'vertical',
   labelWidth,
@@ -50,6 +49,9 @@ export const FormField: React.FC<FormFieldProps> = ({
     formState: { errors },
     setValue,
   } = useFormContext();
+
+  // 从 Context 获取 widgets
+  const widgets = useWidgets();
 
   // 当联动状态中有值时，自动设置字段值
   React.useEffect(() => {
@@ -122,6 +124,7 @@ export const FormField: React.FC<FormFieldProps> = ({
             schema={field.schema}
             layout={effectiveLayout}
             labelWidth={effectiveLabelWidth}
+            {...(field.schema?.ui?.widgetProps || {})}
           />
         )}
       />
