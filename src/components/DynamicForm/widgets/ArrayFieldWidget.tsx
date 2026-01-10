@@ -1,4 +1,4 @@
-import React, { forwardRef, useMemo, useState } from 'react';
+import React, { forwardRef, useMemo, useState, useRef, useEffect } from 'react';
 import { useFormContext, useFieldArray, Controller } from 'react-hook-form';
 import {
   Button,
@@ -8,8 +8,9 @@ import {
   Popover,
   PopoverInteractionKind,
 } from '@blueprintjs/core';
+import { Virtuoso } from 'react-virtuoso';
 import type { FieldWidgetProps } from '../types';
-import type { ExtendedJSONSchema, WidgetType } from '../types/schema';
+import type { ExtendedJSONSchema } from '../types/schema';
 import { FieldRegistry } from '../core/FieldRegistry';
 import { SchemaParser } from '../core/SchemaParser';
 
@@ -27,6 +28,16 @@ export interface ArrayFieldWidgetProps extends FieldWidgetProps {
   readonly?: boolean;
   layout?: 'vertical' | 'horizontal' | 'inline';
   labelWidth?: number | string;
+  /**
+   * 是否启用虚拟滚动
+   * 当数组项数量较多时（建议 > 20），启用虚拟滚动可以显著提升性能
+   */
+  enableVirtualScroll?: boolean;
+  /**
+   * 虚拟滚动容器高度（像素）
+   * 默认值：600
+   */
+  virtualScrollHeight?: number;
 }
 
 /**
@@ -164,12 +175,27 @@ function getDefaultValue(itemsSchema: ExtendedJSONSchema): any {
 }
 
 export const ArrayFieldWidget = forwardRef<HTMLDivElement, ArrayFieldWidgetProps>(
-  ({ name, schema, disabled, readonly, layout, labelWidth }, ref) => {
+  (
+    {
+      name,
+      schema,
+      disabled,
+      readonly,
+      layout,
+      labelWidth,
+      enableVirtualScroll = false,
+      virtualScrollHeight = 600,
+    },
+    ref
+  ) => {
     const { control, formState } = useFormContext();
     const { fields, append, remove, move } = useFieldArray({
       control,
       name,
     });
+
+    // Virtuoso ref，用于控制滚动
+    const virtuosoRef = useRef<any>(null);
 
     // 获取数组项的 schema
     const itemSchema = schema.items as ExtendedJSONSchema;
@@ -178,6 +204,29 @@ export const ArrayFieldWidget = forwardRef<HTMLDivElement, ArrayFieldWidgetProps
       console.warn(`ArrayFieldWidget: schema.items is required for array field "${name}"`);
       return null;
     }
+
+    // 监听表单错误，自动滚动到第一个错误的数组项
+    useEffect(() => {
+      if (!enableVirtualScroll || !virtuosoRef.current || !formState.errors) {
+        return;
+      }
+
+      // 查找第一个有错误的数组项索引
+      const errors = formState.errors;
+      const arrayErrors = errors[name] as any;
+
+      if (arrayErrors && Array.isArray(arrayErrors)) {
+        const firstErrorIndex = arrayErrors.findIndex((error: any) => error !== undefined);
+        if (firstErrorIndex !== -1) {
+          // 滚动到第一个错误的数组项
+          virtuosoRef.current.scrollToIndex({
+            index: firstErrorIndex,
+            align: 'center',
+            behavior: 'smooth',
+          });
+        }
+      }
+    }, [formState.errors, name, enableVirtualScroll]);
 
     // 判断渲染模式
     const arrayMode = useMemo(() => determineArrayMode(schema), [schema]);
@@ -292,26 +341,56 @@ export const ArrayFieldWidget = forwardRef<HTMLDivElement, ArrayFieldWidgetProps
     return (
       <div ref={ref} className="array-field-widget">
         {/* 数组项列表 */}
-        {fields.map((field, index) => (
-          <ArrayItem
-            key={field.id}
-            name={`${name}.${index}`}
-            index={index}
-            schema={itemSchema}
-            onRemove={canAddRemove ? () => handleRemove(index) : undefined}
-            onMoveUp={canAddRemove ? () => handleMoveUp(index) : undefined}
-            onMoveDown={canAddRemove ? () => handleMoveDown(index) : undefined}
-            statusMap={{
-              isAtMinLimit: fields.length <= minItems,
-              isFirstItem: index === 0,
-              isLastItem: index === fields.length - 1,
-            }}
-            disabled={disabled}
-            readonly={readonly}
-            layout={layout}
-            labelWidth={labelWidth}
+        {enableVirtualScroll && fields.length > 0 ? (
+          // 虚拟滚动模式
+          <Virtuoso
+            ref={virtuosoRef}
+            style={{ height: `${virtualScrollHeight}px` }}
+            data={fields}
+            itemContent={(index, field) => (
+              <ArrayItem
+                key={field.id}
+                name={`${name}.${index}`}
+                index={index}
+                schema={itemSchema}
+                onRemove={canAddRemove ? () => handleRemove(index) : undefined}
+                onMoveUp={canAddRemove ? () => handleMoveUp(index) : undefined}
+                onMoveDown={canAddRemove ? () => handleMoveDown(index) : undefined}
+                statusMap={{
+                  isAtMinLimit: fields.length <= minItems,
+                  isFirstItem: index === 0,
+                  isLastItem: index === fields.length - 1,
+                }}
+                disabled={disabled}
+                readonly={readonly}
+                layout={layout}
+                labelWidth={labelWidth}
+              />
+            )}
           />
-        ))}
+        ) : (
+          // 普通渲染模式
+          fields.map((field, index) => (
+            <ArrayItem
+              key={field.id}
+              name={`${name}.${index}`}
+              index={index}
+              schema={itemSchema}
+              onRemove={canAddRemove ? () => handleRemove(index) : undefined}
+              onMoveUp={canAddRemove ? () => handleMoveUp(index) : undefined}
+              onMoveDown={canAddRemove ? () => handleMoveDown(index) : undefined}
+              statusMap={{
+                isAtMinLimit: fields.length <= minItems,
+                isFirstItem: index === 0,
+                isLastItem: index === fields.length - 1,
+              }}
+              disabled={disabled}
+              readonly={readonly}
+              layout={layout}
+              labelWidth={labelWidth}
+            />
+          ))
+        )}
 
         {/* 空状态提示 */}
         {fields.length === 0 && emptyText && (

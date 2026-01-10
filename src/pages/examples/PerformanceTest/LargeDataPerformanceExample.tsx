@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Card, Elevation, FormGroup, NumericInput } from '@blueprintjs/core';
+import { Card, Elevation, FormGroup, NumericInput, Switch } from '@blueprintjs/core';
 import { DynamicForm } from '../../../components/DynamicForm/DynamicForm';
 import type { ExtendedJSONSchema } from '../../../components/DynamicForm/types/schema';
 
@@ -18,6 +18,8 @@ export const LargeDataPerformanceExample: React.FC = () => {
   const [nestedLevel, setNestedLevel] = useState(3);
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [renderTime, setRenderTime] = useState<number>(0);
+  const [enableVirtualScroll, setEnableVirtualScroll] = useState(true);
+  const [virtualScrollHeight, setVirtualScrollHeight] = useState(600);
 
   // 生成复杂的 Schema
   const schema = useMemo(() => {
@@ -45,7 +47,7 @@ export const LargeDataPerformanceExample: React.FC = () => {
 
       <Card elevation={Elevation.TWO} style={{ marginBottom: '20px', padding: '15px' }}>
         <h3>Configuration</h3>
-        <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-end' }}>
+        <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <FormGroup label="Array Item Count" inline>
             <NumericInput
               value={arrayItemCount}
@@ -69,6 +71,27 @@ export const LargeDataPerformanceExample: React.FC = () => {
           </FormGroup>
 
           <div>
+            <Switch
+              checked={enableVirtualScroll}
+              label="Enable Virtual Scroll"
+              onChange={(e) => setEnableVirtualScroll(e.currentTarget.checked)}
+            />
+          </div>
+
+          {enableVirtualScroll && (
+            <FormGroup label="Scroll Height (px)" inline>
+              <NumericInput
+                value={virtualScrollHeight}
+                onValueChange={value => setVirtualScrollHeight(value)}
+                min={300}
+                max={1000}
+                stepSize={50}
+                style={{ width: '100px' }}
+              />
+            </FormGroup>
+          )}
+
+          <div>
             <strong>Schema Generation Time:</strong> {renderTime.toFixed(2)}ms
           </div>
         </div>
@@ -88,7 +111,13 @@ export const LargeDataPerformanceExample: React.FC = () => {
         </div>
       </Card>
 
-      <DynamicForm schema={schema} onSubmit={handleSubmit} defaultValues={defaultValues} />
+      <DynamicForm
+        schema={schema}
+        onSubmit={handleSubmit}
+        defaultValues={defaultValues}
+        enableVirtualScroll={enableVirtualScroll}
+        virtualScrollHeight={virtualScrollHeight}
+      />
 
       {Object.keys(formData).length > 0 && (
         <Card elevation={Elevation.TWO} style={{ marginTop: '20px', padding: '15px' }}>

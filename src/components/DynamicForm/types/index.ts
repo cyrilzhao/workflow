@@ -26,6 +26,10 @@ export interface DynamicFormProps {
   showSubmitButton?: boolean; // 是否显示提交按钮
   renderAsForm?: boolean; // 是否渲染为 <form> 标签（默认 true）
 
+  // 性能优化配置
+  enableVirtualScroll?: boolean; // 是否启用虚拟滚动（用于数组字段）
+  virtualScrollHeight?: number; // 虚拟滚动容器高度（像素，默认 600）
+
   // 表单行为
   validateMode?: 'onSubmit' | 'onBlur' | 'onChange' | 'all';
   reValidateMode?: 'onSubmit' | 'onBlur' | 'onChange'; // 重新验证模式

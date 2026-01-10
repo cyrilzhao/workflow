@@ -113,6 +113,8 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
   style,
   pathPrefix = '',
   asNestedForm = false,
+  enableVirtualScroll = false,
+  virtualScrollHeight = 600,
 }) => {
   // ========== Context 获取（集中管理） ==========
   const parentFormContext = useFormContext();
@@ -355,6 +357,8 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
               linkageState={linkageState}
               layout={layout}
               labelWidth={labelWidth}
+              enableVirtualScroll={enableVirtualScroll}
+              virtualScrollHeight={virtualScrollHeight}
             />
           );
         })}

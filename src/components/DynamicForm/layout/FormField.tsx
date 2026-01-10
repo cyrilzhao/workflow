@@ -34,6 +34,8 @@ interface FormFieldProps {
   linkageState?: LinkageResult;
   layout?: 'vertical' | 'horizontal' | 'inline';
   labelWidth?: number | string;
+  enableVirtualScroll?: boolean;
+  virtualScrollHeight?: number;
 }
 
 export const FormField: React.FC<FormFieldProps> = ({
@@ -43,6 +45,8 @@ export const FormField: React.FC<FormFieldProps> = ({
   linkageState,
   layout = 'vertical',
   labelWidth,
+  enableVirtualScroll,
+  virtualScrollHeight,
 }) => {
   const {
     control,
@@ -129,6 +133,8 @@ export const FormField: React.FC<FormFieldProps> = ({
             schema={field.schema}
             layout={effectiveLayout}
             labelWidth={effectiveLabelWidth}
+            enableVirtualScroll={enableVirtualScroll}
+            virtualScrollHeight={virtualScrollHeight}
             {...(field.schema?.ui?.widgetProps || {})}
           />
         )}
