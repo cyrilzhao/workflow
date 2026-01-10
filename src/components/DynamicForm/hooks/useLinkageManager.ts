@@ -290,6 +290,24 @@ export function useLinkageManager({
       }
 
       setLinkageStates(states);
+
+      // 批量更新表单（将计算出的值联动结果写入表单）
+      taskQueue.setUpdatingForm(true);
+      for (const fieldName of sortedFields) {
+        const linkage = linkages[fieldName];
+        if (linkage?.type === 'value' && formData[fieldName] !== undefined) {
+          const currentValue = getValues(fieldName);
+          if (currentValue !== formData[fieldName]) {
+            setValue(fieldName, formData[fieldName], {
+              shouldValidate: false,
+              shouldDirty: false,
+            });
+          }
+        }
+      }
+      // 使用 Promise 确保 setValue 触发的 watch 都已执行
+      await new Promise(resolve => setTimeout(resolve, 0));
+      taskQueue.setUpdatingForm(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linkages, linkageFunctions, dependencyGraph]);
@@ -369,6 +387,17 @@ async function evaluateLinkage({
       // 使用 await 支持异步函数，传递 context
       const fnResult = await fn(formData, context);
 
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[evaluateLinkage] 函数执行结果:', {
+          fieldPath,
+          functionName: effect.function,
+          linkageType: linkage.type,
+          fnResult,
+          context,
+          formData,
+        });
+      }
+
       // 检查序列号是否仍然是最新的（防止竞态条件）
       if (!asyncSequenceManager.isLatest(fieldPath, sequence)) {
         // 抛出过期错误，让调用方决定如何处理
@@ -395,6 +424,14 @@ async function evaluateLinkage({
         case 'readonly':
           result.readonly = Boolean(fnResult);
           break;
+      }
+    } else {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('[evaluateLinkage] 联动函数未找到:', {
+          fieldPath,
+          functionName: effect.function,
+          availableFunctions: Object.keys(linkageFunctions),
+        });
       }
     }
   }

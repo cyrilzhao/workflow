@@ -772,7 +772,56 @@ describe('useLinkageManager - 条件操作符', () => {
 });
 
 describe('useLinkageManager - 联动类型', () => {
-  it('应该支持 disabled 联动类型', async () => {
+  it('应该支持 visibility 联动类型（通过函数）', async () => {
+    const { result } = renderHook(() => {
+      const form = useForm({
+        defaultValues: {
+          userType: 'individual',
+          companyInfo: '',
+        },
+      });
+
+      const linkages: Record<string, LinkageConfig> = {
+        companyInfo: {
+          type: 'visibility',
+          dependencies: ['userType'],
+          fulfill: {
+            function: 'checkCompanyVisible',
+          },
+        },
+      };
+
+      const linkageFunctions: Record<string, LinkageFunction> = {
+        checkCompanyVisible: (formData: any) => {
+          return formData.userType === 'company';
+        },
+      };
+
+      const linkageStates = useLinkageManager({
+        form,
+        linkages,
+        linkageFunctions,
+      });
+
+      return { form, linkageStates };
+    });
+
+    // 初始状态：个人用户，应该隐藏
+    await waitFor(() => {
+      expect(result.current.linkageStates.companyInfo?.visible).toBe(false);
+    });
+
+    // 切换为企业用户，应该显示
+    act(() => {
+      result.current.form.setValue('userType', 'company');
+    });
+
+    await waitFor(() => {
+      expect(result.current.linkageStates.companyInfo?.visible).toBe(true);
+    });
+  });
+
+  it('应该支持 disabled 联动类型（通过函数）', async () => {
     const { result } = renderHook(() => {
       const form = useForm({
         defaultValues: {
@@ -785,23 +834,22 @@ describe('useLinkageManager - 联动类型', () => {
         advancedFeatures: {
           type: 'disabled',
           dependencies: ['accountType'],
-          when: {
-            field: 'accountType',
-            operator: '==',
-            value: 'free',
-          },
           fulfill: {
-            state: { disabled: true },
+            function: 'checkDisabled',
           },
-          otherwise: {
-            state: { disabled: false },
-          },
+        },
+      };
+
+      const linkageFunctions: Record<string, LinkageFunction> = {
+        checkDisabled: (formData: any) => {
+          return formData.accountType === 'free';
         },
       };
 
       const linkageStates = useLinkageManager({
         form,
         linkages,
+        linkageFunctions,
       });
 
       return { form, linkageStates };
@@ -813,13 +861,16 @@ describe('useLinkageManager - 联动类型', () => {
     });
 
     // 升级为高级账户，应该启用
-    result.current.form.setValue('accountType', 'premium');
+    act(() => {
+      result.current.form.setValue('accountType', 'premium');
+    });
+
     await waitFor(() => {
       expect(result.current.linkageStates.advancedFeatures?.disabled).toBe(false);
     });
   });
 
-  it('应该支持 readonly 联动类型', async () => {
+  it('应该支持 readonly 联动类型（通过函数）', async () => {
     const { result } = renderHook(() => {
       const form = useForm({
         defaultValues: {
@@ -832,23 +883,22 @@ describe('useLinkageManager - 联动类型', () => {
         userName: {
           type: 'readonly',
           dependencies: ['isEditing'],
-          when: {
-            field: 'isEditing',
-            operator: '==',
-            value: false,
-          },
           fulfill: {
-            state: { readonly: true },
+            function: 'checkReadonly',
           },
-          otherwise: {
-            state: { readonly: false },
-          },
+        },
+      };
+
+      const linkageFunctions: Record<string, LinkageFunction> = {
+        checkReadonly: (formData: any) => {
+          return !formData.isEditing;
         },
       };
 
       const linkageStates = useLinkageManager({
         form,
         linkages,
+        linkageFunctions,
       });
 
       return { form, linkageStates };
@@ -860,7 +910,10 @@ describe('useLinkageManager - 联动类型', () => {
     });
 
     // 进入编辑模式，应该可编辑
-    result.current.form.setValue('isEditing', true);
+    act(() => {
+      result.current.form.setValue('isEditing', true);
+    });
+
     await waitFor(() => {
       expect(result.current.linkageStates.userName?.readonly).toBe(false);
     });
@@ -928,6 +981,72 @@ describe('useLinkageManager - 数组字段联动上下文', () => {
 });
 
 describe('useLinkageManager - 依赖图和拓扑排序', () => {
+  it('应该检测并警告循环依赖', async () => {
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+
+    const { result } = renderHook(() => {
+      const form = useForm({
+        defaultValues: {
+          a: 1,
+          b: 2,
+          c: 3,
+        },
+      });
+
+      // 创建循环依赖：a -> b -> c -> a
+      const linkages: Record<string, LinkageConfig> = {
+        a: {
+          type: 'value',
+          dependencies: ['c'],
+          fulfill: {
+            function: 'calculateA',
+          },
+        },
+        b: {
+          type: 'value',
+          dependencies: ['a'],
+          fulfill: {
+            function: 'calculateB',
+          },
+        },
+        c: {
+          type: 'value',
+          dependencies: ['b'],
+          fulfill: {
+            function: 'calculateC',
+          },
+        },
+      };
+
+      const linkageFunctions: Record<string, LinkageFunction> = {
+        calculateA: (formData: any) => formData.c + 1,
+        calculateB: (formData: any) => formData.a + 1,
+        calculateC: (formData: any) => formData.b + 1,
+      };
+
+      const linkageStates = useLinkageManager({
+        form,
+        linkages,
+        linkageFunctions,
+      });
+
+      return { form, linkageStates };
+    });
+
+    // 等待初始化完成
+    await waitFor(() => {
+      expect(result.current.linkageStates).toBeDefined();
+    });
+
+    // 验证循环依赖被检测到
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '检测到循环依赖:',
+      expect.any(String)
+    );
+
+    consoleErrorSpy.mockRestore();
+  });
+
   it('应该按照依赖顺序计算联动（拓扑排序）', async () => {
     const { result } = renderHook(() => {
       const form = useForm({
@@ -1112,6 +1231,56 @@ describe('useLinkageManager - 错误处理', () => {
     consoleWarnSpy.mockRestore();
   });
 
+  it('应该处理条件函数不存在的情况（when 为字符串）', async () => {
+    const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+
+    const { result } = renderHook(() => {
+      const form = useForm({
+        defaultValues: {
+          field1: 'value1',
+          field2: '',
+        },
+      });
+
+      const linkages: Record<string, LinkageConfig> = {
+        field2: {
+          type: 'visibility',
+          dependencies: ['field1'],
+          when: 'nonExistentConditionFunction',
+          fulfill: {
+            state: { visible: true },
+          },
+          otherwise: {
+            state: { visible: false },
+          },
+        },
+      };
+
+      const linkageStates = useLinkageManager({
+        form,
+        linkages,
+        linkageFunctions: {},
+      });
+
+      return { form, linkageStates };
+    });
+
+    // 等待初始化完成
+    await waitFor(() => {
+      expect(result.current.linkageStates.field2).toBeDefined();
+    });
+
+    // 验证警告被记录
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      'Linkage function "nonExistentConditionFunction" not found'
+    );
+
+    // 条件函数不存在时，应该返回 false，使用 otherwise
+    expect(result.current.linkageStates.field2?.visible).toBe(false);
+
+    consoleWarnSpy.mockRestore();
+  });
+
   it('应该处理联动函数抛出错误的情况', async () => {
     // 必须在 renderHook 之前 mock console.error
     const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
@@ -1251,6 +1420,330 @@ describe('useLinkageManager - 错误处理', () => {
     // 等待初始化完成
     await waitFor(() => {
       expect(result.current.linkageStates.total?.value).toBe(200);
+    });
+  });
+});
+
+describe('useLinkageManager - 竞态条件处理', () => {
+  it('应该正确处理异步函数的竞态条件（快速连续修改字段）', async () => {
+    const { result } = renderHook(() => {
+      const form = useForm({
+        defaultValues: {
+          query: '',
+          results: [],
+        },
+      });
+
+      const linkages: Record<string, LinkageConfig> = {
+        results: {
+          type: 'value',
+          dependencies: ['query'],
+          fulfill: {
+            function: 'searchResults',
+          },
+        },
+      };
+
+      let callCount = 0;
+      const linkageFunctions: Record<string, LinkageFunction> = {
+        searchResults: async (formData: any) => {
+          const currentCall = ++callCount;
+          const query = formData.query || '';
+
+          // 模拟不同查询有不同的延迟
+          const delay = query === 'slow' ? 200 : 50;
+          await new Promise(resolve => setTimeout(resolve, delay));
+
+          return [`Result for ${query} (call ${currentCall})`];
+        },
+      };
+
+      const linkageStates = useLinkageManager({
+        form,
+        linkages,
+        linkageFunctions,
+      });
+
+      return { form, linkageStates };
+    });
+
+    // 等待初始化完成
+    await waitFor(() => {
+      expect(result.current.linkageStates.results).toBeDefined();
+    });
+
+    // 快速连续修改字段，触发竞态条件
+    act(() => {
+      result.current.form.setValue('query', 'slow');
+    });
+
+    // 立即修改为另一个值
+    await new Promise(resolve => setTimeout(resolve, 10));
+    act(() => {
+      result.current.form.setValue('query', 'fast');
+    });
+
+    // 等待所有异步操作完成
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    // 最终结果应该是最后一次修改的值（fast），而不是慢查询（slow）的结果
+    await waitFor(
+      () => {
+        const results = result.current.linkageStates.results?.value;
+        expect(results).toBeDefined();
+        expect(results[0]).toContain('fast');
+        expect(results[0]).not.toContain('slow');
+      },
+      { timeout: 1000 }
+    );
+  });
+
+  it('应该正确处理队列中的多个任务（队列递归处理）', async () => {
+    const { result } = renderHook(() => {
+      const form = useForm({
+        defaultValues: {
+          field1: 0,
+          field2: 0,
+          field3: 0,
+        },
+      });
+
+      const linkages: Record<string, LinkageConfig> = {
+        field2: {
+          type: 'value',
+          dependencies: ['field1'],
+          fulfill: {
+            function: 'double',
+          },
+        },
+        field3: {
+          type: 'value',
+          dependencies: ['field2'],
+          fulfill: {
+            function: 'triple',
+          },
+        },
+      };
+
+      const linkageFunctions: Record<string, LinkageFunction> = {
+        double: (formData: any) => (formData.field1 || 0) * 2,
+        triple: (formData: any) => (formData.field2 || 0) * 3,
+      };
+
+      const linkageStates = useLinkageManager({
+        form,
+        linkages,
+        linkageFunctions,
+      });
+
+      return { form, linkageStates };
+    });
+
+    // 等待初始化完成
+    await waitFor(() => {
+      expect(result.current.linkageStates.field2?.value).toBe(0);
+      expect(result.current.linkageStates.field3?.value).toBe(0);
+    });
+
+    // 快速连续修改多个字段，触发队列递归处理
+    act(() => {
+      result.current.form.setValue('field1', 5);
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    act(() => {
+      result.current.form.setValue('field1', 10);
+    });
+
+    // 等待所有队列任务完成
+    await waitFor(
+      () => {
+        expect(result.current.linkageStates.field2?.value).toBe(20);
+        expect(result.current.linkageStates.field3?.value).toBe(60);
+      },
+      { timeout: 1000 }
+    );
+  });
+});
+
+describe('useLinkageManager - Schema 类型联动', () => {
+  it('应该支持 schema 类型联动', async () => {
+    const { result } = renderHook(() => {
+      const form = useForm({
+        defaultValues: {
+          fieldType: 'text',
+          dynamicField: '',
+        },
+      });
+
+      const linkages: Record<string, LinkageConfig> = {
+        dynamicField: {
+          type: 'schema',
+          dependencies: ['fieldType'],
+          fulfill: {
+            function: 'getFieldSchema',
+          },
+        },
+      };
+
+      const linkageFunctions: Record<string, LinkageFunction> = {
+        getFieldSchema: (formData: any) => {
+          const fieldType = formData.fieldType;
+          if (fieldType === 'text') {
+            return { type: 'string', maxLength: 100 };
+          } else if (fieldType === 'number') {
+            return { type: 'number', minimum: 0, maximum: 999 };
+          }
+          return { type: 'string' };
+        },
+      };
+
+      const linkageStates = useLinkageManager({
+        form,
+        linkages,
+        linkageFunctions,
+      });
+
+      return { form, linkageStates };
+    });
+
+    // 等待初始化完成
+    await waitFor(() => {
+      expect(result.current.linkageStates.dynamicField?.schema).toEqual({
+        type: 'string',
+        maxLength: 100,
+      });
+    });
+
+    // 修改字段类型
+    act(() => {
+      result.current.form.setValue('fieldType', 'number');
+    });
+
+    // 等待联动计算完成
+    await waitFor(() => {
+      expect(result.current.linkageStates.dynamicField?.schema).toEqual({
+        type: 'number',
+        minimum: 0,
+        maximum: 999,
+      });
+    });
+  });
+});
+
+describe('useLinkageManager - 直接指定值', () => {
+  it('应该支持直接指定 value（无函数）', async () => {
+    const { result } = renderHook(() => {
+      const form = useForm({
+        defaultValues: {
+          useDefault: true,
+          targetField: '',
+        },
+      });
+
+      const linkages: Record<string, LinkageConfig> = {
+        targetField: {
+          type: 'value',
+          dependencies: ['useDefault'],
+          when: {
+            field: 'useDefault',
+            operator: '==',
+            value: true,
+          },
+          fulfill: {
+            value: 'default value',
+          },
+          otherwise: {
+            value: '',
+          },
+        },
+      };
+
+      const linkageStates = useLinkageManager({
+        form,
+        linkages,
+      });
+
+      return { form, linkageStates };
+    });
+
+    // 等待初始化完成
+    await waitFor(() => {
+      expect(result.current.linkageStates.targetField?.value).toBe('default value');
+    });
+
+    // 修改条件
+    act(() => {
+      result.current.form.setValue('useDefault', false);
+    });
+
+    // 等待联动计算完成
+    await waitFor(() => {
+      expect(result.current.linkageStates.targetField?.value).toBe('');
+    });
+  });
+
+  it('应该支持直接指定 options（无函数）', async () => {
+    const { result } = renderHook(() => {
+      const form = useForm({
+        defaultValues: {
+          category: 'fruits',
+          item: '',
+        },
+      });
+
+      const linkages: Record<string, LinkageConfig> = {
+        item: {
+          type: 'options',
+          dependencies: ['category'],
+          when: {
+            field: 'category',
+            operator: '==',
+            value: 'fruits',
+          },
+          fulfill: {
+            options: [
+              { label: 'Apple', value: 'apple' },
+              { label: 'Banana', value: 'banana' },
+            ],
+          },
+          otherwise: {
+            options: [
+              { label: 'Carrot', value: 'carrot' },
+              { label: 'Potato', value: 'potato' },
+            ],
+          },
+        },
+      };
+
+      const linkageStates = useLinkageManager({
+        form,
+        linkages,
+      });
+
+      return { form, linkageStates };
+    });
+
+    // 等待初始化完成
+    await waitFor(() => {
+      expect(result.current.linkageStates.item?.options).toEqual([
+        { label: 'Apple', value: 'apple' },
+        { label: 'Banana', value: 'banana' },
+      ]);
+    });
+
+    // 修改分类
+    act(() => {
+      result.current.form.setValue('category', 'vegetables');
+    });
+
+    // 等待联动计算完成
+    await waitFor(() => {
+      expect(result.current.linkageStates.item?.options).toEqual([
+        { label: 'Carrot', value: 'carrot' },
+        { label: 'Potato', value: 'potato' },
+      ]);
     });
   });
 });

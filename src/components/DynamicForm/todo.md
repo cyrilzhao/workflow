@@ -98,9 +98,9 @@
   - [x] 支持悬浮编辑模式
 - [x] NestedFormWidget 字段不支持渲染 array 类型的字段，需要新增一个 ArrayFieldWidget 组件，专门用于 array 类型字段的默认渲染
 - [x] 支持基于 codeMirror 的代码输入组件
-- [ ] 添加自定义 nested form widget 的代码示例
 - [x] 补充使用 schemaLoader 的代码示例
 - [x] schemaLoader 和 schemaKey 改为使用联动来更新 schema
-  - [ ] 配置了 schema 联动的字段设置 flattenPath 为 true 的情况下，没有触发 schema 更新时的渲染
+  - [x] 配置了 schema 联动的字段设置 flattenPath 为 true 的情况下，没有触发 schema 更新时的渲染
+- [ ] 添加自定义 nested form widget 的代码示例
 - [ ] 大规模表单性能
 - [ ] 文档与代码实现对齐

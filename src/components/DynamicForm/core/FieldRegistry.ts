@@ -1,4 +1,3 @@
-import type { WidgetType } from '../types/schema';
 import {
   TextWidget,
   PasswordWidget,

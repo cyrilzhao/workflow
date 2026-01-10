@@ -220,11 +220,29 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
     }
 
     // 步骤2: 确定使用的表单实例和联动函数
+    // 优先使用自己的 linkageFunctions（如果有内容），否则使用 Context 中的
+    const hasOwnFunctions = Object.keys(stableLinkageFunctions).length > 0;
+    const finalLinkageFunctions = hasOwnFunctions
+      ? stableLinkageFunctions
+      : linkageStateContext?.linkageFunctions || EMPTY_LINKAGE_FUNCTIONS;
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[DynamicForm] 联动函数解析:', {
+        pathPrefix,
+        asNestedForm,
+        hasOwnFunctions,
+        stableLinkageFunctions: Object.keys(stableLinkageFunctions),
+        contextLinkageFunctions: linkageStateContext?.linkageFunctions
+          ? Object.keys(linkageStateContext.linkageFunctions)
+          : null,
+        finalLinkageFunctions: Object.keys(finalLinkageFunctions),
+      });
+    }
+
     return {
       processedLinkages: linkages,
       formToUse: linkageStateContext?.form || methods,
-      effectiveLinkageFunctions:
-        stableLinkageFunctions || linkageStateContext?.linkageFunctions || EMPTY_LINKAGE_FUNCTIONS,
+      effectiveLinkageFunctions: finalLinkageFunctions,
     };
   }, [
     rawLinkages,
@@ -405,11 +423,7 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
       return content;
     }
 
-    return (
-      <WidgetsProvider widgets={stableWidgets}>
-        {content}
-      </WidgetsProvider>
-    );
+    return <WidgetsProvider widgets={stableWidgets}>{content}</WidgetsProvider>;
   };
 
   // 嵌套表单模式下不需要再包裹 FormProvider，因为已经复用了父表单的 context
