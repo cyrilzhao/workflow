@@ -68,10 +68,26 @@
 **根本原因**：
 
 ```typescript
-// 当前实现：一次性渲染所有字段
-{Object.entries(schema.properties).map(([fieldName, fieldSchema]) => (
-  <FieldWrapper key={fieldName} {...props} />
-))}
+// 当前实现：一次性渲染所有字段（DynamicForm.tsx 第 328-359 行）
+{fields.map(field => {
+  const linkageState = linkageStates[field.name];
+
+  if (isFieldHiddenByLinkage(field.name, linkageStates)) {
+    return null;
+  }
+
+  return (
+    <FormField
+      key={field.name}
+      field={field}
+      disabled={disabled || field.disabled || loading || linkageState?.disabled}
+      readonly={readonly || field.readonly || linkageState?.readonly}
+      linkageState={linkageState}
+      layout={layout}
+      labelWidth={labelWidth}
+    />
+  );
+})}
 ```
 
 **性能影响**：
@@ -121,14 +137,24 @@ useEffect(() => {
 **根本原因**：
 
 ```typescript
-// 当前实现：监听所有字段
+// 当前实现：监听所有字段（useLinkageManager.ts 第 316-335 行）
 useEffect(() => {
-  const subscription = watch(() => {
-    // 任何字段变化都会触发这里
-    recalculateLinkages();
+  const subscription = watch((_, { name }) => {
+    if (!name) return;
+
+    // 任何字段变化都会触发任务入队
+    taskQueue.enqueue(name);
+
+    if (taskQueue.isUpdatingForm()) {
+      return;
+    }
+
+    // 触发队列处理
+    processQueue();
   });
+
   return () => subscription.unsubscribe();
-}, [watch]);
+}, [watch, linkages, linkageFunctions, dependencyGraph]);
 ```
 
 **性能影响**：
@@ -232,47 +258,59 @@ const FormField: React.FC<FormFieldProps> = ({ field, layout, labelWidth }) => {
 **适用场景**：数组字段，特别是长列表
 
 **核心思路**：
-
 - 只渲染可视区域内的数组项
-- 使用 `react-window` 或 `react-virtualized` 实现
+- 支持动态高度（数组项高度可以不一致）
 - 动态计算可视区域，按需渲染
 
-**实现方案**：
+**挑战：数组项高度不一致**
+
+在动态表单中，数组项高度不一致的情况非常常见：
+- 对象数组：每项包含不同数量的字段
+- 联动隐藏：某些字段被隐藏，导致高度变化
+- 嵌套表单：嵌套层级不同
+- 文本内容：自动换行导致高度变化
+
+**解决方案：推荐使用 react-virtuoso**
+
+使用 `react-virtuoso` 库，专门为动态高度设计：
 
 ```typescript
-import { FixedSizeList } from 'react-window';
+import { Virtuoso } from 'react-virtuoso';
 
-const VirtualizedArrayField: React.FC<Props> = ({ items, itemHeight = 200 }) => {
-  const Row = ({ index, style }) => (
-    <div style={style}>
-      <ArrayItemForm index={index} data={items[index]} />
-    </div>
-  );
-
+const VirtualizedArrayField: React.FC<Props> = ({ items, schema }) => {
   return (
-    <FixedSizeList
-      height={600}           // 可视区域高度
-      itemCount={items.length}
-      itemSize={itemHeight}  // 每项高度
-      width="100%"
-    >
-      {Row}
-    </FixedSizeList>
+    <Virtuoso
+      data={items}
+      style={{ height: '600px' }}
+      itemContent={(index, item) => (
+        <Card key={index} style={{ marginBottom: '10px' }}>
+          <ArrayItemForm index={index} data={item} schema={schema} />
+        </Card>
+      )}
+    />
   );
 };
 ```
 
-**优化效果**：
+**优点**：
+- ✅ 自动处理动态高度，无需手动测量
+- ✅ API 简单，易于集成
+- ✅ 性能优秀，滚动流畅
+- ✅ 支持动态添加/删除项
 
+**缺点**：
+- ❌ 需要额外依赖（~20KB gzipped）
+
+**优化效果**：
 - 初始渲染时间：从 3-5s 降至 0.5-1s（70-80% 提升）
 - 内存占用：降低 60-70%
 - 滚动性能：60 FPS
 
 **注意事项**：
 
-- 需要固定或动态计算每项高度
-- 需要处理焦点管理
-- 需要适配表单验证
+- 需要处理焦点管理（滚动到验证错误的字段）
+- 需要适配表单验证（确保未渲染的字段也能正确验证）
+- 需要处理数组项的添加/删除动画
 
 #### 3.1.2 方案二：React.memo 和 useMemo 优化
 
@@ -286,29 +324,90 @@ const VirtualizedArrayField: React.FC<Props> = ({ items, itemHeight = 200 }) => 
 
 **实现方案**：
 
+**优化 FormField 组件**：
+
+当前 FormField 组件（`src/components/DynamicForm/layout/FormField.tsx`）存在的问题：
+
+1. 每次渲染都创建新的样式对象（第 84-100 行）
+2. 没有使用 React.memo 避免不必要的重渲染
+
 ```typescript
-// 优化前：每次父组件更新都会重渲染
-const FieldWrapper = ({ fieldName, schema }) => {
-  return <InputField {...props} />;
+// 优化前：每次渲染都创建新对象
+export const FormField: React.FC<FormFieldProps> = ({ field, layout, labelWidth }) => {
+  const formGroupStyle: React.CSSProperties = {};
+  if (effectiveLayout === 'horizontal') {
+    formGroupStyle.flexDirection = 'row';
+    formGroupStyle.alignItems = 'flex-start';
+  }
+
+  const labelStyle: React.CSSProperties = {};
+  if (effectiveLayout === 'horizontal' && effectiveLabelWidth) {
+    labelStyle.width = typeof effectiveLabelWidth === 'number'
+      ? `${effectiveLabelWidth}px`
+      : effectiveLabelWidth;
+  }
+  // ...
 };
 
-// 优化后：只在 props 变化时重渲染
-const FieldWrapper = React.memo(({ fieldName, schema }) => {
-  const fieldConfig = useMemo(() => {
-    return parseFieldSchema(schema);
-  }, [schema]);
+// 优化后：使用 React.memo 和 useMemo
+export const FormField = React.memo<FormFieldProps>(({
+  field,
+  disabled,
+  readonly,
+  linkageState,
+  layout = 'vertical',
+  labelWidth,
+}) => {
+  // ... 其他代码
 
-  return <InputField {...fieldConfig} />;
+  const effectiveLayout = field.schema?.ui?.layout ?? layout;
+  const effectiveLabelWidth = field.schema?.ui?.labelWidth ?? labelWidth;
+
+  // 缓存 formGroupStyle
+  const formGroupStyle = useMemo(() => {
+    const style: React.CSSProperties = {};
+    if (effectiveLayout === 'horizontal') {
+      style.flexDirection = 'row';
+      style.alignItems = 'flex-start';
+    } else if (effectiveLayout === 'inline') {
+      style.display = 'inline-flex';
+      style.marginRight = '15px';
+    }
+    return style;
+  }, [effectiveLayout]);
+
+  // 缓存 labelStyle
+  const labelStyle = useMemo(() => {
+    const style: React.CSSProperties = {};
+    if (effectiveLayout === 'horizontal' && effectiveLabelWidth) {
+      style.width = typeof effectiveLabelWidth === 'number'
+        ? `${effectiveLabelWidth}px`
+        : effectiveLabelWidth;
+      style.flexShrink = 0;
+      style.marginRight = '12px';
+    }
+    return style;
+  }, [effectiveLayout, effectiveLabelWidth]);
+
+  // ... 其他代码
 }, (prevProps, nextProps) => {
-  // 自定义比较函数
-  return prevProps.fieldName === nextProps.fieldName &&
-         prevProps.schema === nextProps.schema;
+  // 自定义比较函数：只在关键 props 变化时重渲染
+  return (
+    prevProps.field.name === nextProps.field.name &&
+    prevProps.field.widget === nextProps.field.widget &&
+    prevProps.disabled === nextProps.disabled &&
+    prevProps.readonly === nextProps.readonly &&
+    prevProps.linkageState === nextProps.linkageState &&
+    prevProps.layout === nextProps.layout &&
+    prevProps.labelWidth === nextProps.labelWidth
+  );
 });
 ```
 
 **优化效果**：
 
 - 减少 60-80% 的不必要重渲染
+- 减少对象创建次数 80-90%
 - 输入响应时间：从 200-500ms 降至 50ms 以下
 
 #### 3.1.3 方案三：精确监听字段变化
@@ -324,30 +423,51 @@ const FieldWrapper = React.memo(({ fieldName, schema }) => {
 **实现方案**：
 
 ```typescript
-// 优化前：监听所有字段
+// 优化前：监听所有字段（useLinkageManager.ts 第 316-335 行）
 useEffect(() => {
-  const subscription = watch(() => {
-    recalculateLinkages(); // 任何字段变化都触发
+  const subscription = watch((_, { name }) => {
+    if (!name) return;
+
+    // 任何字段变化都会触发任务入队
+    taskQueue.enqueue(name);
+
+    if (taskQueue.isUpdatingForm()) {
+      return;
+    }
+
+    // 触发队列处理
+    processQueue();
   });
+
   return () => subscription.unsubscribe();
-}, [watch]);
+}, [watch, linkages, linkageFunctions, dependencyGraph]);
 
 // 优化后：只监听有依赖关系的字段
 useEffect(() => {
-  // 收集所有被依赖的字段
-  const dependedFields = new Set<string>();
-  Object.values(linkages).forEach(config => {
-    config.dependencies.forEach(dep => dependedFields.add(dep));
+  const subscription = watch((_, { name }) => {
+    if (!name) return;
+
+    // 检查该字段是否被任何联动依赖
+    // 使用依赖图的反向查找：找出依赖该字段的所有字段
+    const affectedFields = dependencyGraph.getAffectedFields(name);
+
+    // 如果没有字段依赖这个字段，跳过处理
+    if (affectedFields.length === 0) {
+      return;
+    }
+
+    // 只有当字段被依赖时，才加入任务队列
+    taskQueue.enqueue(name);
+
+    if (taskQueue.isUpdatingForm()) {
+      return;
+    }
+
+    processQueue();
   });
 
-  // 只监听这些字段
-  const subscription = watch((value, { name }) => {
-    if (name && dependedFields.has(name)) {
-      recalculateLinkage(name);
-    }
-  });
   return () => subscription.unsubscribe();
-}, [watch, linkages]);
+}, [watch, linkages, linkageFunctions, dependencyGraph]);
 ```
 
 **优化效果**：
@@ -374,26 +494,49 @@ useEffect(() => {
 ```typescript
 import { debounce } from 'lodash-es';
 
-const useLinkageManager = () => {
-  // 防抖：延迟 100ms 执行联动计算
-  const debouncedRecalculate = useMemo(
-    () =>
-      debounce((fieldName: string) => {
-        recalculateLinkage(fieldName);
-      }, 100),
+// 在 useLinkageManager 中添加防抖处理
+export function useLinkageManager({
+  form,
+  linkages,
+  linkageFunctions = {},
+}: LinkageManagerOptions) {
+  const { watch, getValues, setValue } = form;
+
+  // 创建防抖的队列处理函数
+  const debouncedProcessQueue = useMemo(
+    () => debounce(() => {
+      processQueue();
+    }, 100),
     []
   );
 
   // 监听字段变化
   useEffect(() => {
-    const subscription = watch((value, { name }) => {
-      if (name) {
-        debouncedRecalculate(name);
+    const subscription = watch((_, { name }) => {
+      if (!name) return;
+
+      // 检查该字段是否被依赖
+      const affectedFields = dependencyGraph.getAffectedFields(name);
+      if (affectedFields.length === 0) {
+        return;
       }
+
+      // 加入任务队列
+      taskQueue.enqueue(name);
+
+      if (taskQueue.isUpdatingForm()) {
+        return;
+      }
+
+      // 使用防抖处理，避免频繁触发
+      debouncedProcessQueue();
     });
+
     return () => subscription.unsubscribe();
-  }, [watch, debouncedRecalculate]);
-};
+  }, [watch, linkages, linkageFunctions, dependencyGraph]);
+
+  // ... 其他代码
+}
 ```
 
 **优化效果**：
@@ -401,69 +544,16 @@ const useLinkageManager = () => {
 - 减少 70-80% 的联动计算次数
 - 输入响应更流畅
 
-### 3.3 内存优化
-
-#### 3.3.1 方案五：useMemo 缓存样式对象
-
-**适用场景**：FormField 组件
-
-**核心思路**：
-
-- 使用 `useMemo` 缓存样式对象
-- 避免每次渲染都创建新对象
-- 减少子组件不必要的重渲染
-
-**实现方案**：
-
-```typescript
-// 优化前：每次渲染都创建新对象
-const FormField: React.FC<FormFieldProps> = ({ field, layout, labelWidth }) => {
-  const formGroupStyle: React.CSSProperties = {};
-  const labelStyle: React.CSSProperties = {};
-  // ...
-};
-
-// 优化后：使用 useMemo 缓存
-const FormField: React.FC<FormFieldProps> = ({ field, layout, labelWidth }) => {
-  const formGroupStyle = useMemo(() => {
-    const style: React.CSSProperties = {};
-    if (effectiveLayout === 'horizontal') {
-      style.flexDirection = 'row';
-      style.alignItems = 'flex-start';
-    }
-    return style;
-  }, [effectiveLayout]);
-
-  const labelStyle = useMemo(() => {
-    const style: React.CSSProperties = {};
-    if (effectiveLayout === 'horizontal' && effectiveLabelWidth) {
-      style.width = typeof effectiveLabelWidth === 'number'
-        ? `${effectiveLabelWidth}px`
-        : effectiveLabelWidth;
-    }
-    return style;
-  }, [effectiveLayout, effectiveLabelWidth]);
-  // ...
-};
-```
-
-**优化效果**：
-
-- 减少对象创建次数 80-90%
-- 减少子组件不必要的重渲染
-- 内存占用降低 10-20%
-
-### 3.4 优化方案总结
+### 3.3 优化方案总结
 
 **基于实际代码审查的结论**：
 
 | 方案             | 优先级 | 实施难度 | 预期效果 | 适用场景       | 状态       |
 | ---------------- | ------ | -------- | -------- | -------------- | ---------- |
 | 虚拟滚动         | P0     | 中       | 70-80%   | 长列表数组字段 | 待实施     |
-| React.memo       | P0     | 低       | 60-80%   | 所有字段组件   | 待实施     |
+| React.memo + useMemo | P0 | 低       | 60-80%   | FormField 组件 | 待实施     |
 | 精确监听字段     | P0     | 中       | 70-80%   | 有联动的表单   | 待实施     |
 | 防抖节流         | P1     | 低       | 30-50%   | 频繁触发联动   | 待实施     |
-| useMemo 缓存对象 | P1     | 低       | 10-20%   | FormField 组件 | 待实施     |
 | ~~条件渲染优化~~ | -      | -        | -        | -              | ✅ 已实现  |
 | ~~反向依赖图~~   | -      | -        | -        | -              | ✅ 已实现  |
 
@@ -484,14 +574,14 @@ const FormField: React.FC<FormFieldProps> = ({ field, layout, labelWidth }) => {
 **任务清单**：
 
 1. **实施虚拟滚动**
-   - [ ] 集成 react-window
+   - [ ] 集成 react-virtuoso
    - [ ] 适配 ArrayFieldWidget
    - [ ] 处理焦点管理
    - [ ] 测试验证功能
 
 2. **实施 React.memo 优化**
-   - [ ] 优化 FieldWrapper 组件
-   - [ ] 优化所有字段组件
+   - [ ] 优化 FormField 组件
+   - [ ] 使用 useMemo 缓存样式对象
    - [ ] 添加自定义比较函数
    - [ ] 性能测试
 
@@ -559,12 +649,31 @@ const onRenderCallback = (
 
 ```typescript
 // 测量联动计算时间
-const measureLinkagePerformance = () => {
+// 方法1：在 useLinkageManager 的 processQueue 中添加性能监控
+const processQueue = useRef(async () => {
+  if (taskQueue.getProcessing()) return;
+
   const start = performance.now();
-  recalculateLinkages();
-  const end = performance.now();
-  console.log(`Linkage calculation took ${end - start}ms`);
-};
+  taskQueue.setProcessing(true);
+
+  try {
+    while (!taskQueue.isEmpty()) {
+      const task = taskQueue.dequeue();
+      if (!task) break;
+
+      // ... 处理任务
+    }
+  } finally {
+    taskQueue.setProcessing(false);
+    const end = performance.now();
+    console.log(`Linkage calculation took ${end - start}ms`);
+  }
+}).current;
+
+// 方法2：使用 React DevTools Profiler 监控联动状态更新
+<Profiler id="LinkageManager" onRender={onRenderCallback}>
+  <DynamicForm schema={schema} />
+</Profiler>
 ```
 
 #### 5.1.3 内存占用测试
