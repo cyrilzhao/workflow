@@ -22,16 +22,20 @@
 
 - **字段定位**：表单数据是嵌套结构，需要路径来定位具体字段
 - **联动配置**：字段之间的联动依赖需要通过路径引用
-- **数据转换**：路径透明化场景需要在不同路径格式间转换
+- **视觉透明化**：路径透明化场景下，UI 层级与数据结构保持一致
 - **数组处理**：数组元素的路径包含动态索引，需要特殊处理
 
-### 1.2 路径的三个维度
+### 1.2 路径的两个维度
 
-| 维度              | 说明                                      | 示例                                                                 |
-| ----------------- | ----------------------------------------- | -------------------------------------------------------------------- |
-| **表单数据路径**  | 用于 react-hook-form 的字段注册和数据访问 | `contacts.0.name`                                                    |
-| **联动依赖路径**  | 用于 Schema 中配置字段间的依赖关系        | `./type` 或 `#/properties/enableVip`                                 |
-| **物理/逻辑路径** | 路径透明化场景下的两种路径表示            | 物理: `group.category.contacts`<br>逻辑: `group~~category~~contacts` |
+| 维度             | 说明                                      | 示例                                     |
+| ---------------- | ----------------------------------------- | ---------------------------------------- |
+| **表单数据路径** | 用于 react-hook-form 的字段注册和数据访问 | `contacts.0.name`                        |
+| **联动依赖路径** | 用于 Schema 中配置字段间的依赖关系        | `./type` 或 `#/properties/enableVip`     |
+
+**v3.0 重要变更**：
+- 统一使用标准 `.` 分隔符
+- 移除了"逻辑路径"和"物理路径"的区分
+- flattenPath 字段通过透明容器实现视觉扁平化，数据结构保持标准嵌套格式
 
 ---
 
@@ -39,14 +43,17 @@
 
 ### 2.1 路径格式速查表
 
-| 路径格式         | 语法                            | 使用场景               | 示例                        |
-| ---------------- | ------------------------------- | ---------------------- | --------------------------- |
-| **点号路径**     | `a.b.c`                         | 表单数据访问、字段注册 | `user.address.city`         |
-| **数组索引路径** | `a.0.b`                         | 数组元素字段访问       | `contacts.0.name`           |
-| **相对路径**     | `./field`                       | 数组元素内部联动       | `./type`                    |
-| **JSON Pointer** | `#/properties/...`              | 跨层级联动依赖         | `#/properties/enableVip`    |
-| **逻辑路径**     | 使用 `~~` 分隔 flattenPath 层级 | Schema 字段定义        | `group~~category~~contacts` |
-| **物理路径**     | 完整数据路径                    | 实际数据存储           | `group.category.contacts`   |
+| 路径格式         | 语法               | 使用场景               | 示例                     |
+| ---------------- | ------------------ | ---------------------- | ------------------------ |
+| **点号路径**     | `a.b.c`            | 表单数据访问、字段注册 | `user.address.city`      |
+| **数组索引路径** | `a.0.b`            | 数组元素字段访问       | `contacts.0.name`        |
+| **相对路径**     | `./field`          | 数组元素内部联动       | `./type`                 |
+| **JSON Pointer** | `#/properties/...` | 跨层级联动依赖         | `#/properties/enableVip` |
+
+**v3.0 变更说明**：
+- 移除了"逻辑路径"和"物理路径"的概念
+- 所有路径统一使用标准 `.` 分隔符
+- flattenPath 字段的路径与普通嵌套字段完全相同
 
 ### 2.2 路径格式对比
 
@@ -292,11 +299,15 @@ function parseJsonPointer(pointer: string): string {
 
 路径透明化（Field Path Flattening）用于解决深层嵌套参数显示冗余的问题。
 
-### 5.1 核心概念
+### 5.1 核心概念（v3.0）
 
-当 Schema 中某个对象字段设置了 `flattenPath: true`，该层级在 UI 上会被"跳过"，但数据结构保持不变。
+当 Schema 中某个对象字段设置了 `flattenPath: true`，该层级在 UI 上会被"跳过"（不显示 Card 容器和标题），但数据结构保持标准的嵌套格式。
 
-**重要**：为了避免不同物理路径产生相同逻辑路径的冲突，系统使用 `~~` 分隔符在逻辑路径中保留被透明化的路径段。
+**v3.0 重要变更**：
+- flattenPath 字段会渲染 NestedFormWidget，但使用透明容器（无 Card、无标题）
+- 字段路径使用标准 `.` 分隔符，与普通嵌套字段完全相同
+- 数据结构保持标准嵌套格式，无需路径转换
+- 移除了"逻辑路径"和"物理路径"的区分
 
 ```typescript
 // Schema 定义
@@ -319,28 +330,14 @@ function parseJsonPointer(pointer: string): string {
   }
 }
 
-// 逻辑路径（表单字段注册）: group~~category~~contacts
-// 物理路径（数据存储）: group.category.contacts
+// 字段路径（v3.0）: group.category.contacts
+// 数据结构: { group: { category: { contacts: [...] } } }
+// UI 表现: contacts 字段直接显示，不显示 group 和 category 的 Card 容器
 ```
 
-### 5.2 逻辑路径生成规则
+### 5.2 路径示例（v3.0）
 
-逻辑路径的生成遵循以下规则：
-
-**规则 1**：如果父路径的最后一段是 flattenPath（最后一个分隔符是 `~~`），则子字段也使用 `~~` 连接（无论子字段是否是 flattenPath）
-
-**规则 2**：如果当前字段设置了 `flattenPath: true`，使用 `~~` 连接
-
-**规则 3**：否则使用 `.` 连接
-
-**关键点**：
-
-- flattenPath 对象之间使用 `~~` 连接
-- flattenPath 链的最后一个字段（数组或普通字段）也使用 `~~` 连接
-- 数组索引始终使用 `.` 连接
-- 普通对象和字段使用 `.` 连接
-
-**示例**：
+在 v3.0 方案中，flattenPath 字段的路径与普通嵌套字段完全相同：
 
 ```typescript
 // Schema 结构
@@ -354,93 +351,67 @@ region (flattenPath: true)
               └─ auth (object)
                   └─ apiKey (string)
 
-// 生成的逻辑路径
-'region~~market~~contacts'                      // region 和 market 是 flattenPath，contacts 继承 ~~
-'region~~market~~contacts.0'                    // 数组索引使用 .
-'region~~market~~contacts.0~~category~~group~~name'  // category 和 group 是 flattenPath，name 继承 ~~
-'region~~market~~contacts.0.auth.apiKey'        // auth 是普通对象，使用 .
-```
+// 生成的字段路径（统一使用 . 分隔符）
+'region.market.contacts'                    // flattenPath 字段
+'region.market.contacts.0'                  // 数组索引
+'region.market.contacts.0.category.group.name'  // 嵌套 flattenPath 字段
+'region.market.contacts.0.auth.apiKey'      // 普通嵌套字段
 
-### 5.3 逻辑路径 vs 物理路径
-
-| 概念         | 定义                                  | 用途                   |
-| ------------ | ------------------------------------- | ---------------------- |
-| **逻辑路径** | 使用 `~~` 连接 flattenPath 层级的路径 | 表单字段注册、联动配置 |
-| **物理路径** | 使用 `.` 连接所有层级的完整路径       | 实际数据存储           |
-
-**对比示例**：
-
-```typescript
-// Schema 中 group 和 category 都设置了 flattenPath: true
-
-// 字段: contacts
-逻辑路径: 'group~~category~~contacts';
-物理路径: 'group.category.contacts';
-
-// 字段: contacts[0].name
-逻辑路径: 'group~~category~~contacts.0.name';
-物理路径: 'group.category.contacts.0.name';
-
-// 字段: contacts[0] 内部的 flattenPath 字段
-逻辑路径: 'group~~category~~contacts.0~~inner~~field';
-物理路径: 'group.category.contacts.0.inner.field';
-```
-
-**为什么使用 `~~` 分隔符？**
-
-避免路径冲突。如果有两个不同的物理路径：
-
-- `group.category.contacts`
-- `region.market.contacts`
-
-使用 `~~` 分隔符后，它们的逻辑路径分别是：
-
-- `group~~category~~contacts`
-- `region~~market~~contacts`
-
-这样就不会产生冲突。
-
-### 5.4 路径映射
-
-系统会自动生成路径映射表，用于在逻辑路径和物理路径之间转换：
-
-```typescript
-interface PathMapping {
-  logicalPath: string;    // 逻辑路径（使用 ~~ 分隔符）
-  physicalPath: string;   // 物理路径（使用 . 分隔符）
-  isArray?: boolean;      // 是否是数组字段
-  skippedSegments?: string[];  // 被透明化的路径段
-}
-
-// 示例映射
+// 数据结构（标准嵌套格式）
 {
-  logicalPath: 'group~~category~~contacts',
-  physicalPath: 'group.category.contacts',
-  isArray: true,
-  skippedSegments: ['group', 'category']
+  region: {
+    market: {
+      contacts: [
+        {
+          category: {
+            group: {
+              name: 'xxx'
+            }
+          },
+          auth: {
+            apiKey: 'yyy'
+          }
+        }
+      ]
+    }
+  }
 }
 ```
 
-### 5.5 数据转换
+### 5.3 flattenPrefix 功能
 
-路径透明化场景需要在数据输入和输出时进行转换：
+`flattenPrefix` 用于在路径透明化时，将父级字段的标题作为前缀添加到子字段的标题中：
 
 ```typescript
-// 输入转换：物理路径结构 → 逻辑路径结构
-// 用于初始化表单数据
-const formData = PathTransformer.nestedToFlatWithSchema(
-  { group: { category: { contacts: [...] } } },  // 物理路径结构
-  schema
-);
-// 结果: { 'group~~category~~contacts': [...] }  // 逻辑路径结构
+// Schema 定义
+{
+  service: {
+    type: 'object',
+    title: 'Service',
+    ui: {
+      flattenPath: true,
+      flattenPrefix: true  // 启用标题前缀
+    },
+    properties: {
+      auth: {
+        type: 'object',
+        title: 'Auth',
+        ui: {
+          flattenPath: true,
+          flattenPrefix: true
+        },
+        properties: {
+          username: { type: 'string', title: 'Username' },
+          password: { type: 'string', title: 'Password' }
+        }
+      }
+    }
+  }
+}
 
-// 输出转换：逻辑路径结构 → 物理路径结构
-// 用于提交表单数据
-const submitData = PathTransformer.flatToNestedWithSchema(
-  { 'group~~category~~contacts': [...] },  // 逻辑路径结构
-  schema
-);
-// 结果: { group: { category: { contacts: [...] } } }  // 物理路径结构
+// 字段路径: service.auth.username, service.auth.password
+// 显示标题: "Service - Auth - Username", "Service - Auth - Password"
+// 数据结构: { service: { auth: { username: 'xxx', password: 'yyy' } } }
 ```
 
 ---
@@ -592,93 +563,44 @@ PathResolver.getNestedValue({ user: { age: 25 } }, 'user.age');
 // → 25
 ```
 
-### 7.2 PathTransformer
+### 7.2 pathTransformer（v3.0 简化版）
 
-用于路径透明化场景的数据转换和路径工具：
+在 v3.0 方案中，pathTransformer 已大幅简化，仅保留相对路径解析功能：
 
 ```typescript
-import {
-  PathTransformer,
-  splitPath,
-  rebuildPath,
-  isInFlattenPathChain,
-  isLastSeparatorFlatten,
-} from '@/utils/pathTransformer';
+import { resolveRelativePath } from '@/utils/pathTransformer';
 
-// 基于 Schema 的输入转换（推荐）
-PathTransformer.nestedToFlatWithSchema(nestedData, schema);
-
-// 基于 Schema 的输出转换（推荐）
-PathTransformer.flatToNestedWithSchema(flatData, schema);
-
-// 简单转换（不支持 flattenPath）
-PathTransformer.nestedToFlat(nestedData);
-PathTransformer.flatToNested(flatData);
-
-// 路径拆分工具（统一处理 . 和 ~~ 分隔符）
-splitPath('group~~category.contacts');
-// → ['group', 'category', 'contacts']
-
-// 路径重建工具（保留原始分隔符类型）
-const parts = splitPath('group~~category.contacts');
-rebuildPath('group~~category.contacts', parts, 2);
-// → 'group~~category'
-
-// 判断是否在 flattenPath 链中
-isInFlattenPathChain('group~~category~~contacts'); // true
-isInFlattenPathChain('user.name'); // false
-
-// 检查最后一个分隔符类型
-isLastSeparatorFlatten('group~~category~~contacts'); // true
-isLastSeparatorFlatten('group~~category.contacts'); // false
+// 解析相对路径
+resolveRelativePath('./type', 'contacts.0.companyName');
+// → 'contacts.0.type'
 ```
 
-**重构改进**：
+**v3.0 变更说明**：
+- 移除了 PathTransformer 类和路径映射相关功能
+- 移除了 `~~` 分隔符相关的工具函数
+- 数据无需转换，保持标准嵌套格式
 
-- ✅ 导出了公共路径工具函数，避免代码重复
-- ✅ `splitPath` 统一处理 `.` 和 `~~` 两种分隔符
-- ✅ `rebuildPath` 保留原始路径的分隔符类型
-- ✅ 路径判断函数可在多个模块中复用
+### 7.3 schemaLinkageParser（v3.0 简化版）
 
-### 7.3 schemaLinkageParser
-
-用于解析 Schema 中的联动配置和路径映射：
+用于解析 Schema 中的联动配置：
 
 ```typescript
 import {
   parseSchemaLinkages,
-  physicalToLogicalPath,
-  logicalToPhysicalPath,
   transformToAbsolutePaths,
-  isInFlattenPathChain,
-  isLastSeparatorFlatten,
 } from '@/utils/schemaLinkageParser';
 
 // 解析 Schema
-const { linkages, pathMappings, hasFlattenPath } = parseSchemaLinkages(schema);
-
-// 路径转换
-physicalToLogicalPath('group.category.contacts.0', pathMappings);
-// → 'group~~category~~contacts.0'
-
-logicalToPhysicalPath('group~~category~~contacts.0', pathMappings);
-// → 'group.category.contacts.0'
+const { linkages } = parseSchemaLinkages(schema);
 
 // 转换为绝对路径（用于嵌套表单）
 transformToAbsolutePaths(linkages, 'contacts.0');
-
-// 判断是否在 flattenPath 链中（从 pathTransformer 导入）
-isInFlattenPathChain('group~~category~~contacts'); // true
-
-// 检查最后一个分隔符类型（从 pathTransformer 导入）
-isLastSeparatorFlatten('group~~category~~contacts'); // true
 ```
 
-**重构改进**：
-
-- ✅ 移除了重复的路径工具函数定义
-- ✅ 统一从 `pathTransformer` 导入公共路径工具
-- ✅ 简化了代码结构，提高可维护性
+**v3.0 变更说明**：
+- 移除了 pathMappings 返回值
+- 移除了 physicalToLogicalPath 和 logicalToPhysicalPath 函数
+- 所有路径统一使用标准 `.` 分隔符
 
 ### 7.4 arrayLinkageHelper
 
@@ -825,7 +747,7 @@ const schema = {
 //   when.field: 'enableVip'
 ```
 
-### 8.3 示例 3：复杂的路径透明化 + 数组 + 联动
+### 8.3 示例 3：复杂的路径透明化 + 数组 + 联动（v3.0）
 
 这是一个综合示例，展示了路径透明化、数组字段和联动配置的组合使用。
 
@@ -915,51 +837,60 @@ const schema = {
 };
 ```
 
-**生成的逻辑路径**：
+**生成的字段路径（v3.0 - 统一使用 . 分隔符）**：
 
 ```typescript
 // 顶层字段
-'enableRegion';
+'enableRegion'
 
 // 数组字段（region 和 market 都是 flattenPath）
-'region~~market~~contacts';
+'region.market.contacts'
 
 // 数组元素内部字段（假设索引为 0）
-'region~~market~~contacts.0.auth.apiKey'; // auth 是普通对象，使用 .
-'region~~market~~contacts.0.auth.apiSecret'; // auth 是普通对象，使用 .
-'region~~market~~contacts.0~~category~~group~~type'; // category 和 group 是 flattenPath，使用 ~~
-'region~~market~~contacts.0~~category~~group~~name'; // name 继承 flattenPath 链，使用 ~~
-'region~~market~~contacts.0~~category~~group~~vipLevel'; // vipLevel 继承 flattenPath 链，使用 ~~
+'region.market.contacts.0.auth.apiKey'
+'region.market.contacts.0.auth.apiSecret'
+'region.market.contacts.0.category.group.type'
+'region.market.contacts.0.category.group.name'
+'region.market.contacts.0.category.group.vipLevel'
 ```
 
-**路径解析规则说明**：
+**数据结构（标准嵌套格式）**：
 
-1. **`region~~market~~contacts`**：
-   - `region` 和 `market` 都设置了 `flattenPath: true`，使用 `~~` 连接
-   - `contacts` 是数组字段，继承父级的 flattenPath 链，也使用 `~~` 连接
-
-2. **`region~~market~~contacts.0`**：
-   - 数组索引始终使用 `.` 连接
-
-3. **`region~~market~~contacts.0.auth.apiKey`**：
-   - `auth` 是普通对象（没有设置 `flattenPath`），使用 `.` 连接
-   - `apiKey` 是普通字段，使用 `.` 连接
-
-4. **`region~~market~~contacts.0~~category~~group~~name`**：
-   - `category` 设置了 `flattenPath: true`，使用 `~~` 连接
-   - `group` 也设置了 `flattenPath: true`，继续使用 `~~` 连接
-   - `name` 是普通字段，但父级在 flattenPath 链中，继承使用 `~~` 连接
+```typescript
+{
+  enableRegion: true,
+  region: {
+    market: {
+      contacts: [
+        {
+          auth: {
+            apiKey: 'xxx',
+            apiSecret: 'yyy'
+          },
+          category: {
+            group: {
+              type: 'vip',
+              name: 'VIP Group',
+              vipLevel: 'Gold'
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+```
 
 **联动路径解析**（运行时）：
 
 ```typescript
 // vipLevel 字段的联动配置
 // 模板路径: './type'
-// 当前字段: 'region~~market~~contacts.0~~category~~group~~vipLevel'
-// 解析结果: 'region~~market~~contacts.0~~category~~group~~type'
+// 当前字段: 'region.market.contacts.0.category.group.vipLevel'
+// 解析结果: 'region.market.contacts.0.category.group.type'
 ```
 
-### 8.4 示例 4：简单的路径透明化
+### 8.4 示例 4：简单的路径透明化（v3.0）
 
 ```typescript
 // Schema
@@ -983,19 +914,9 @@ const schema = {
   }
 };
 
-// 路径映射
-// 逻辑路径: config~~auth~~apiKey      → 物理路径: config.auth.apiKey
-// 逻辑路径: config~~auth~~apiSecret   → 物理路径: config.auth.apiSecret
-
-// 数据转换
-// 输入数据（物理路径结构）:
-{ config: { auth: { apiKey: 'xxx', apiSecret: 'yyy' } } }
-
-// 表单数据（逻辑路径结构）:
-{ 'config~~auth~~apiKey': 'xxx', 'config~~auth~~apiSecret': 'yyy' }
-
-// 提交数据（物理路径结构）:
-{ config: { auth: { apiKey: 'xxx', apiSecret: 'yyy' } } }
+// 字段路径（v3.0）: config.auth.apiKey, config.auth.apiSecret
+// 数据结构: { config: { auth: { apiKey: 'xxx', apiSecret: 'yyy' } } }
+// UI 表现: apiKey 和 apiSecret 直接显示，不显示 config 和 auth 的 Card 容器
 ```
 
 ---
@@ -1020,21 +941,18 @@ dependencies: ['../type'];
 dependencies: ['#/properties/departments/items/properties/type'];
 ```
 
-### 9.2 路径透明化时联动不生效？
+### 9.2 路径透明化时联动不生效？（v3.0 已解决）
 
-**可能原因**：联动配置中使用了物理路径而非逻辑路径
-
-**解决方案**：联动配置应使用逻辑路径（带 `~~` 分隔符）
+**v3.0 说明**：在 v3.0 方案中，所有路径统一使用标准 `.` 分隔符，不再有"逻辑路径"和"物理路径"的区分，因此不会出现路径格式不匹配的问题。
 
 ```typescript
+// v3.0 方案：统一使用标准路径
 // Schema 中 group.category 设置了 flattenPath: true
 
-// ❌ 错误：使用物理路径
+// ✅ 正确：使用标准路径
 dependencies: ['group.category.enableFeature'];
 
-// ✅ 正确：使用逻辑路径
-dependencies: ['group~~category~~enableFeature'];
-// 或使用 JSON Pointer
+// ✅ 或使用 JSON Pointer
 dependencies: ['#/properties/group/properties/category/properties/enableFeature'];
 ```
 
@@ -1054,11 +972,10 @@ dependencies: ['./type'];
 
 ### 9.4 如何调试路径问题？
 
-**方法 1**：打印路径映射
+**方法 1**：打印联动配置（v3.0）
 
 ```typescript
-const { linkages, pathMappings } = parseSchemaLinkages(schema);
-console.log('路径映射:', pathMappings);
+const { linkages } = parseSchemaLinkages(schema);
 console.log('联动配置:', linkages);
 ```
 
@@ -1068,6 +985,10 @@ console.log('联动配置:', linkages);
 const resolved = resolveDependencyPath({ depPath, currentPath, schema });
 console.log(`${depPath} → ${resolved}`);
 ```
+
+**v3.0 变更说明**：
+- 移除了 pathMappings 相关的调试方法
+- 所有路径统一使用标准 `.` 分隔符，调试更简单
 
 ---
 
@@ -1086,11 +1007,22 @@ console.log(`${depPath} → ${resolved}`);
 ---
 
 **创建日期**: 2025-12-28
-**最后更新**: 2025-12-29
-**版本**: 1.3
-**文档状态**: 已更新
+**最后更新**: 2026-01-10
+**版本**: 2.0 (v3.0 方案)
+**文档状态**: 已更新至 v3.0 方案
 
 **更新内容**:
+
+### v2.0 (2026-01-10) - v3.0 方案重大更新
+
+- **重大变更**：文档已全面更新以反映 v3.0 路径透明化方案
+- 移除了"逻辑路径"和"物理路径"的概念
+- 统一使用标准 `.` 分隔符，移除了 `~~` 分隔符相关内容
+- 更新了所有示例代码以使用标准路径格式
+- 简化了路径转换工具的说明（移除了 PathTransformer 类）
+- 更新了 flattenPath 的实现说明（透明容器方案）
+- 新增了 flattenPrefix 功能的说明
+- 更新了常见问题解答以反映 v3.0 的变化
 
 ### v1.3 (2025-12-29)
 

@@ -1,16 +1,13 @@
-import { useMemo, useEffect, useState, useCallback } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
 import type { LinkageConfig, LinkageFunction } from '../types/linkage';
-import type { LinkageResult } from '../types/linkage';
 import type { ExtendedJSONSchema } from '../types/schema';
 import { useLinkageManager as useBaseLinkageManager } from './useLinkageManager';
 import {
   isArrayElementPath,
-  extractArrayInfo,
   resolveArrayElementLinkage,
   findArrayInPath,
 } from '../utils/arrayLinkageHelper';
-import type { PathMapping } from '../utils/schemaLinkageParser';
 import { DependencyGraph } from '../utils/dependencyGraph';
 import { PathResolver } from '../utils/pathResolver';
 
@@ -19,7 +16,6 @@ interface ArrayLinkageManagerOptions {
   baseLinkages: Record<string, LinkageConfig>;
   linkageFunctions?: Record<string, LinkageFunction>;
   schema?: ExtendedJSONSchema; // 用于完整的路径解析
-  pathMappings?: PathMapping[]; // 路径映射表
   /** 检测到循环依赖时的回调 */
   onCycleDetected?: (cycle: string[]) => void;
   /** 是否在检测到循环依赖时抛出错误（默认 false） */
@@ -36,7 +32,6 @@ export function useArrayLinkageManager({
   baseLinkages,
   linkageFunctions = {},
   schema,
-  pathMappings = [],
   onCycleDetected,
   throwOnCycle = false,
 }: ArrayLinkageManagerOptions) {
@@ -75,12 +70,11 @@ export function useArrayLinkageManager({
     return merged;
   }, [baseLinkages, dynamicLinkages, onCycleDetected, throwOnCycle]);
 
-  // 使用基础联动管理器（传递路径映射）
+  // 使用基础联动管理器
   const linkageStates = useBaseLinkageManager({
     form,
     linkages: allLinkages,
     linkageFunctions,
-    pathMappings,
   });
 
   // 监听表单数据变化，动态注册数组元素的联动

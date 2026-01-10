@@ -149,7 +149,7 @@ export const SchemaLoaderExample: React.FC = () => {
           title: 'Product Configuration',
           properties: {},
           ui: {
-            widget: 'nested-form',
+            flattenPath: true,
             linkage: {
               type: 'schema',
               dependencies: ['productType'],

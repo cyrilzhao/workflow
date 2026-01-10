@@ -1928,32 +1928,36 @@ console.log('动态联动配置:', dynamicLinkages);
 
 ## 9. 变更历史
 
-### v2.4 (2025-12-30)
+### v3.0 (2026-01-10)
 
-**重大变更**：相对路径解析逻辑修复
+**重大变更**：路径透明化方案升级（v3.0）
 
-1. **`transformLinkageConfigPaths` 函数修复**
-   - ✅ 修复：`isParentInFlattenChain` 判断逻辑错误
-   - ✅ 问题：之前使用 `parentPath.includes(FLATTEN_PATH_SEPARATOR)` 判断父路径是否在 flattenPath 链中
-   - ✅ 正确：应该检查父路径的**最后一个分隔符**是否是 `~~`
-   - ✅ 影响：修复了普通对象字段（未设置 flattenPath）的相对路径解析错误
+1. **路径格式统一**
+   - ✅ 移除：`~~` 分隔符和路径映射机制
+   - ✅ 统一：所有路径使用标准 `.` 分隔符
+   - ✅ 简化：flattenPath 字段路径与普通嵌套字段完全相同
+   - ✅ 影响：路径解析逻辑大幅简化，无需区分"逻辑路径"和"物理路径"
 
-2. **新增辅助函数 `isLastSeparatorFlatten`**
-   - ✅ 抽取重复逻辑：检查路径的最后一个分隔符是否是 `~~`
-   - ✅ 使用位置：`transformLinkageConfigPaths` 和 `transformConditionPaths`
-   - ✅ 优势：消除重复代码，提高可维护性
+2. **相对路径解析简化**
+   - ✅ 移除：`isLastSeparatorFlatten` 等路径分隔符判断逻辑
+   - ✅ 简化：相对路径解析统一使用标准 `.` 分隔符
+   - ✅ 优势：代码更简洁，维护成本更低
 
-3. **修复示例**
-   - 路径：`region~~market~~contacts.0.auth.apiKey`
+3. **示例更新**
+   - 旧方案路径：`region~~market~~contacts.0.auth.apiKey`
+   - v3.0 路径：`region.market.contacts.0.auth.apiKey`
    - 相对依赖：`./enableAuth`
-   - 错误解析：`region~~market~~contacts.0.auth~~enableAuth` ❌
-   - 正确解析：`region~~market~~contacts.0.auth.enableAuth` ✅
-   - 原因：`auth` 字段未设置 `flattenPath`，应使用 `.` 而非 `~~`
+   - 解析结果：`region.market.contacts.0.auth.enableAuth`
+   - 说明：所有路径统一使用 `.` 分隔符，无需特殊处理
 
 4. **文档更新**
-   - 更新 `transformLinkageConfigPaths` 实现说明
-   - 新增 `isLastSeparatorFlatten` 辅助函数文档
-   - 更新相对路径解析逻辑说明
+   - 更新所有路径示例以使用标准 `.` 分隔符
+   - 移除路径映射相关说明
+   - 简化路径解析逻辑说明
+
+### v2.4 (2025-12-30) - 已废弃
+
+**注意**：此版本的路径解析逻辑已在 v3.0 中被完全重构，不再使用 `~~` 分隔符
 
 ### v2.3 (2025-12-29)
 

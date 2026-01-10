@@ -16,14 +16,14 @@ describe('arrayLinkageHelper', () => {
       expect(isArrayElementPath('departments.0.employees.1.name')).toBe(true);
     });
 
-    it('应该识别包含 ~~ 分隔符和数字索引的路径', () => {
-      expect(isArrayElementPath('group~~category~~contacts.0.name')).toBe(true);
-      expect(isArrayElementPath('group~~category.0.field')).toBe(true);
+    it('应该识别包含标准 . 分隔符和数字索引的路径 (v3.0)', () => {
+      expect(isArrayElementPath('group.category.contacts.0.name')).toBe(true);
+      expect(isArrayElementPath('group.category.0.field')).toBe(true);
     });
 
     it('应该识别不包含数字索引的路径', () => {
       expect(isArrayElementPath('contacts.name')).toBe(false);
-      expect(isArrayElementPath('group~~category~~contacts.name')).toBe(false);
+      expect(isArrayElementPath('group.category.contacts.name')).toBe(false);
       expect(isArrayElementPath('simpleField')).toBe(false);
     });
   });
@@ -329,29 +329,29 @@ describe('arrayLinkageHelper', () => {
       expect(result?.fieldPath).toBe('name');
     });
 
-    it('应该从包含 ~~ 分隔符的路径中提取信息', () => {
-      const result = extractArrayInfo('group~~category~~contacts.0.name');
+    it('应该从包含标准 . 分隔符的路径中提取信息 (v3.0)', () => {
+      const result = extractArrayInfo('group.category.contacts.0.name');
 
       expect(result).not.toBeNull();
-      expect(result?.arrayPath).toBe('group~~category~~contacts');
+      expect(result?.arrayPath).toBe('group.category.contacts');
       expect(result?.index).toBe(0);
       expect(result?.fieldPath).toBe('name');
     });
 
-    it('应该正确处理混合 ~~ 和 . 分隔符的路径', () => {
-      const result = extractArrayInfo('group~~category.contacts~~items.0.name');
+    it('应该正确处理多层嵌套路径 (v3.0)', () => {
+      const result = extractArrayInfo('group.category.contacts.items.0.name');
 
       expect(result).not.toBeNull();
-      expect(result?.arrayPath).toBe('group~~category.contacts~~items');
+      expect(result?.arrayPath).toBe('group.category.contacts.items');
       expect(result?.index).toBe(0);
       expect(result?.fieldPath).toBe('name');
     });
 
-    it('应该正确处理索引前是 ~~ 分隔符的路径', () => {
-      const result = extractArrayInfo('group~~category~~0.name');
+    it('应该正确处理索引前是标准 . 分隔符的路径 (v3.0)', () => {
+      const result = extractArrayInfo('group.category.0.name');
 
       expect(result).not.toBeNull();
-      expect(result?.arrayPath).toBe('group~~category');
+      expect(result?.arrayPath).toBe('group.category');
       expect(result?.index).toBe(0);
       expect(result?.fieldPath).toBe('name');
     });
@@ -442,7 +442,7 @@ describe('arrayLinkageHelper', () => {
       expect(result).toBeNull();
     });
 
-    it('应该识别包含 flattenPath 的数组路径（使用 ~~ 分隔符）', () => {
+    it('应该识别包含 flattenPath 的数组路径（v3.0 - 使用标准 . 分隔符）', () => {
       const schema: ExtendedJSONSchema = {
         type: 'object',
         properties: {
@@ -470,10 +470,10 @@ describe('arrayLinkageHelper', () => {
         },
       };
 
-      const result = findArrayInPath('group~~category~~contacts.name', schema);
+      const result = findArrayInPath('group.category.contacts.name', schema);
 
       expect(result).not.toBeNull();
-      expect(result?.arrayPath).toBe('group~~category~~contacts');
+      expect(result?.arrayPath).toBe('group.category.contacts');
       expect(result?.fieldPathInArray).toBe('name');
     });
 
@@ -515,7 +515,7 @@ describe('arrayLinkageHelper', () => {
       expect(result?.fieldPathInArray).toBe('name');
     });
 
-    it('应该识别数组元素内部使用 ~~ 分隔符的路径', () => {
+    it('应该识别数组元素内部使用标准 . 分隔符的路径 (v3.0)', () => {
       const schema: ExtendedJSONSchema = {
         type: 'object',
         properties: {
@@ -537,11 +537,11 @@ describe('arrayLinkageHelper', () => {
         },
       };
 
-      const result = findArrayInPath('contacts~~address~~city', schema);
+      const result = findArrayInPath('contacts.address.city', schema);
 
       expect(result).not.toBeNull();
       expect(result?.arrayPath).toBe('contacts');
-      expect(result?.fieldPathInArray).toBe('address~~city');
+      expect(result?.fieldPathInArray).toBe('address.city');
     });
 
     it('应该递归处理数组元素内部的嵌套数组', () => {

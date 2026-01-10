@@ -5,7 +5,6 @@ import type {
   ValidationRules,
   FieldOption,
 } from '../types/schema';
-import { FLATTEN_PATH_SEPARATOR } from '../utils/schemaLinkageParser';
 
 /**
  * Schema 解析配置
@@ -27,48 +26,6 @@ export class SchemaParser {
    */
   static setCustomFormats(formats: Record<string, (value: string) => boolean>) {
     this.customFormats = formats;
-  }
-
-  /**
-   * 构建字段路径（支持 flattenPath 的 ~~ 分隔符）
-   * @param parentPath - 父级路径
-   * @param fieldName - 当前字段名
-   * @param isFlattenPath - 当前字段是否设置了 flattenPath: true
-   * @returns 构建的字段路径
-   *
-   * 规则：
-   * 1. 如果父路径的最后一段是 flattenPath（以 ~~ 结尾或整个路径都是 flattenPath），
-   *    则子字段也使用 ~~ 连接（无论子字段是否是 flattenPath）
-   * 2. 如果当前字段是 flattenPath，使用 ~~ 连接
-   * 3. 否则使用 . 连接
-   *
-   * 示例：
-   * - buildFieldPath('', 'region', true) → 'region'
-   * - buildFieldPath('region', 'market', true) → 'region~~market'
-   * - buildFieldPath('region~~market', 'contacts', false) → 'region~~market~~contacts'
-   * - buildFieldPath('region~~market~~contacts.0', 'category', true) → 'region~~market~~contacts.0~~category'
-   * - buildFieldPath('region~~market~~contacts.0~~category', 'group', true) → 'region~~market~~contacts.0~~category~~group'
-   * - buildFieldPath('region~~market~~contacts.0~~category~~group', 'name', false) → 'region~~market~~contacts.0~~category~~group~~name'
-   */
-  static buildFieldPath(parentPath: string, fieldName: string, isFlattenPath: boolean): string {
-    if (!parentPath) {
-      return fieldName;
-    }
-
-    // 检查父路径的最后一个分隔符类型
-    const lastDotIndex = parentPath.lastIndexOf('.');
-    const lastSepIndex = parentPath.lastIndexOf(FLATTEN_PATH_SEPARATOR);
-
-    // 如果最后一个分隔符是 ~~，说明父级在 flattenPath 链中
-    const isParentInFlattenChain = lastSepIndex > lastDotIndex;
-
-    // 规则：如果父级在 flattenPath 链中，或当前字段是 flattenPath，使用 ~~
-    if (isParentInFlattenChain || isFlattenPath) {
-      return `${parentPath}${FLATTEN_PATH_SEPARATOR}${fieldName}`;
-    }
-
-    // 否则使用 .
-    return `${parentPath}.${fieldName}`;
   }
 
   /**
@@ -102,7 +59,12 @@ export class SchemaParser {
   }
 
   /**
-   * 解析 Schema 生成字段配置（支持路径扁平化）
+   * 解析 Schema 生成字段配置（支持路径透明化）
+   *
+   * 新方案（v3.0）：
+   * - 使用标准的 . 分隔符构建字段路径
+   * - flattenPath 字段会渲染 NestedFormWidget，但使用透明容器
+   * - 数据保持标准的嵌套格式，无需路径转换
    */
   static parse(schema: ExtendedJSONSchema, options: ParseOptions = {}): FieldConfig[] {
     const { parentPath = '', prefixLabel = '', inheritedUI } = options;
@@ -122,49 +84,34 @@ export class SchemaParser {
 
       const fieldSchema = property as ExtendedJSONSchema;
 
-      // 检查当前字段是否设置了 flattenPath
-      const isFlattenPath = fieldSchema.type === 'object' && fieldSchema.ui?.flattenPath;
+      // 使用标准的 . 分隔符构建字段路径
+      const currentPath = parentPath ? `${parentPath}.${key}` : key;
 
-      // 使用 buildFieldPath 方法正确处理 flattenPath 的路径
-      const currentPath = this.buildFieldPath(parentPath, key, isFlattenPath || false);
+      // 处理 flattenPrefix：如果字段设置了 flattenPrefix，添加标签前缀
+      const newPrefixLabel =
+        fieldSchema.ui?.flattenPrefix && fieldSchema.title
+          ? prefixLabel
+            ? `${prefixLabel} - ${fieldSchema.title}`
+            : fieldSchema.title
+          : prefixLabel;
 
-      // 检查是否需要路径扁平化
-      if (isFlattenPath) {
-        // 确定是否需要添加前缀
-        const newPrefixLabel =
-          fieldSchema.ui?.flattenPrefix && fieldSchema.title
-            ? prefixLabel
-              ? `${prefixLabel} - ${fieldSchema.title}`
-              : fieldSchema.title
-            : prefixLabel;
+      // 处理 UI 配置继承（用于 flattenPath 场景）
+      const newInheritedUI = {
+        layout: fieldSchema.ui?.layout ?? inheritedUI?.layout,
+        labelWidth: fieldSchema.ui?.labelWidth ?? inheritedUI?.labelWidth,
+      };
 
-        // 准备要继承的 UI 配置（父级配置 + 当前层级配置）
-        const newInheritedUI = {
-          layout: fieldSchema.ui?.layout ?? inheritedUI?.layout,
-          labelWidth: fieldSchema.ui?.labelWidth ?? inheritedUI?.labelWidth,
-        };
+      // 正常解析字段（包括 flattenPath 字段）
+      const fieldConfig = this.parseField(
+        currentPath,
+        fieldSchema,
+        required.includes(key),
+        newPrefixLabel,
+        newInheritedUI
+      );
 
-        // 递归解析子字段，传递当前路径（已经包含 ~~ 分隔符）
-        // currentPath 已经通过 buildFieldPath 正确计算，无需重复构建
-        const nestedFields = this.parse(fieldSchema, {
-          parentPath: currentPath,
-          prefixLabel: newPrefixLabel,
-          inheritedUI: newInheritedUI,
-        });
-        fields.push(...nestedFields);
-      } else {
-        // 正常解析字段
-        const fieldConfig = this.parseField(
-          currentPath,
-          fieldSchema,
-          required.includes(key),
-          prefixLabel,
-          inheritedUI
-        );
-
-        if (!fieldConfig.hidden) {
-          fields.push(fieldConfig);
-        }
+      if (!fieldConfig.hidden) {
+        fields.push(fieldConfig);
       }
     }
 
@@ -186,16 +133,18 @@ export class SchemaParser {
     // 如果有前缀标签，添加到字段标签前
     const label = prefixLabel && schema.title ? `${prefixLabel} - ${schema.title}` : schema.title;
 
-    // 如果有继承的 UI 配置，需要合并到 schema 中
+    // 如果有继承的 UI 配置或 prefixLabel，需要合并到 schema 中
     let finalSchema = schema;
-    if (inheritedUI && (inheritedUI.layout || inheritedUI.labelWidth)) {
+    if (inheritedUI || prefixLabel) {
       finalSchema = {
         ...schema,
         ui: {
           ...ui,
           // 只有当字段自己没有配置时，才使用继承的配置
-          layout: ui.layout ?? inheritedUI.layout,
-          labelWidth: ui.labelWidth ?? inheritedUI.labelWidth,
+          layout: ui.layout ?? inheritedUI?.layout,
+          labelWidth: ui.labelWidth ?? inheritedUI?.labelWidth,
+          // 保存 prefixLabel，供 NestedFormWidget 使用
+          prefixLabel: prefixLabel || undefined,
         },
       };
     }

@@ -1,30 +1,30 @@
 import type { LinkageConfig } from '../types/linkage';
 import type { ExtendedJSONSchema } from '../types/schema';
-import { FLATTEN_PATH_SEPARATOR, type PathMapping } from './schemaLinkageParser';
-import { SchemaParser } from '@/components/DynamicForm/core/SchemaParser';
 import { resolveRelativePath } from './pathTransformer';
 
 /**
  * 数组联动辅助工具
  * 用于处理数组元素内部的相对路径联动和 JSON Pointer 路径解析
+ *
+ * 新方案（v3.0）：
+ * - 使用标准的 . 分隔符
+ * - 简化路径处理逻辑
  */
 
 /**
- * 将路径按层级分割（支持 . 和 ~~ 分隔符）
+ * 将路径按层级分割（使用标准的 . 分隔符）
  * @example
- * splitPath('group~~category~~contacts.0.name')
- * // => ['group', 'category', 'contacts', '0', 'name']
+ * splitPath('contacts.0.name')
+ * // => ['contacts', '0', 'name']
  */
 function splitPath(path: string): string[] {
-  // 先将 ~~ 替换为 .，然后按 . 分割
-  return path.replace(new RegExp(FLATTEN_PATH_SEPARATOR, 'g'), '.').split('.');
+  return path.split('.');
 }
 
 /**
  * 检查路径是否是数组元素路径
  * @example
  * isArrayElementPath('contacts.0.name') // true
- * isArrayElementPath('group~~category~~contacts.0.name') // true
  * isArrayElementPath('contacts.name') // false
  */
 export function isArrayElementPath(path: string): boolean {
@@ -34,49 +34,27 @@ export function isArrayElementPath(path: string): boolean {
 
 /**
  * 从数组元素路径中提取数组路径和索引
- * 支持包含 ~~ 分隔符的逻辑路径
+ *
+ * 新方案（v3.0）：使用标准的 . 分隔符
+ *
  * @example
  * extractArrayInfo('contacts.0.name') // { arrayPath: 'contacts', index: 0, fieldPath: 'name' }
- * extractArrayInfo('group~~category~~contacts.0.name') // { arrayPath: 'group~~category~~contacts', index: 0, fieldPath: 'name' }
  */
 export function extractArrayInfo(path: string): {
   arrayPath: string;
   index: number;
   fieldPath: string;
 } | null {
-  // 使用统一的分割方式找到索引位置
-  const normalizedParts = splitPath(path);
-  const indexPos = normalizedParts.findIndex(part => /^\d+$/.test(part));
+  const parts = splitPath(path);
+  const indexPos = parts.findIndex(part => /^\d+$/.test(part));
 
   if (indexPos === -1) {
     return null;
   }
 
-  // 需要从原始路径中提取 arrayPath，保留原始分隔符
-  // 策略：找到第 indexPos 个分隔符的位置
-  let separatorCount = 0;
-  let arrayPathEndPos = 0;
-
-  for (let i = 0; i < path.length; i++) {
-    if (path.substring(i, i + 2) === FLATTEN_PATH_SEPARATOR) {
-      separatorCount++;
-      if (separatorCount === indexPos) {
-        arrayPathEndPos = i;
-        break;
-      }
-      i++; // 跳过 ~~ 的第二个字符
-    } else if (path[i] === '.') {
-      separatorCount++;
-      if (separatorCount === indexPos) {
-        arrayPathEndPos = i;
-        break;
-      }
-    }
-  }
-
-  const arrayPath = path.substring(0, arrayPathEndPos);
-  const index = parseInt(normalizedParts[indexPos], 10);
-  const fieldPath = normalizedParts.slice(indexPos + 1).join('.');
+  const arrayPath = parts.slice(0, indexPos).join('.');
+  const index = parseInt(parts[indexPos], 10);
+  const fieldPath = parts.slice(indexPos + 1).join('.');
 
   return { arrayPath, index, fieldPath };
 }
@@ -144,17 +122,13 @@ function analyzePathRelationship(
 
 /**
  * 解析子数组到父数组的依赖
- * 支持包含 ~~ 分隔符的逻辑路径
+ *
+ * 新方案（v3.0）：使用标准的 . 分隔符
+ *
  * @example
- * // 普通路径
  * depPath: 'departments.type'
  * currentPath: 'departments.0.employees.1.techStack'
  * 返回: 'departments.0.type'
- *
- * // 包含 ~~ 分隔符的路径
- * depPath: 'group~~category~~departments.type'
- * currentPath: 'group~~category~~departments.0.employees.1.techStack'
- * 返回: 'group~~category~~departments.0.type'
  */
 function resolveChildToParent(
   depLogicalPath: string,
@@ -183,7 +157,9 @@ function resolveChildToParent(
 
 /**
  * 解析父数组到子数组的依赖
- * 支持包含 ~~ 分隔符的逻辑路径
+ *
+ * 新方案（v3.0）：使用标准的 . 分隔符
+ *
  * @example
  * depPath: 'departments.employees'
  * currentPath: 'departments.0.totalSalary'
@@ -353,13 +329,15 @@ function resolveConditionPaths(
 /**
  * 从联动配置路径中提取数组信息（基于 schema 解析）
  *
- * @param fieldPath - 联动配置的字段路径（如 'group~~category.contacts~~category~~group.vipLevel'）
+ * 新方案（v3.0）：使用标准的 . 分隔符
+ *
+ * @param fieldPath - 联动配置的字段路径（如 'contacts.category.group.vipLevel'）
  * @param schema - Schema 定义
  * @returns 数组信息，如果路径中包含数组则返回相关信息，否则返回 null
  *
  * @example
- * // 输入: 'group~~category.contacts~~category~~group.vipLevel'
- * // 输出: { arrayPath: 'group~~category.contacts', fieldPathInArray: 'category~~group.vipLevel' }
+ * // 输入: 'contacts.category.group.vipLevel'
+ * // 输出: { arrayPath: 'contacts', fieldPathInArray: 'category.group.vipLevel' }
  */
 export function findArrayInPath(
   fieldPath: string,
@@ -370,8 +348,9 @@ export function findArrayInPath(
 }
 
 /**
-/**
  * 递归查找路径中的数组字段
+ *
+ * 新方案（v3.0）：使用标准的 . 分隔符
  */
 function findArrayInPathRecursive(
   targetPath: string,
@@ -386,29 +365,9 @@ function findArrayInPathRecursive(
     if (typeof fieldSchema === 'boolean') continue;
 
     const typedSchema = fieldSchema as ExtendedJSONSchema;
-    const shouldFlatten = typedSchema.type === 'object' && typedSchema.ui?.flattenPath;
 
-    // 计算当前字段的逻辑路径
-    // 使用与 SchemaParser.buildFieldPath 相同的逻辑
-    let newLogicalPath: string;
-    if (!currentLogicalPath) {
-      // 根节点
-      newLogicalPath = fieldName;
-    } else {
-      // 检查父路径的最后一个分隔符类型
-      const lastDotIndex = currentLogicalPath.lastIndexOf('.');
-      const lastSepIndex = currentLogicalPath.lastIndexOf(FLATTEN_PATH_SEPARATOR);
-
-      // 如果最后一个分隔符是 ~~，说明父级在 flattenPath 链中
-      const isParentInFlattenChain = lastSepIndex > lastDotIndex;
-
-      // 规则：如果父级在 flattenPath 链中，或当前字段是 flattenPath，使用 ~~
-      if (isParentInFlattenChain || shouldFlatten) {
-        newLogicalPath = `${currentLogicalPath}${FLATTEN_PATH_SEPARATOR}${fieldName}`;
-      } else {
-        newLogicalPath = `${currentLogicalPath}.${fieldName}`;
-      }
-    }
+    // 使用标准的 . 分隔符计算当前字段的逻辑路径
+    const newLogicalPath = currentLogicalPath ? `${currentLogicalPath}.${fieldName}` : fieldName;
 
     // 检查目标路径是否以当前逻辑路径开头
     if (!targetPath.startsWith(newLogicalPath)) {
@@ -417,16 +376,10 @@ function findArrayInPathRecursive(
 
     // 如果是数组类型，检查是否匹配
     if (typedSchema.type === 'array') {
-      // 数组后面可能跟 '.' 或 '~~'（如果数组元素内部第一层是 flattenPath）
       const arrayPathWithDot = newLogicalPath + '.';
-      const arrayPathWithSeparator = newLogicalPath + FLATTEN_PATH_SEPARATOR;
 
       if (targetPath.startsWith(arrayPathWithDot)) {
         const fieldPathInArray = targetPath.slice(arrayPathWithDot.length);
-        return { arrayPath: newLogicalPath, fieldPathInArray };
-      }
-      if (targetPath.startsWith(arrayPathWithSeparator)) {
-        const fieldPathInArray = targetPath.slice(arrayPathWithSeparator.length);
         return { arrayPath: newLogicalPath, fieldPathInArray };
       }
     }

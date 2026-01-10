@@ -34,8 +34,8 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
     const [currentSchema, setCurrentSchema] = useState<ExtendedJSONSchema>(schema);
     const [loading, setLoading] = useState(false);
     // 保存外层表单的 context
-    const parentFormContext = useFormContext();
-    const { watch, getValues } = parentFormContext;
+    // const parentFormContext = useFormContext();
+    // const { watch, getValues } = parentFormContext;
 
     // 获取父级路径前缀
     const parentPathPrefix = usePathPrefix();
@@ -49,10 +49,10 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
     const linkageStateContext = useLinkageStateContext();
 
     // 保存当前的 schema key 值，用于检测切换
-    const previousKeyRef = useRef<string | undefined>();
+    // const previousKeyRef = useRef<string | undefined>();
 
     // 保存上次的 value 序列化值，用于检测 value 是否真正变化
-    const previousValueRef = useRef<string>('');
+    // const previousValueRef = useRef<string>('');
 
     // 注册当前 schema 到 Context（当 currentSchema 变化时更新）
     useEffect(() => {
@@ -131,15 +131,24 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
       />
     );
 
-    // 根据 noCard 参数决定是否渲染 Card 容器
-    if (noCard) {
+    // 检查是否使用 flattenPath（路径透明化）
+    const useFlattenPath = schema.ui?.flattenPath;
+
+    // 根据 flattenPath 或 noCard 决定渲染方式
+    if (useFlattenPath || noCard) {
+      // 透明容器：无 Card、无 padding、无标题
       return (
-        <div ref={ref} className="nested-form-widget nested-form-widget--no-card" data-name={name}>
+        <div
+          ref={ref}
+          className="nested-form-widget--flatten"
+          data-name={name}
+        >
           {formContent}
         </div>
       );
     }
 
+    // 标准容器：有 Card、有 padding、有标题
     return (
       <Card
         ref={ref}

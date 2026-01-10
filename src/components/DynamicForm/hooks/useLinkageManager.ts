@@ -10,8 +10,6 @@ import type { LinkageResult } from '../types/linkage';
 import { ConditionEvaluator } from '../utils/conditionEvaluator';
 import { DependencyGraph } from '../utils/dependencyGraph';
 import { PathResolver } from '../utils/pathResolver';
-import type { PathMapping } from '../utils/schemaLinkageParser';
-import { physicalToLogicalPath } from '../utils/schemaLinkageParser';
 
 /**
  * 异步请求序列号管理器
@@ -106,22 +104,28 @@ interface LinkageManagerOptions {
   form: UseFormReturn<any>;
   linkages: Record<string, LinkageConfig>;
   linkageFunctions?: Record<string, LinkageFunction>;
-  pathMappings?: PathMapping[]; // 新增：路径映射表
 }
 
 /**
  * 联动管理器 Hook
+ *
+ * 新方案（v3.0）：移除 pathMappings，使用标准路径
  */
 export function useLinkageManager({
   form,
   linkages,
   linkageFunctions = {},
-  pathMappings = [], // 新增：路径映射表
 }: LinkageManagerOptions) {
   const { watch, getValues } = form;
 
   // 创建异步序列号管理器实例（使用 useRef 保持引用稳定）
   const asyncSequenceManager = useRef(new AsyncSequenceManager()).current;
+
+  // 标志位：防止 setValue 触发的 watch 导致死循环
+  const isUpdatingFromLinkage = useRef(false);
+
+  // 防抖定时器：用于处理快速连续修改
+  const debounceTimers = useRef<Map<string, NodeJS.Timeout>>(new Map()).current;
 
   // 构建依赖图
   const dependencyGraph = useMemo(() => {
@@ -147,31 +151,10 @@ export function useLinkageManager({
   // 联动状态缓存（使用 useState 而不是 useMemo，以便在 useEffect 中更新）
   const [linkageStates, setLinkageStates] = useState<Record<string, LinkageResult>>({});
 
-  // 将物理路径的表单数据转换为逻辑路径（用于路径透明化场景）
-  const transformFormData = (physicalData: any): any => {
-    if (pathMappings.length === 0) {
-      return physicalData;
-    }
-
-    const logicalData: any = { ...physicalData };
-
-    // 遍历路径映射，将物理路径的数据复制到逻辑路径
-    pathMappings.forEach(mapping => {
-      const physicalValue = getNestedValue(physicalData, mapping.physicalPath);
-      if (physicalValue !== undefined) {
-        setNestedValue(logicalData, mapping.logicalPath, physicalValue);
-      }
-    });
-
-    return logicalData;
-  };
-
   // 初始化联动状态
   useEffect(() => {
     (async () => {
-      const physicalFormData = { ...getValues() };
-      // 转换为逻辑路径的数据
-      const formData = transformFormData(physicalFormData);
+      const formData = { ...getValues() };
       const states: Record<string, LinkageResult> = {};
 
       // 获取拓扑排序后的字段列表
@@ -204,25 +187,25 @@ export function useLinkageManager({
       setLinkageStates(states);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [linkages, linkageFunctions, dependencyGraph, pathMappings]);
+  }, [linkages, linkageFunctions, dependencyGraph]);
 
   // 统一的字段变化监听和联动处理
   useEffect(() => {
     const subscription = watch((_, { name }) => {
       if (!name) return;
 
-      // 将物理路径转换为逻辑路径（用于依赖图查找）
-      const logicalName = physicalToLogicalPath(name, pathMappings);
+      // 防止死循环：如果是联动触发的 setValue，跳过处理
+      if (isUpdatingFromLinkage.current) {
+        return;
+      }
 
       // 获取受影响的字段（使用依赖图精确计算）
-      const affectedFields = dependencyGraph.getAffectedFields(logicalName);
+      const affectedFields = dependencyGraph.getAffectedFields(name);
       if (affectedFields.length === 0) return;
 
       // 异步处理联动逻辑
       (async () => {
-        const physicalFormData = { ...getValues() };
-        // 转换为逻辑路径的数据
-        const formData = transformFormData(physicalFormData);
+        const formData = { ...getValues() };
         const newStates: Record<string, LinkageResult> = {};
         let hasStateChange = false;
 
@@ -250,11 +233,21 @@ export function useLinkageManager({
               if (currentValue !== result.value) {
                 // 更新 formData 以供后续字段使用
                 formData[fieldName] = result.value;
-                // 使用 shouldValidate: false 和 shouldDirty: false 避免触发额外的验证和变化事件
-                form.setValue(fieldName, result.value, {
-                  shouldValidate: false,
-                  shouldDirty: false,
-                });
+
+                // 设置标志位，防止 setValue 触发的 watch 导致死循环
+                isUpdatingFromLinkage.current = true;
+                try {
+                  form.setValue(fieldName, result.value, {
+                    shouldValidate: false,
+                    shouldDirty: false,
+                  });
+                } finally {
+                  // 使用 setTimeout 确保在下一个事件循环中重置标志位
+                  // 这样可以让当前的 setValue 完全完成（包括触发 watch）
+                  setTimeout(() => {
+                    isUpdatingFromLinkage.current = false;
+                  }, 0);
+                }
               }
             }
 

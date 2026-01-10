@@ -17,7 +17,6 @@ import {
 import { PathPrefixProvider } from './context/PathPrefixContext';
 import { LinkageStateProvider, useLinkageStateContext } from './context/LinkageStateContext';
 import { WidgetsProvider } from './context/WidgetsContext';
-import { PathTransformer, splitPath, rebuildPath } from './utils/pathTransformer';
 import { wrapPrimitiveArrays, unwrapPrimitiveArrays } from './utils/arrayTransformer';
 import '@blueprintjs/core/lib/css/blueprint.css';
 
@@ -27,10 +26,14 @@ const EMPTY_WIDGETS = {};
 const EMPTY_CUSTOM_FORMATS = {};
 
 /**
- * 转换表单数据：路径转换 + 数组解包 + 数据过滤
+ * 转换表单数据：数组解包 + 数据过滤
+ *
+ * 新方案（v3.0）：
+ * - 移除路径转换逻辑，数据保持标准的嵌套格式
+ * - 只需要解包基本类型数组和过滤数据
+ *
  * @param data - 原始表单数据
  * @param schema - Schema 定义
- * @param useFlattenPath - 是否使用了路径扁平化
  * @param nestedSchemaRegistry - 嵌套 Schema 注册表（可选）
  * @param shouldFilter - 是否需要过滤数据（默认 false）
  * @returns 转换后的数据
@@ -38,17 +41,13 @@ const EMPTY_CUSTOM_FORMATS = {};
 function transformFormData(
   data: Record<string, any>,
   schema: ExtendedJSONSchema,
-  useFlattenPath: boolean,
   nestedSchemaRegistry?: { getAllSchemas: () => Map<string, ExtendedJSONSchema> },
   shouldFilter: boolean = false
 ): Record<string, any> {
-  // 第一步：如果使用了路径扁平化，将扁平数据转换回嵌套结构
-  let processedData = useFlattenPath ? PathTransformer.flatToNestedWithSchema(data, schema) : data;
+  // 第一步：解包基本类型数组
+  let processedData = unwrapPrimitiveArrays(data, schema);
 
-  // 第二步：解包基本类型数组
-  processedData = unwrapPrimitiveArrays(processedData, schema);
-
-  // 第三步：根据 schema 过滤数据（仅在需要时执行）
+  // 第二步：根据 schema 过滤数据（仅在需要时执行）
   if (shouldFilter) {
     processedData = nestedSchemaRegistry
       ? filterValueWithNestedSchemas(processedData, schema, nestedSchemaRegistry.getAllSchemas())
@@ -60,9 +59,12 @@ function transformFormData(
 
 /**
  * 检查字段是否应该被隐藏（包括检查父级路径的联动状态）
- * 对于 flattenPath 场景，联动配置可能在父级路径上，需要检查所有父级
  *
- * @param fieldPath - 字段路径，如 'group~~category.contacts'
+ * 新方案（v3.0）：
+ * - 使用标准的 . 分隔符
+ * - 检查字段自身和所有父级路径的联动状态
+ *
+ * @param fieldPath - 字段路径，如 'auth.content.key'
  * @param linkageStates - 联动状态映射
  * @returns 如果字段或其任何父级被隐藏，返回 true
  */
@@ -75,12 +77,12 @@ function isFieldHiddenByLinkage(
     return true;
   }
 
-  // 使用统一的路径工具拆分路径
-  const parts = splitPath(fieldPath);
+  // 使用标准的 . 分隔符拆分路径
+  const parts = fieldPath.split('.');
 
   // 检查每个父级路径的联动状态
-  for (let i = 0; i < parts.length - 1; i++) {
-    const parentPath = rebuildPath(fieldPath, parts, i + 1);
+  for (let i = 1; i < parts.length; i++) {
+    const parentPath = parts.slice(0, i).join('.');
     if (linkageStates[parentPath]?.visible === false) {
       return true;
     }
@@ -122,16 +124,19 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
   const stableWidgets = widgets || EMPTY_WIDGETS;
   const stableCustomFormats = customFormats || EMPTY_CUSTOM_FORMATS;
 
-  // 检查是否使用了路径扁平化
-  const useFlattenPath = useMemo(() => SchemaParser.hasFlattenPath(schema), [schema]);
-
   // 设置自定义格式验证器并解析字段
   // 当 asNestedForm 为 true 时，需要为字段名添加 pathPrefix 前缀
   const fields = useMemo(() => {
     if (stableCustomFormats && Object.keys(stableCustomFormats).length > 0) {
       SchemaParser.setCustomFormats(stableCustomFormats);
     }
-    const parsedFields = SchemaParser.parse(schema);
+
+    // 从 schema.ui 中读取 prefixLabel（用于 flattenPrefix 场景）
+    const prefixLabel = schema.ui?.prefixLabel || '';
+
+    const parsedFields = SchemaParser.parse(schema, {
+      prefixLabel,
+    });
 
     // 如果是嵌套表单模式且有路径前缀，为字段名添加前缀
     if (asNestedForm && pathPrefix) {
@@ -143,18 +148,12 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
     return parsedFields;
   }, [schema, stableCustomFormats, asNestedForm, pathPrefix]);
 
-  // 处理 defaultValues：包装基本类型数组 + 路径扁平化
+  // 处理 defaultValues：只需要包装基本类型数组
+  // 新方案（v3.0）：数据保持标准嵌套格式，无需路径转换
   const processedDefaultValues = useMemo(() => {
     if (!defaultValues) return undefined;
-
-    // 第一步：包装基本类型数组
-    const wrappedData = wrapPrimitiveArrays(defaultValues, schema);
-
-    // 第二步：如果使用了路径扁平化，使用基于 Schema 的转换
-    // 这会将物理路径的数据转换到逻辑路径的 key 下
-    if (!useFlattenPath) return wrappedData;
-    return PathTransformer.nestedToFlatWithSchema(wrappedData, schema);
-  }, [defaultValues, useFlattenPath, schema]);
+    return wrapPrimitiveArrays(defaultValues, schema);
+  }, [defaultValues, schema]);
 
   // 只有非嵌套表单模式才创建新的 useForm 实例
   const ownMethods = useForm({
@@ -166,13 +165,9 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
   // 嵌套表单模式下复用父表单的 FormContext，否则使用自己的
   const methods = asNestedForm && parentFormContext ? parentFormContext : ownMethods;
 
-  // 解析 schema 中的联动配置（包含路径映射）
   // 解析 schema 中的联动配置
   // 分层计算策略：遇到数组字段时停止递归，数组元素内部由 NestedFormWidget 独立处理
-  const {
-    linkages: rawLinkages,
-    pathMappings,
-  } = useMemo(() => {
+  const { linkages: rawLinkages } = useMemo(() => {
     const parsed = parseSchemaLinkages(schema);
     if (process.env.NODE_ENV !== 'production') {
       console.log(
@@ -181,9 +176,7 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
           schema: schema.title || 'root',
           pathPrefix,
           asNestedForm,
-          rawLinkages: parsed.linkages,
-          pathMappingsCount: parsed.pathMappings.length,
-          hasFlattenPath: parsed.hasFlattenPath,
+          linkagesCount: Object.keys(parsed.linkages).length,
         })
       );
     }
@@ -250,7 +243,6 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
     baseLinkages: processedLinkages,
     linkageFunctions: effectiveLinkageFunctions,
     schema,
-    pathMappings,
   });
 
   // 步骤4: 合并父级和自己的联动状态
@@ -282,25 +274,23 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
   React.useEffect(() => {
     if (onChange) {
       const subscription = watch(data => {
-        const processedData = transformFormData(data, schema, useFlattenPath);
+        const processedData = transformFormData(data, schema);
         onChange(processedData);
       });
       return () => subscription.unsubscribe();
     }
-  }, [watch, onChange, useFlattenPath, schema]);
+  }, [watch, onChange, schema]);
 
   const onSubmitHandler = async (data: Record<string, any>) => {
     if (onSubmit) {
       if (process.env.NODE_ENV !== 'production') {
         console.info('[DynamicForm] onSubmitHandler - 原始数据:', JSON.stringify(data));
-        console.info('[DynamicForm] onSubmitHandler - useFlattenPath:', useFlattenPath);
       }
 
       // 使用公共函数进行数据转换，包含过滤步骤
       const filteredData = transformFormData(
         data,
         schema,
-        useFlattenPath,
         nestedSchemaRegistry || undefined,
         true // 需要过滤数据
       );

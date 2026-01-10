@@ -1011,50 +1011,46 @@ describe('SchemaParser', () => {
     });
   });
 
-  describe('buildFieldPath - 路径构建', () => {
+  describe('buildFieldPath - 路径构建 (v3.0)', () => {
     it('应该为空父路径返回字段名', () => {
-      const path = SchemaParser.buildFieldPath('', 'name', false);
+      const path = SchemaParser.buildFieldPath('', 'name');
       expect(path).toBe('name');
     });
 
-    it('应该使用 . 连接普通字段', () => {
-      const path = SchemaParser.buildFieldPath('user', 'name', false);
+    it('应该使用 . 连接所有字段', () => {
+      const path = SchemaParser.buildFieldPath('user', 'name');
       expect(path).toBe('user.name');
     });
 
-    it('应该使用 ~~ 连接 flattenPath 字段', () => {
-      const path = SchemaParser.buildFieldPath('region', 'market', true);
-      expect(path).toBe('region~~market');
+    it('应该使用 . 连接嵌套字段（包括 flattenPath）', () => {
+      const path = SchemaParser.buildFieldPath('region', 'market');
+      expect(path).toBe('region.market');
     });
 
-    it('应该在父级是 flattenPath 链时使用 ~~', () => {
-      const path = SchemaParser.buildFieldPath('region~~market', 'contacts', false);
-      expect(path).toBe('region~~market~~contacts');
+    it('应该使用 . 连接多层嵌套字段', () => {
+      const path = SchemaParser.buildFieldPath('region.market', 'contacts');
+      expect(path).toBe('region.market.contacts');
     });
 
-    it('应该处理混合的 . 和 ~~ 分隔符', () => {
-      const path = SchemaParser.buildFieldPath('region~~market~~contacts.0', 'category', true);
-      expect(path).toBe('region~~market~~contacts.0~~category');
+    it('应该处理数组索引路径', () => {
+      const path = SchemaParser.buildFieldPath('region.market.contacts.0', 'category');
+      expect(path).toBe('region.market.contacts.0.category');
     });
 
-    it('应该在 flattenPath 链中继续使用 ~~', () => {
-      const path = SchemaParser.buildFieldPath('region~~market~~contacts.0~~category', 'group', true);
-      expect(path).toBe('region~~market~~contacts.0~~category~~group');
+    it('应该处理深层嵌套路径', () => {
+      const path1 = SchemaParser.buildFieldPath('region.market.contacts.0.category', 'group');
+      expect(path1).toBe('region.market.contacts.0.category.group');
+
+      const path2 = SchemaParser.buildFieldPath('region.market.contacts.0.category.group', 'name');
+      expect(path2).toBe('region.market.contacts.0.category.group.name');
     });
 
-    it('应该在 flattenPath 链末尾添加普通字段时使用 ~~', () => {
-      const path = SchemaParser.buildFieldPath('region~~market~~contacts.0~~category~~group', 'name', false);
-      expect(path).toBe('region~~market~~contacts.0~~category~~group~~name');
-    });
-
-    it('应该正确判断最后一个分隔符类型', () => {
-      // 最后是 .，当前不是 flattenPath，应该用 .
-      const path1 = SchemaParser.buildFieldPath('user.address', 'street', false);
+    it('应该统一使用 . 分隔符', () => {
+      const path1 = SchemaParser.buildFieldPath('user.address', 'street');
       expect(path1).toBe('user.address.street');
 
-      // 最后是 ~~，即使当前不是 flattenPath，也应该用 ~~
-      const path2 = SchemaParser.buildFieldPath('region~~market', 'name', false);
-      expect(path2).toBe('region~~market~~name');
+      const path2 = SchemaParser.buildFieldPath('region.market', 'name');
+      expect(path2).toBe('region.market.name');
     });
   });
 
@@ -1243,7 +1239,7 @@ describe('SchemaParser', () => {
       const fields = SchemaParser.parse(schema);
 
       expect(fields).toHaveLength(1);
-      expect(fields[0].name).toBe('region~~market~~name');
+      expect(fields[0].name).toBe('region.market.name');
       expect(fields[0].label).toBe('Region - Market - Name');
     });
 

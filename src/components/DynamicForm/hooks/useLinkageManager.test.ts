@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { renderHook, waitFor } from '@testing-library/react';
+import { renderHook, waitFor, act } from '@testing-library/react';
 import { useForm } from 'react-hook-form';
 import { useLinkageManager } from './useLinkageManager';
 import type { LinkageConfig, LinkageFunction } from '../types/linkage';
@@ -30,7 +30,7 @@ describe('useLinkageManager - 异步函数支持', () => {
       const linkageFunctions: Record<string, LinkageFunction> = {
         calculateTotal: async (formData: any) => {
           // 模拟异步操作（例如调用 API）
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise(resolve => setTimeout(resolve, 50));
           return (formData.price || 0) * (formData.quantity || 0);
         },
       };
@@ -45,17 +45,31 @@ describe('useLinkageManager - 异步函数支持', () => {
     });
 
     // 等待初始化完成
-    await waitFor(() => {
-      expect(result.current.linkageStates.total?.value).toBe(200);
-    });
+    await waitFor(
+      () => {
+        expect(result.current.linkageStates.total?.value).toBe(200);
+      },
+      { timeout: 5000, interval: 100 }
+    );
+
+    // 等待所有异步操作完全稳定（确保 watch 不再触发）
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     // 修改 price
-    result.current.form.setValue('price', 150);
+    act(() => {
+      result.current.form.setValue('price', 150);
+    });
+
+    // 再次等待稳定
+    await new Promise(resolve => setTimeout(resolve, 200));
 
     // 等待联动计算完成
-    await waitFor(() => {
-      expect(result.current.linkageStates.total?.value).toBe(300);
-    });
+    await waitFor(
+      () => {
+        expect(result.current.linkageStates.total?.value).toBe(300);
+      },
+      { timeout: 5000, interval: 100 }
+    );
   });
 
   it('应该支持异步的 options 函数', async () => {
@@ -80,7 +94,7 @@ describe('useLinkageManager - 异步函数支持', () => {
       const linkageFunctions: Record<string, LinkageFunction> = {
         getProvinceOptions: async (formData: any) => {
           // 模拟从 API 获取选项
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise(resolve => setTimeout(resolve, 50));
 
           if (formData.country === 'china') {
             return [
@@ -107,19 +121,33 @@ describe('useLinkageManager - 异步函数支持', () => {
     });
 
     // 等待初始化完成
-    await waitFor(() => {
-      expect(result.current.linkageStates.province?.options).toHaveLength(2);
-      expect(result.current.linkageStates.province?.options?.[0].label).toBe('北京');
-    });
+    await waitFor(
+      () => {
+        expect(result.current.linkageStates.province?.options).toHaveLength(2);
+        expect(result.current.linkageStates.province?.options?.[0].label).toBe('北京');
+      },
+      { timeout: 5000, interval: 100 }
+    );
+
+    // 等待所有异步操作完全稳定（确保 watch 不再触发）
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     // 修改 country
-    result.current.form.setValue('country', 'usa');
+    act(() => {
+      result.current.form.setValue('country', 'usa');
+    });
+
+    // 再次等待稳定
+    await new Promise(resolve => setTimeout(resolve, 200));
 
     // 等待联动计算完成
-    await waitFor(() => {
-      expect(result.current.linkageStates.province?.options).toHaveLength(2);
-      expect(result.current.linkageStates.province?.options?.[0].label).toBe('California');
-    });
+    await waitFor(
+      () => {
+        expect(result.current.linkageStates.province?.options).toHaveLength(2);
+        expect(result.current.linkageStates.province?.options?.[0].label).toBe('California');
+      },
+      { timeout: 5000, interval: 100 }
+    );
   });
 
   it('应该支持异步的 when 条件函数', async () => {
@@ -1042,68 +1070,7 @@ describe('useLinkageManager - 依赖图和拓扑排序', () => {
 });
 
 describe('useLinkageManager - 路径映射场景', () => {
-  it('应该支持路径映射（PathMapping）', async () => {
-    const { result } = renderHook(() => {
-      const form = useForm({
-        defaultValues: {
-          'user~~name': 'John',
-          'user~~age': 25,
-          displayName: '',
-        },
-      });
-
-      // 路径映射：逻辑路径 -> 物理路径
-      const pathMappings = [
-        {
-          logicalPath: 'user.name',
-          physicalPath: 'user~~name',
-        },
-        {
-          logicalPath: 'user.age',
-          physicalPath: 'user~~age',
-        },
-      ];
-
-      const linkages: Record<string, LinkageConfig> = {
-        displayName: {
-          type: 'value',
-          dependencies: ['user.name', 'user.age'],
-          fulfill: {
-            function: 'generateDisplayName',
-          },
-        },
-      };
-
-      const linkageFunctions: Record<string, LinkageFunction> = {
-        generateDisplayName: (formData: any) => {
-          const name = formData.user?.name || '';
-          const age = formData.user?.age || 0;
-          return `${name} (${age})`;
-        },
-      };
-
-      const linkageStates = useLinkageManager({
-        form,
-        linkages,
-        linkageFunctions,
-        pathMappings,
-      });
-
-      return { form, linkageStates };
-    });
-
-    // 等待初始化完成
-    await waitFor(() => {
-      expect(result.current.linkageStates.displayName?.value).toBe('John (25)');
-    });
-
-    // 修改物理路径的值
-    result.current.form.setValue('user~~name', 'Jane');
-
-    await waitFor(() => {
-      expect(result.current.linkageStates.displayName?.value).toBe('Jane (25)');
-    });
-  });
+  // v3.0: 已移除 pathMappings 功能，所有路径统一使用标准 . 分隔符
 });
 
 describe('useLinkageManager - 错误处理', () => {

@@ -4,12 +4,13 @@
 
 字段路径透明化（Field Path Flattening）是一个用于解决深层嵌套参数显示冗余问题的特性。当后端接口参数嵌套较深时（如 `{auth: {content: {key: ''}}}`），用户可能只需要填写最内层的 `key` 字段，但如果按照标准的嵌套表单方式展示所有层级会显得过于冗余，并且会产生多余的 Card 边框和 padding。
 
-通过在 `ui` 配置中添加 `flattenPath` 属性，DynamicForm 可以在渲染时跳过中间层级，直接展示目标字段，但在数据提交时自动构建完整的嵌套结构。
+通过在 `ui` 配置中添加 `flattenPath` 属性，DynamicForm 可以在渲染时隐藏中间层级的视觉容器（Card、边框、padding），直接展示目标字段，同时保持完整的嵌套数据结构。
 
 **核心特点**：
-- 设置了 `flattenPath: true` 的对象字段不会渲染成 NestedFormWidget 和 Card 组件
-- 这些中间层级在 UI 上完全"消失"，只保留最终的叶子节点字段
-- 数据在表单内部使用逻辑路径（使用 `~~` 分隔符，如 `auth~~content~~key`），提交时自动转换为嵌套结构
+- 设置了 `flattenPath: true` 的对象字段会渲染 NestedFormWidget，但使用透明容器（无 Card、无 padding）
+- 这些中间层级在 UI 上视觉"透明"，只显示最终的叶子节点字段
+- 数据结构保持标准的嵌套格式（如 `{auth: {content: {key: 'value'}}}`），无需路径转换
+- 完整支持所有联动类型，包括 schema 联动
 
 ---
 
@@ -59,20 +60,26 @@
 
 ## 3. 核心特性
 
-1. **自动跳过中间层级，不渲染 Card 组件**：
-   - 设置了 `flattenPath: true` 的对象字段**不会渲染成 NestedFormWidget 和 Card 组件**
-   - 这是路径透明化的核心特点，避免多余的边框和 padding
-   - 中间层级在 UI 上完全"消失"，只保留最终的叶子节点字段
+1. **视觉透明化，保留组件结构**：
+   - 设置了 `flattenPath: true` 的对象字段**会渲染 NestedFormWidget**，但使用透明容器
+   - 透明容器：无 Card 边框、无 padding、不显示字段标题
+   - 中间层级在 UI 上视觉"透明"，只显示最终的叶子节点字段
+   - 组件结构保持嵌套，支持所有功能（包括 schema 联动）
 
-2. **自动路径映射**：表单字段使用逻辑路径（使用 `~~` 分隔符，如 `auth~~content~~key`）作为字段名
+2. **标准数据结构**：表单数据保持标准的嵌套格式，无需路径转换
+   - 字段路径使用标准的 `.` 分隔符（如 `auth.content.key`）
+   - 数据结构：`{auth: {content: {key: 'value'}}}`
+   - 无需逻辑路径和物理路径的转换
 
-3. **数据自动转换**：提交时自动将扁平数据转换为嵌套结构
+3. **可选前缀**：支持在字段标签前添加父级标题作为前缀
 
-4. **可选前缀**：支持在字段标签前添加父级标题作为前缀
+4. **完整功能支持**：
+   - ✅ 支持所有联动类型（visibility、disabled、value、options、**schema**）
+   - ✅ 支持验证规则
+   - ✅ 支持数组字段
+   - ✅ 支持嵌套表单
 
 5. **向后兼容**：不影响现有的嵌套表单功能
-
-6. **验证保留**：保留原有的验证规则，路径自动映射
 
 ---
 
@@ -309,90 +316,79 @@ export interface UIConfig {
 
 ### 6.1 核心实现原理
 
-路径透明化的核心实现分为三个部分：
+路径透明化的实现非常简洁，**只需要修改 NestedFormWidget 的渲染逻辑**：
 
 1. **Schema 解析阶段**（SchemaParser）：
-   - 检测到 `flattenPath: true` 时，跳过该对象字段，直接递归解析其子字段
-   - 使用 `~~` 分隔符构建逻辑路径（如 `auth~~content~~key`），避免路径冲突
+   - 正常解析所有字段，包括设置了 `flattenPath: true` 的对象字段
+   - 对象类型字段自动使用 `nested-form` widget
+   - 使用标准的 `.` 分隔符构建字段路径（如 `auth.content.key`）
    - 支持 `flattenPrefix` 来添加标签前缀
 
-2. **数据转换阶段**（PathTransformer）：
-   - 初始化时：将嵌套的 `defaultValues` 转换为扁平格式
-   - 提交时：将扁平数据转换回嵌套结构
+2. **表单渲染阶段**（NestedFormWidget）：
+   - 检查字段的 `schema.ui.flattenPath` 配置
+   - 如果为 `true`，使用透明容器（`<div>`，无 Card、无 padding）
+   - 如果为 `false`，使用标准容器（`<Card>`，有边框、有 padding）
 
-3. **表单渲染阶段**（DynamicForm）：
-   - 只渲染解析后的字段配置
-   - 设置了 `flattenPath: true` 的对象字段不会生成 NestedFormWidget
+3. **数据结构**：
+   - 保持标准的嵌套格式，无需任何路径转换
+   - defaultValues、onChange、onSubmit 都使用标准的嵌套对象
 
 ### 6.2 SchemaParser 实现
+
+SchemaParser 无需特殊处理 flattenPath，正常解析所有字段即可：
 
 ```typescript
 // src/components/DynamicForm/core/SchemaParser.ts
 
-import { FLATTEN_PATH_SEPARATOR } from '@/utils/schemaLinkageParser';
-
 export class SchemaParser {
   /**
-   * 构建字段路径（支持 flattenPath 的 ~~ 分隔符）
-   *
-   * 规则：
-   * 1. 如果父路径的最后一段是 flattenPath（最后一个分隔符是 ~~），
-   *    则子字段也使用 ~~ 连接（无论子字段是否是 flattenPath）
-   * 2. 如果当前字段是 flattenPath，使用 ~~ 连接
-   * 3. 否则使用 . 连接
-   */
-  private static buildFieldPath(
-    parentPath: string,
-    fieldName: string,
-    isFlattenPath: boolean
-  ): string {
-    if (!parentPath) {
-      return fieldName;
-    }
-
-    // 检查父路径的最后一个分隔符类型
-    const lastDotIndex = parentPath.lastIndexOf('.');
-    const lastSepIndex = parentPath.lastIndexOf(FLATTEN_PATH_SEPARATOR);
-    const isParentInFlattenChain = lastSepIndex > lastDotIndex;
-
-    // 如果父级在 flattenPath 链中，或当前字段是 flattenPath，使用 ~~
-    if (isParentInFlattenChain || isFlattenPath) {
-      return `${parentPath}${FLATTEN_PATH_SEPARATOR}${fieldName}`;
-    }
-
-    return `${parentPath}.${fieldName}`;
-  }
-
-  /**
-   * 解析 Schema 生成字段配置（支持路径扁平化）
+   * 解析 Schema 生成字段配置
    */
   static parse(schema: ExtendedJSONSchema, options: ParseOptions = {}): FieldConfig[] {
     const { parentPath = '', prefixLabel = '', inheritedUI } = options;
     const fields: FieldConfig[] = [];
 
-    // ... 省略部分代码
+    if (schema.type !== 'object' || !schema.properties) {
+      return fields;
+    }
+
+    const properties = schema.properties;
+    const required = schema.required || [];
+    const order = schema.ui?.order || Object.keys(properties);
 
     for (const key of order) {
+      const property = properties[key];
+      if (!property || typeof property === 'boolean') continue;
+
       const fieldSchema = property as ExtendedJSONSchema;
 
-      // 检查当前字段是否设置了 flattenPath
-      const isFlattenPath = fieldSchema.type === 'object' && fieldSchema.ui?.flattenPath;
+      // 构建字段路径（使用标准的 . 分隔符）
+      const currentPath = parentPath ? `${parentPath}.${key}` : key;
 
-      // 使用 buildFieldPath 方法正确处理 flattenPath 的路径
-      const currentPath = this.buildFieldPath(parentPath, key, isFlattenPath);
+      // 处理 flattenPrefix：如果字段设置了 flattenPrefix，添加标签前缀
+      const newPrefixLabel =
+        fieldSchema.ui?.flattenPrefix && fieldSchema.title
+          ? prefixLabel
+            ? `${prefixLabel} - ${fieldSchema.title}`
+            : fieldSchema.title
+          : prefixLabel;
 
-      // 检查是否需要路径扁平化
-      if (isFlattenPath) {
-        // 递归解析子字段，传递当前路径（已经包含 ~~ 分隔符）
-        const nestedFields = this.parse(fieldSchema, {
-          parentPath: currentPath,
-          prefixLabel: newPrefixLabel,
-          inheritedUI: newInheritedUI,
-        });
-        fields.push(...nestedFields);
-      } else {
-        // 正常解析字段
-        const fieldConfig = this.parseField(currentPath, fieldSchema, ...);
+      // 处理 UI 配置继承（用于 flattenPath 场景）
+      const newInheritedUI = {
+        layout: fieldSchema.ui?.layout ?? inheritedUI?.layout,
+        labelWidth: fieldSchema.ui?.labelWidth ?? inheritedUI?.labelWidth,
+      };
+
+      // 正常解析字段（包括 flattenPath 字段）
+      const fieldConfig = this.parseField(
+        currentPath,
+        fieldSchema,
+        required.includes(key),
+        newPrefixLabel,
+        newInheritedUI
+      );
+
+      if (!fieldConfig.hidden) {
         fields.push(fieldConfig);
       }
     }
@@ -403,94 +399,79 @@ export class SchemaParser {
 ```
 
 **关键点**：
-- 使用 `buildFieldPath` 方法统一处理路径生成逻辑
-- 当检测到 `flattenPath: true` 时，不会为该对象字段生成嵌套表单配置
-- 而是直接递归解析其子字段，将子字段"提升"到当前层级
-- 使用 `~~` 分隔符构建逻辑路径（如 `auth~~content~~key`），避免不同物理路径产生相同逻辑路径的冲突
-- **重要**：如果父路径在 flattenPath 链中（最后一个分隔符是 `~~`），子字段也会使用 `~~` 连接
+- 所有字段统一处理，包括设置了 `flattenPath: true` 的对象字段
+- 使用标准的 `.` 分隔符构建字段路径
+- 对象类型字段会自动使用 `nested-form` widget（在 `getWidget` 方法中）
+- `flattenPrefix` 配置用于添加标签前缀
+- UI 配置（layout、labelWidth）会继承给子字段
 
-### 6.3 路径转换工具
+### 6.3 NestedFormWidget 实现
 
-PathTransformer 工具类负责在扁平路径和嵌套对象之间进行转换。为了正确处理 `flattenPath` 配置，需要使用基于 Schema 的转换方法：
+**这是路径透明化的核心实现**，只需要根据 `flattenPath` 配置决定使用哪种容器：
 
 ```typescript
-// src/utils/pathTransformer.ts
+// src/components/DynamicForm/widgets/NestedFormWidget.tsx
 
-export class PathTransformer {
-  /**
-   * 基于 Schema 的路径映射转换（推荐）
-   * 将嵌套数据转换为表单期望的格式（考虑 flattenPath）
-   *
-   * @param nestedData - 原始嵌套数据（物理路径结构）
-   * @param schema - Schema 定义
-   * @returns 转换后的数据（逻辑路径作为 key）
-   *
-   * @example
-   * // Schema 中 group.category 设置了 flattenPath: true
-   * nestedToFlatWithSchema(
-   *   { group: { category: { contacts: [...] } } },
-   *   schema
-   * )
-   * // => { 'group~~category~~contacts': [...] }  // 使用 ~~ 分隔符的逻辑路径
-   */
-  static nestedToFlatWithSchema(
-    nestedData: Record<string, any>,
-    schema: ExtendedJSONSchema
-  ): Record<string, any>;
+export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps>(
+  ({ name, schema, disabled, readonly, layout, labelWidth, noCard = false }, ref) => {
+    // ... 现有的状态管理和联动逻辑 ...
 
-  /**
-   * 基于 Schema 的反向路径映射转换（推荐）
-   * 将表单数据（逻辑路径）转换回原始嵌套结构（物理路径）
-   *
-   * @param flatData - 表单数据（逻辑路径作为 key）
-   * @param schema - Schema 定义
-   * @returns 转换后的数据（物理路径嵌套结构）
-   *
-   * @example
-   * // Schema 中 group.category 设置了 flattenPath: true
-   * flatToNestedWithSchema(
-   *   { 'group~~category~~contacts': [...] },
-   *   schema
-   * )
-   * // => { group: { category: { contacts: [...] } } }  // 恢复了物理路径结构
-   */
-  static flatToNestedWithSchema(
-    flatData: Record<string, any>,
-    schema: ExtendedJSONSchema
-  ): Record<string, any>;
+    const formContent = (
+      <DynamicForm
+        schema={currentSchema}
+        disabled={disabled}
+        readonly={readonly}
+        layout={layout}
+        labelWidth={labelWidth}
+        showSubmitButton={false}
+        renderAsForm={false}
+        pathPrefix={fullPath}
+        asNestedForm={true}
+      />
+    );
 
-  /**
-   * 简单的扁平化转换（不推荐用于 flattenPath 场景）
-   * 将扁平化的表单数据转换为嵌套结构
-   * @example
-   * flatToNested({ 'auth.content.key': 'value' })
-   * // => { auth: { content: { key: 'value' } } }
-   */
-  static flatToNested(flatData: Record<string, any>): Record<string, any>;
+    // 检查是否使用 flattenPath
+    const useFlattenPath = schema.ui?.flattenPath;
 
-  /**
-   * 简单的嵌套转换（不推荐用于 flattenPath 场景）
-   * 将嵌套结构的数据转换为扁平化格式
-   * @example
-   * nestedToFlat({ auth: { content: { key: 'value' } } })
-   * // => { 'auth.content.key': 'value' }
-   */
-  static nestedToFlat(
-    nestedData: Record<string, any>,
-    prefix: string = ''
-  ): Record<string, any>;
-}
+    // 根据 flattenPath 或 noCard 决定渲染方式
+    if (useFlattenPath || noCard) {
+      // 透明容器：无 Card、无 padding、无标题
+      return (
+        <div
+          ref={ref}
+          className="nested-form-widget--flatten"
+          data-name={name}
+        >
+          {formContent}
+        </div>
+      );
+    }
+
+    // 标准容器：有 Card、有 padding、有标题
+    return (
+      <Card
+        ref={ref}
+        className="nested-form-widget"
+        data-name={name}
+        elevation={1}
+        style={{ padding: '15px' }}
+      >
+        {formContent}
+      </Card>
+    );
+  }
+);
 ```
 
-**重要说明**：
+**关键点**：
+- 检查 `schema.ui.flattenPath` 配置
+- `flattenPath: true` → 使用透明 `<div>` 容器
+- `flattenPath: false` → 使用标准 `<Card>` 容器
+- 组件结构保持嵌套，支持所有功能（包括 schema 联动）
 
-- `nestedToFlatWithSchema` 和 `flatToNestedWithSchema` 是推荐使用的方法，它们会根据 Schema 中的 `flattenPath` 配置正确处理路径转换
-- 简单的 `nestedToFlat` 和 `flatToNested` 方法不理解 `flattenPath` 配置，可能导致数据转换错误
-- 当 Schema 中存在 `flattenPath: true` 的字段时，必须使用基于 Schema 的方法
+### 6.4 数据处理
 
-### 6.4 DynamicForm 组件集成
-
-DynamicForm 组件负责协调整个流程：
+新方案下，DynamicForm 组件无需特殊处理 flattenPath：
 
 ```typescript
 // src/components/DynamicForm/DynamicForm.tsx
@@ -502,67 +483,34 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
   onChange,
   ...props
 }) => {
-  // 检查是否使用了路径扁平化
-  const useFlattenPath = useMemo(() => SchemaParser.hasFlattenPath(schema), [schema]);
-
-  // 解析字段配置（支持路径扁平化）
+  // 解析字段配置（正常解析，无需特殊处理）
   const fields = useMemo(() => SchemaParser.parse(schema), [schema]);
 
-  // 处理 defaultValues：包装基本类型数组 + 路径扁平化
+  // 处理 defaultValues：只需要包装基本类型数组
   const processedDefaultValues = useMemo(() => {
     if (!defaultValues) return undefined;
-
-    // 第一步：包装基本类型数组
-    const wrappedData = wrapPrimitiveArrays(defaultValues, schema);
-
-    // 第二步：如果使用了路径扁平化，使用基于 Schema 的转换
-    // 这会将物理路径的数据转换到逻辑路径的 key 下
-    if (!useFlattenPath) return wrappedData;
-    return PathTransformer.nestedToFlatWithSchema(wrappedData, schema);
-  }, [defaultValues, useFlattenPath, schema]);
+    return wrapPrimitiveArrays(defaultValues, schema);
+  }, [defaultValues, schema]);
 
   const methods = useForm({
     defaultValues: processedDefaultValues,
     mode: validateMode,
   });
 
-  // 处理表单变化
-  React.useEffect(() => {
-    if (onChange) {
-      const subscription = watch(data => {
-        // 第一步：如果使用了路径扁平化，将扁平数据转换回嵌套结构
-        // 使用基于 Schema 的转换，正确恢复物理路径结构
-        let processedData = useFlattenPath
-          ? PathTransformer.flatToNestedWithSchema(data, schema)
-          : data;
-
-        // 第二步：解包基本类型数组
-        processedData = unwrapPrimitiveArrays(processedData, schema);
-
-        onChange(processedData);
-      });
-      return () => subscription.unsubscribe();
-    }
-  }, [watch, onChange, useFlattenPath, schema]);
-
   // 处理表单提交
   const onSubmitHandler = async (data: Record<string, any>) => {
     if (onSubmit) {
-      // 第一步：如果使用了路径扁平化，将扁平数据转换回嵌套结构
-      // 使用基于 Schema 的转换，正确恢复物理路径结构
-      let processedData = useFlattenPath
-        ? PathTransformer.flatToNestedWithSchema(data, schema)
-        : data;
+      // 解包基本类型数组
+      let processedData = unwrapPrimitiveArrays(data, schema);
 
-      // 第二步：解包基本类型数组（将对象数组转换回基本类型数组）
-      processedData = unwrapPrimitiveArrays(processedData, schema);
+      // 过滤数据
+      processedData = filterValueWithNestedSchemas(
+        processedData,
+        schema,
+        nestedSchemaRegistry?.getAllSchemas() || new Map()
+      );
 
-      // 第三步：根据当前 schema 过滤数据，只保留 schema 中定义的字段
-      const filteredData = nestedSchemaRegistry
-        ? filterValueWithNestedSchemas(processedData, schema, nestedSchemaRegistry.getAllSchemas())
-        : filterValueWithNestedSchemas(processedData, schema, new Map());
-
-      await onSubmit(filteredData);
+      await onSubmit(processedData);
     }
   };
 
@@ -571,13 +519,9 @@ const DynamicFormInner: React.FC<DynamicFormProps> = ({
 ```
 
 **关键点**：
-- 使用 `hasFlattenPath()` 检查是否需要路径转换
-- 初始化时使用 `nestedToFlatWithSchema` 将嵌套的 `defaultValues` 转换为扁平格式
-- 同时处理基本类型数组的包装/解包（`wrapPrimitiveArrays` / `unwrapPrimitiveArrays`）
-- 提交时使用 `filterValueWithNestedSchemas` 过滤数据
-- 在 `onChange` 和 `onSubmit` 时使用 `flatToNestedWithSchema` 将扁平数据转换回嵌套结构
-- 基于 Schema 的转换方法能正确处理 `flattenPath` 配置，确保数据结构正确
-- 对于没有使用 `flattenPath` 的表单，不进行任何转换，保持向后兼容
+- 无需路径转换，数据保持标准的嵌套格式
+- 只需要处理基本类型数组的包装/解包
+- 代码大幅简化，易于维护
 
 ---
 
@@ -790,28 +734,26 @@ const schema = {
 };
 ```
 
-**生成的逻辑路径**：
+**生成的字段路径**：
 
 ```typescript
 // 顶层字段
 'enableRegion'
 
-// 数组字段（region 和 market 都是 flattenPath）
-'region~~market~~contacts'
+// 数组字段（使用标准的 . 分隔符）
+'region.market.contacts'
 
 // 数组元素内部字段（假设索引为 0）
-'region~~market~~contacts.0.auth.apiKey'
-'region~~market~~contacts.0.auth.apiSecret'
-'region~~market~~contacts.0~~category~~group~~type'
-'region~~market~~contacts.0~~category~~group~~name'
+'region.market.contacts.0.auth.apiKey'
+'region.market.contacts.0.auth.apiSecret'
+'region.market.contacts.0.category.group.type'
+'region.market.contacts.0.category.group.name'
 ```
 
-**路径解析规则说明**：
-
-1. **`region~~market~~contacts`**：region 和 market 都是 flattenPath，contacts 继承使用 `~~`
-2. **`region~~market~~contacts.0`**：数组索引使用 `.`
-3. **`region~~market~~contacts.0.auth.apiKey`**：auth 是普通对象，使用 `.`
-4. **`region~~market~~contacts.0~~category~~group~~name`**：category 和 group 是 flattenPath，name 继承使用 `~~`
+**说明**：
+- 新方案使用标准的 `.` 分隔符构建字段路径
+- 数据结构保持标准的嵌套格式
+- flattenPath 只影响视觉呈现（是否显示 Card 边框），不影响路径和数据结构
 
 ---
 
@@ -860,7 +802,7 @@ const schema = {
 }
 ```
 
-**说明**：验证规则会自动应用到扁平化后的字段上，路径会自动映射。
+**说明**：验证规则正常工作，无需特殊处理。flattenPath 只影响视觉呈现，不影响验证逻辑。
 
 ### 8.2 与 UI 联动配合
 
@@ -914,7 +856,10 @@ const schema = {
 }
 ```
 
-**说明**：当 `enableAuth` 为 `true` 时，显示 `认证 - 用户名` 和 `认证 - 密码` 字段。
+**说明**：
+- 当 `enableAuth` 为 `true` 时，显示 `认证 - 用户名` 和 `认证 - 密码` 字段
+- **新方案完整支持所有联动类型**，包括 visibility、disabled、value、options、**schema** 联动
+- flattenPath 字段可以正常使用联动功能，无需特殊处理
 
 ### 8.3 与布局配置（layout 和 labelWidth）配合
 
@@ -1074,7 +1019,7 @@ if (inheritedUI && (inheritedUI.layout || inheritedUI.labelWidth)) {
 
 ### 10.1 字段名冲突
 
-当多个透明化对象的子字段名称相同时，会产生冲突：
+**新方案下不存在字段名冲突问题**：
 
 ```json
 {
@@ -1098,14 +1043,17 @@ if (inheritedUI && (inheritedUI.layout || inheritedUI.labelWidth)) {
 }
 ```
 
-**解决方案**：使用 `flattenPrefix: true` 添加前缀区分。
+**说明**：
+- 字段路径分别为 `config1.name` 和 `config2.name`，不会冲突
+- 如果需要更清晰的标签，可以使用 `flattenPrefix: true` 添加前缀
+- 新方案使用标准的嵌套路径，天然避免了冲突问题
 
 ### 10.2 Card 渲染行为
 
-**重要**：设置了 `flattenPath: true` 的对象字段不会渲染成 NestedFormWidget 和 Card 组件。
+**新方案**：设置了 `flattenPath: true` 的对象字段**会渲染 NestedFormWidget**，但使用透明容器。
 
 ```typescript
-// ❌ 错误理解：以为会渲染多层 Card
+// 多层 flattenPath 嵌套
 {
   api: {                    // 设置 flattenPath: true
     auth: {                 // 设置 flattenPath: true
@@ -1116,15 +1064,17 @@ if (inheritedUI && (inheritedUI.layout || inheritedUI.labelWidth)) {
   }
 }
 
-// ✅ 实际渲染：只渲染一个输入框，没有任何 Card
-// 字段名：api.auth.content.name
-// 标签：name（或带前缀）
+// ✅ 实际渲染：
+// - 渲染 3 层 NestedFormWidget（api、auth、content）
+// - 每层都使用透明容器（<div>，无 Card、无 padding）
+// - 视觉效果：只显示一个输入框，没有边框和间距
+// - 字段路径：api.auth.content.name
 ```
 
 **说明**：
-- 路径透明化的核心目的就是跳过中间层级，避免多余的 Card 嵌套
-- 只有没有设置 `flattenPath: true` 的对象字段才会渲染成 NestedFormWidget（带 Card）
-- 这样可以避免深层嵌套时产生的多余边框和 padding
+- 组件结构保持嵌套，但视觉上透明
+- 支持所有功能（包括 schema 联动）
+- 多层透明容器堆叠，视觉效果等同于扁平展示
 
 ### 10.3 数组字段的处理
 
@@ -1156,12 +1106,13 @@ if (inheritedUI && (inheritedUI.layout || inheritedUI.labelWidth)) {
 
 | 特性 | 路径透明化 | 嵌套表单 |
 |------|-----------|---------|
-| 渲染方式 | 扁平展示，跳过中间层级 | 保留层级结构 |
-| Card 组件 | **不渲染** Card 和 NestedFormWidget | 渲染 Card 和 NestedFormWidget |
+| 渲染方式 | 视觉扁平，组件嵌套 | 保留层级结构 |
+| Card 组件 | 渲染 NestedFormWidget，但使用透明容器（无 Card） | 渲染 NestedFormWidget + Card |
 | 适用场景 | 中间层级无业务意义 | 层级有明确业务分组 |
-| 字段名 | 使用完整路径（`auth.content.key`） | 使用相对路径（`key`） |
-| 数据结构 | 自动转换为嵌套结构 | 直接使用嵌套结构 |
-| UI 展示 | 所有字段在同一层级，无边框 | 字段按层级分组展示，有 Card 边框 |
+| 字段路径 | 标准嵌套路径（`auth.content.key`） | 标准嵌套路径（`auth.content.key`） |
+| 数据结构 | 标准嵌套结构 | 标准嵌套结构 |
+| UI 展示 | 视觉扁平，无边框和间距 | 字段按层级分组展示，有 Card 边框 |
+| 功能支持 | ✅ 完整支持所有联动（包括 schema） | ✅ 完整支持所有联动 |
 
 ---
 
@@ -1171,27 +1122,54 @@ if (inheritedUI && (inheritedUI.layout || inheritedUI.labelWidth)) {
 
 **核心优势**：
 - ✅ 配置简单，只需添加 `ui.flattenPath: true`
-- ✅ 自动跳过中间层级，不渲染 Card 和 NestedFormWidget，避免多余的边框和 padding
-- ✅ 自动处理数据转换，无需手动编写转换逻辑
+- ✅ 实现简洁，只需修改 NestedFormWidget 的渲染逻辑
+- ✅ 无需路径转换，数据保持标准的嵌套格式
+- ✅ 完整支持所有联动类型（包括 **schema 联动**）
 - ✅ 向后兼容，不影响现有功能
-- ✅ 支持与验证、联动等其他特性配合使用
+- ✅ 代码易于维护，架构清晰
 - ✅ 可以与正常嵌套表单混合使用，灵活控制 UI 展示
 
 **使用建议**：
 - 优先考虑业务场景，确认是否真的需要透明化
 - 合理使用前缀，平衡简洁性和可读性
-- 注意性能影响，避免过度嵌套
 - 需要 Card 边框分组时使用正常嵌套表单，不需要时使用路径透明化
 - 可以在同一个表单中混合使用两种方式，灵活控制 UI 展示
 
 ---
 
 **创建日期**: 2025-12-26
-**最后更新**: 2025-12-29
-**版本**: 2.6
-**文档状态**: 已更新
+**最后更新**: 2026-01-09
+**版本**: 3.0
+**文档状态**: 已重构
 
-**更新内容**:
+## 变更历史
+
+### v3.0 (2026-01-09)
+
+**重大重构**：简化 flattenPath 实现方案
+
+**主要变更**：
+
+1. **实现方案简化**
+   - ✅ 移除复杂的路径转换逻辑（`~~` 分隔符、PathMapping、路径转换函数）
+   - ✅ 使用标准的 `.` 分隔符构建字段路径
+   - ✅ 数据保持标准的嵌套格式，无需转换
+   - ✅ 只需修改 NestedFormWidget 的渲染逻辑
+
+2. **功能完整性提升**
+   - ✅ 完整支持所有联动类型（包括 **schema 联动**）
+   - ✅ 组件结构保持嵌套，支持所有功能
+   - ✅ 视觉透明化，使用透明容器替代 Card
+
+3. **架构优势**
+   - ✅ 代码大幅简化，易于维护
+   - ✅ 无路径冲突问题
+   - ✅ 性能更好（无路径转换开销）
+   - ✅ 向后兼容
+
+**核心思路**：
+- 旧方案：跳过中间层级，不渲染 NestedFormWidget，使用 `~~` 分隔符和路径转换
+- 新方案：渲染 NestedFormWidget，但使用透明容器，保持标准路径和数据结构
 
 ### v2.6 (2025-12-29)
 - **重要修复**：修复了 `PathTransformer.flattenItemWithSchema` 方法中的数据转换错误

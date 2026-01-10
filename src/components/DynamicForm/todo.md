@@ -101,5 +101,6 @@
 - [ ] 添加自定义 nested form widget 的代码示例
 - [x] 补充使用 schemaLoader 的代码示例
 - [x] schemaLoader 和 schemaKey 改为使用联动来更新 schema
+  - [ ] 配置了 schema 联动的字段设置 flattenPath 为 true 的情况下，没有触发 schema 更新时的渲染
 - [ ] 大规模表单性能
 - [ ] 文档与代码实现对齐

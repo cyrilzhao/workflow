@@ -70,6 +70,10 @@ export const FormField: React.FC<FormFieldProps> = ({
   // 使用 getNestedError 支持嵌套路径的错误获取（如 address.city）
   const error = getNestedError(errors, field.name);
 
+  // 检查是否是 flattenPath 字段（路径透明化）
+  // flattenPath 字段不应该显示 label，因为它是视觉透明的
+  const isFlattenPath = field.schema?.ui?.flattenPath === true;
+
   // 计算 layout 的优先级：字段级 > 父级 > 全局级
   const effectiveLayout = field.schema?.ui?.layout ?? layout;
 
@@ -98,7 +102,8 @@ export const FormField: React.FC<FormFieldProps> = ({
   return (
     <FormGroup
       label={
-        field.label ? (
+        // flattenPath 字段不显示 label（视觉透明）
+        !isFlattenPath && field.label ? (
           <div style={labelStyle}>
             <FieldLabel htmlFor={field.name} label={field.label} required={field.required} />
           </div>

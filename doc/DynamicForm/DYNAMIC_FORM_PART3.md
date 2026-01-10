@@ -324,42 +324,26 @@ export class SchemaParser {
   }
 
   /**
-   * 构建字段路径（支持 flattenPath 的 ~~ 分隔符）
+   * 构建字段路径（v3.0 - 使用标准 . 分隔符）
    * @param parentPath - 父级路径
    * @param fieldName - 当前字段名
-   * @param isFlattenPath - 当前字段是否设置了 flattenPath: true
    * @returns 构建的字段路径
    *
-   * 规则：
-   * 1. 如果父路径的最后一段是 flattenPath（以 ~~ 结尾或整个路径都是 flattenPath），
-   *    则子字段也使用 ~~ 连接（无论子字段是否是 flattenPath）
-   * 2. 如果当前字段是 flattenPath，使用 ~~ 连接
-   * 3. 否则使用 . 连接
+   * v3.0 变更：
+   * - 移除了 isFlattenPath 参数和 ~~ 分隔符逻辑
+   * - 所有路径统一使用标准 . 分隔符
+   * - flattenPath 字段的路径与普通嵌套字段完全相同
    *
    * 示例：
-   * - buildFieldPath('', 'region', true) → 'region'
-   * - buildFieldPath('region', 'market', true) → 'region~~market'
-   * - buildFieldPath('region~~market', 'contacts', false) → 'region~~market~~contacts'
-   * - buildFieldPath('region~~market~~contacts.0', 'category', true) → 'region~~market~~contacts.0~~category'
+   * - buildFieldPath('', 'region') → 'region'
+   * - buildFieldPath('region', 'market') → 'region.market'
+   * - buildFieldPath('region.market', 'contacts') → 'region.market.contacts'
+   * - buildFieldPath('region.market.contacts.0', 'category') → 'region.market.contacts.0.category'
    */
-  static buildFieldPath(parentPath: string, fieldName: string, isFlattenPath: boolean): string {
+  static buildFieldPath(parentPath: string, fieldName: string): string {
     if (!parentPath) {
       return fieldName;
     }
-
-    // 检查父路径的最后一个分隔符类型
-    const lastDotIndex = parentPath.lastIndexOf('.');
-    const lastSepIndex = parentPath.lastIndexOf(FLATTEN_PATH_SEPARATOR);
-
-    // 如果最后一个分隔符是 ~~，说明父级在 flattenPath 链中
-    const isParentInFlattenChain = lastSepIndex > lastDotIndex;
-
-    // 规则：如果父级在 flattenPath 链中，或当前字段是 flattenPath，使用 ~~
-    if (isParentInFlattenChain || isFlattenPath) {
-      return `${parentPath}${FLATTEN_PATH_SEPARATOR}${fieldName}`;
-    }
-
-    // 否则使用 .
     return `${parentPath}.${fieldName}`;
   }
 
@@ -436,7 +420,7 @@ export class SchemaParser {
           labelWidth: fieldSchema.ui?.labelWidth ?? inheritedUI?.labelWidth,
         };
 
-        // 递归解析子字段，传递当前路径（已经包含 ~~ 分隔符）
+        // 递归解析子字段，传递当前路径（v3.0 - 使用标准 . 分隔符）
         // currentPath 已经通过 buildFieldPath 正确计算，无需重复构建
         const nestedFields = this.parse(fieldSchema, {
           parentPath: currentPath,
