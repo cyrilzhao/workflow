@@ -66,33 +66,33 @@ class AsyncSequenceManager {
 /**
  * 获取嵌套对象的值
  */
-function getNestedValue(obj: any, path: string): any {
-  if (!path) return obj;
-  const keys = path.split('.');
-  let result = obj;
-  for (const key of keys) {
-    if (result == null) return undefined;
-    result = result[key];
-  }
-  return result;
-}
+// function getNestedValue(obj: any, path: string): any {
+//   if (!path) return obj;
+//   const keys = path.split('.');
+//   let result = obj;
+//   for (const key of keys) {
+//     if (result == null) return undefined;
+//     result = result[key];
+//   }
+//   return result;
+// }
 
 /**
  * 设置嵌套对象的值
  */
-function setNestedValue(obj: any, path: string, value: any): void {
-  if (!path) return;
-  const keys = path.split('.');
-  let current = obj;
-  for (let i = 0; i < keys.length - 1; i++) {
-    const key = keys[i];
-    if (current[key] == null || typeof current[key] !== 'object') {
-      current[key] = {};
-    }
-    current = current[key];
-  }
-  current[keys[keys.length - 1]] = value;
-}
+// function setNestedValue(obj: any, path: string, value: any): void {
+//   if (!path) return;
+//   const keys = path.split('.');
+//   let current = obj;
+//   for (let i = 0; i < keys.length - 1; i++) {
+//     const key = keys[i];
+//     if (current[key] == null || typeof current[key] !== 'object') {
+//       current[key] = {};
+//     }
+//     current = current[key];
+//   }
+//   current[keys[keys.length - 1]] = value;
+// }
 
 /**
  * 从字段路径中提取数组上下文信息

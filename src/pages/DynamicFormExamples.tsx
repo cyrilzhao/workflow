@@ -54,6 +54,9 @@ import { ComplexFormPanel } from './examples/ComplexForm/ComplexFormPanel';
 // Schema Builder
 import { SchemaBuilderExample } from './examples/SchemaBuilderExample';
 
+// 性能测试
+import { LargeDataPerformanceExample } from './examples/PerformanceTest/LargeDataPerformanceExample';
+
 export const DynamicFormExamples: React.FC = () => {
   const [selectedTab, setSelectedTab] = useState('schemaBuilder');
 
@@ -73,6 +76,7 @@ export const DynamicFormExamples: React.FC = () => {
         <Tab id="flatten" title="路径透明化" panel={<FlattenPathPanel />} />
         <Tab id="layout" title="布局示例" panel={<LayoutPanel />} />
         <Tab id="complex" title="复杂场景" panel={<ComplexFormPanel />} />
+        <Tab id="performance" title="性能测试" panel={<LargeDataPerformanceExample />} />
       </Tabs>
     </div>
   );

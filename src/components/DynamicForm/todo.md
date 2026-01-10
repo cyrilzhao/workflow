@@ -103,4 +103,5 @@
   - [x] 配置了 schema 联动的字段设置 flattenPath 为 true 的情况下，没有触发 schema 更新时的渲染
 - [ ] 添加自定义 nested form widget 的代码示例
 - [ ] 大规模表单性能
+  - [x] 输出性能分析和优化文档
 - [ ] 文档与代码实现对齐
