@@ -20,10 +20,20 @@ function wrapPrimitiveArray(array: any[]): any[] {
 /**
  * 将对象数组解包回基本类型数组
  * 例如：[{ value: 'a' }, { value: 'b' }] => ['a', 'b']
+ *
+ * 注意：此函数能够处理混合格式的数据（对象和基本类型混合）
+ * 例如：[{ value: 'a' }, 'b', { value: 'c' }] => ['a', 'b', 'c']
  */
 function unwrapPrimitiveArray(array: any[]): any[] {
   if (!array || !Array.isArray(array)) return [];
-  return array.map(item => item?.value);
+  return array.map(item => {
+    // 如果是对象且有 value 属性，提取 value
+    if (item && typeof item === 'object' && 'value' in item) {
+      return item.value;
+    }
+    // 否则直接返回原值（已经是基本类型）
+    return item;
+  });
 }
 
 /**

@@ -26,7 +26,7 @@ export const EnumArrayExample: React.FC = () => {
   };
 
   const handleSubmit = (data: any) => {
-    console.log('枚举数组数据:', data);
+    console.log('枚举数组数据:', JSON.stringify(data));
     alert('提交成功！请查看控制台输出');
   };
 

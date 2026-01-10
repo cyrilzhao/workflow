@@ -231,10 +231,22 @@ export const ArrayFieldWidget = forwardRef<HTMLDivElement, ArrayFieldWidgetProps
               const enumValues = itemSchema.enum || [];
               const enumNames = itemSchema.enumNames || enumValues;
 
+              // 辅助函数：检查值是否在数组中（处理对象和基本类型混合的情况）
+              const isValueInArray = (arr: any[], targetValue: any): boolean => {
+                return arr.some(item => {
+                  // 如果是对象格式 { value: xxx }，比较 value 属性
+                  if (item && typeof item === 'object' && 'value' in item) {
+                    return item.value === targetValue;
+                  }
+                  // 否则直接比较
+                  return item === targetValue;
+                });
+              };
+
               return (
                 <div className="checkbox-group">
                   {enumValues.map((enumValue, index) => {
-                    const isChecked = currentValue.includes(enumValue);
+                    const isChecked = isValueInArray(currentValue, enumValue);
                     const label = String(enumNames[index]);
 
                     return (
@@ -251,8 +263,15 @@ export const ArrayFieldWidget = forwardRef<HTMLDivElement, ArrayFieldWidgetProps
                             // 添加选项
                             newValue = [...currentValue, enumValue];
                           } else {
-                            // 移除选项
-                            newValue = currentValue.filter((v: any) => v !== enumValue);
+                            // 移除选项（处理对象和基本类型混合的情况）
+                            newValue = currentValue.filter((v: any) => {
+                              // 如果是对象格式 { value: xxx }，比较 value 属性
+                              if (v && typeof v === 'object' && 'value' in v) {
+                                return v.value !== enumValue;
+                              }
+                              // 否则直接比较
+                              return v !== enumValue;
+                            });
                           }
 
                           field.onChange(newValue);
