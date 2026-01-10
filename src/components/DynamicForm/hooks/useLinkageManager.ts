@@ -10,6 +10,18 @@ import type { LinkageResult } from '../types/linkage';
 import { ConditionEvaluator } from '../utils/conditionEvaluator';
 import { DependencyGraph } from '../utils/dependencyGraph';
 import { PathResolver } from '../utils/pathResolver';
+import { LinkageTaskQueue } from '../utils/linkageTaskQueue';
+
+/**
+ * 异步结果过期错误
+ * 当异步联动函数的结果因为新的计算而过期时抛出
+ */
+class StaleResultError extends Error {
+  constructor(fieldPath: string, sequence: number) {
+    super(`Stale async result for field: ${fieldPath}, sequence: ${sequence}`);
+    this.name = 'StaleResultError';
+  }
+}
 
 /**
  * 异步请求序列号管理器
@@ -109,23 +121,20 @@ interface LinkageManagerOptions {
 /**
  * 联动管理器 Hook
  *
- * 新方案（v3.0）：移除 pathMappings，使用标准路径
+ * v4.0：集成任务队列管理器，解决串行依赖执行和死循环防护问题
  */
 export function useLinkageManager({
   form,
   linkages,
   linkageFunctions = {},
 }: LinkageManagerOptions) {
-  const { watch, getValues } = form;
+  const { watch, getValues, setValue } = form;
 
   // 创建异步序列号管理器实例（使用 useRef 保持引用稳定）
   const asyncSequenceManager = useRef(new AsyncSequenceManager()).current;
 
-  // 标志位：防止 setValue 触发的 watch 导致死循环
-  const isUpdatingFromLinkage = useRef(false);
-
-  // 防抖定时器：用于处理快速连续修改
-  const debounceTimers = useRef<Map<string, NodeJS.Timeout>>(new Map()).current;
+  // 创建任务队列管理器实例
+  const taskQueue = useRef(new LinkageTaskQueue()).current;
 
   // 构建依赖图
   const dependencyGraph = useMemo(() => {
@@ -150,6 +159,98 @@ export function useLinkageManager({
 
   // 联动状态缓存（使用 useState 而不是 useMemo，以便在 useEffect 中更新）
   const [linkageStates, setLinkageStates] = useState<Record<string, LinkageResult>>({});
+
+  /**
+   * 队列处理器：串行执行联动任务
+   */
+  const processQueue = useRef(async () => {
+    // 如果已经在处理中，直接返回（避免并发执行）
+    if (taskQueue.getProcessing()) return;
+
+    taskQueue.setProcessing(true);
+
+    try {
+      while (!taskQueue.isEmpty()) {
+        const task = taskQueue.dequeue();
+        if (!task) break;
+
+        // 检查任务是否仍然有效（可能已被更新的任务替代）
+        if (!taskQueue.isTaskValid(task.fieldName, task.timestamp)) {
+          continue;
+        }
+
+        // 获取最新的表单数据
+        let formData = { ...getValues() };
+
+        // 获取受影响的字段并进行拓扑排序
+        const affectedFields = dependencyGraph.getAffectedFields(task.fieldName);
+        const sortedFields = dependencyGraph.topologicalSort(affectedFields);
+
+        const newStates: Record<string, LinkageResult> = {};
+
+        // 串行执行联动，更新 formData
+        for (const fieldName of sortedFields) {
+          const linkage = linkages[fieldName];
+          if (!linkage) continue;
+
+          try {
+            const result = await evaluateLinkage({
+              linkage,
+              formData,
+              linkageFunctions,
+              fieldPath: fieldName,
+              asyncSequenceManager,
+            });
+
+            newStates[fieldName] = result;
+
+            // 如果是值联动，更新 formData 以供后续字段使用
+            if (linkage.type === 'value' && result.value !== undefined) {
+              formData[fieldName] = result.value;
+            }
+          } catch (error) {
+            // 如果是过期的异步结果，跳过该字段的状态更新
+            // 但不影响后续字段的计算（使用当前 formData 中的值）
+            if (error instanceof StaleResultError) {
+              continue;
+            }
+            console.error('联动计算失败:', fieldName, error);
+          }
+        }
+
+        // 批量更新状态
+        if (Object.keys(newStates).length > 0) {
+          setLinkageStates(prev => ({ ...prev, ...newStates }));
+        }
+
+        // 批量更新表单（设置标志位防止 watch 触发 processQueue）
+        taskQueue.setUpdatingForm(true);
+        for (const fieldName of sortedFields) {
+          const linkage = linkages[fieldName];
+          if (linkage?.type === 'value' && formData[fieldName] !== undefined) {
+            const currentValue = getValues(fieldName);
+            if (currentValue !== formData[fieldName]) {
+              setValue(fieldName, formData[fieldName], {
+                shouldValidate: false,
+                shouldDirty: false,
+              });
+            }
+          }
+        }
+
+        // 使用 Promise 确保 setValue 触发的 watch 都已执行
+        await new Promise(resolve => setTimeout(resolve, 0));
+        taskQueue.setUpdatingForm(false);
+      }
+    } finally {
+      taskQueue.setProcessing(false);
+
+      // 处理完成后，如果队列中有新任务，继续处理
+      if (!taskQueue.isEmpty()) {
+        processQueue();
+      }
+    }
+  }).current;
 
   // 初始化联动状态
   useEffect(() => {
@@ -180,6 +281,10 @@ export function useLinkageManager({
             formData[fieldName] = result.value;
           }
         } catch (error) {
+          // 如果是过期的异步结果，跳过该字段的状态更新
+          if (error instanceof StaleResultError) {
+            continue;
+          }
           console.error('联动初始化失败:', fieldName, error);
         }
       }
@@ -189,84 +294,27 @@ export function useLinkageManager({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linkages, linkageFunctions, dependencyGraph]);
 
-  // 统一的字段变化监听和联动处理
+  // 统一的字段变化监听和联动处理（使用任务队列）
   useEffect(() => {
     const subscription = watch((_, { name }) => {
       if (!name) return;
 
-      // 防止死循环：如果是联动触发的 setValue，跳过处理
-      if (isUpdatingFromLinkage.current) {
+      // 无论是否在批量更新，都将任务加入队列（避免丢失用户修改）
+      taskQueue.enqueue(name);
+
+      // 如果队列正在批量更新，不触发 processQueue
+      // 批量更新完成后，队列会自动继续处理
+      if (taskQueue.isUpdatingForm()) {
         return;
       }
 
-      // 获取受影响的字段（使用依赖图精确计算）
-      const affectedFields = dependencyGraph.getAffectedFields(name);
-      if (affectedFields.length === 0) return;
-
-      // 异步处理联动逻辑
-      (async () => {
-        const formData = { ...getValues() };
-        const newStates: Record<string, LinkageResult> = {};
-        let hasStateChange = false;
-
-        // 对受影响的字段进行拓扑排序，确保按依赖顺序计算
-        const sortedFields = dependencyGraph.topologicalSort(affectedFields);
-
-        // 按拓扑顺序依次计算联动结果
-        for (const fieldName of sortedFields) {
-          const linkage = linkages[fieldName];
-          if (!linkage) continue;
-
-          try {
-            const result = await evaluateLinkage({
-              linkage,
-              formData,
-              linkageFunctions,
-              fieldPath: fieldName,
-              asyncSequenceManager,
-            });
-            newStates[fieldName] = result;
-
-            // 处理值联动：自动更新表单字段值和 formData
-            if (linkage.type === 'value' && result.value !== undefined) {
-              const currentValue = formData[fieldName];
-              if (currentValue !== result.value) {
-                // 更新 formData 以供后续字段使用
-                formData[fieldName] = result.value;
-
-                // 设置标志位，防止 setValue 触发的 watch 导致死循环
-                isUpdatingFromLinkage.current = true;
-                try {
-                  form.setValue(fieldName, result.value, {
-                    shouldValidate: false,
-                    shouldDirty: false,
-                  });
-                } finally {
-                  // 使用 setTimeout 确保在下一个事件循环中重置标志位
-                  // 这样可以让当前的 setValue 完全完成（包括触发 watch）
-                  setTimeout(() => {
-                    isUpdatingFromLinkage.current = false;
-                  }, 0);
-                }
-              }
-            }
-
-            hasStateChange = true;
-          } catch (error) {
-            console.error('联动计算失败:', fieldName, error);
-          }
-        }
-
-        // 批量更新状态（只更新变化的字段）
-        if (hasStateChange) {
-          setLinkageStates(prev => ({ ...prev, ...newStates }));
-        }
-      })();
+      // 触发队列处理
+      processQueue();
     });
 
     return () => subscription.unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watch, form, linkages, linkageFunctions, dependencyGraph]);
+  }, [watch, linkages, linkageFunctions, dependencyGraph]);
 
   return linkageStates;
 }
@@ -323,11 +371,8 @@ async function evaluateLinkage({
 
       // 检查序列号是否仍然是最新的（防止竞态条件）
       if (!asyncSequenceManager.isLatest(fieldPath, sequence)) {
-        console.log(
-          `[useLinkageManager] 检测到过期的异步结果，字段: ${fieldPath}, 序列号: ${sequence}`
-        );
-        // 返回空结果，不更新状态
-        return {};
+        // 抛出过期错误，让调用方决定如何处理
+        throw new StaleResultError(fieldPath, sequence);
       }
 
       // 根据 linkage.type 决定将结果赋值给哪个字段

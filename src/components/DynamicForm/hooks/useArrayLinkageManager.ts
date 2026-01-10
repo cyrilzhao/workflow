@@ -85,26 +85,12 @@ export function useArrayLinkageManager({
       const formData = getValues();
       const newDynamicLinkages: Record<string, LinkageConfig> = {};
 
-      console.log('[useArrayLinkageManager] 表单数据变化:', JSON.stringify(formData));
-      console.log('[useArrayLinkageManager] baseLinkages:', JSON.stringify(baseLinkages));
-
       // 遍历基础联动配置，找出数组相关的联动
       Object.entries(baseLinkages).forEach(([fieldPath, linkage]) => {
-        console.log('[useArrayLinkageManager] 处理字段路径:', fieldPath);
-
         // 如果路径已经包含数字索引（已实例化的联动），需要解析内部的 JSON Pointer 路径
         if (isArrayElementPath(fieldPath)) {
-          console.log('[useArrayLinkageManager] 路径已实例化，解析内部路径:', fieldPath);
           // 调用 resolveArrayElementLinkage 来解析 when.field 等内部的 JSON Pointer 路径
           const resolvedLinkage = resolveArrayElementLinkage(linkage, fieldPath, schema);
-          console.log(
-            '[useArrayLinkageManager] 解析后的联动配置:',
-            JSON.stringify({
-              fieldPath,
-              original: linkage,
-              resolved: resolvedLinkage,
-            })
-          );
           newDynamicLinkages[fieldPath] = resolvedLinkage;
           return;
         }
@@ -113,7 +99,6 @@ export function useArrayLinkageManager({
         const arrayInfo = findArrayInPath(fieldPath, schema);
 
         if (!arrayInfo) {
-          console.log('[useArrayLinkageManager] 路径中未找到数组，作为普通字段处理:', fieldPath);
           // 关键修改：非数组字段的联动直接添加到 newDynamicLinkages
           // 这样 useArrayLinkageManager 可以同时处理数组和非数组字段的联动
           newDynamicLinkages[fieldPath] = linkage;
@@ -121,41 +106,22 @@ export function useArrayLinkageManager({
         }
 
         const { arrayPath, fieldPathInArray } = arrayInfo;
-        console.log('[useArrayLinkageManager] 找到数组路径:', arrayPath);
-        console.log('[useArrayLinkageManager] 数组内字段路径:', fieldPathInArray);
 
         // 从 formData 中获取数组值
         const arrayValue = formData[arrayPath];
 
         if (!Array.isArray(arrayValue)) {
-          console.log('[useArrayLinkageManager] formData 中未找到数组:', arrayPath);
           return;
         }
-
-        console.log('[useArrayLinkageManager] 数组元素数量:', arrayValue.length);
 
         // 为每个数组元素生成联动配置
         arrayValue.forEach((_, index) => {
           const elementFieldPath = `${arrayPath}.${index}.${fieldPathInArray}`;
-          console.log('[useArrayLinkageManager] 调用 resolveArrayElementLinkage:', {
-            elementFieldPath,
-            originalLinkage: linkage,
-          });
           const resolvedLinkage = resolveArrayElementLinkage(linkage, elementFieldPath, schema);
-          console.log('[useArrayLinkageManager] resolveArrayElementLinkage 返回:', {
-            elementFieldPath,
-            resolvedLinkage,
-          });
           newDynamicLinkages[elementFieldPath] = resolvedLinkage;
-
-          console.log('[useArrayLinkageManager] 生成联动配置:', elementFieldPath);
         });
       });
 
-      console.log(
-        '[useArrayLinkageManager] 最终生成的动态联动配置:',
-        JSON.stringify(newDynamicLinkages)
-      );
       setDynamicLinkages(newDynamicLinkages);
     });
 

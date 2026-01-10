@@ -1113,6 +1113,7 @@ describe('useLinkageManager - 错误处理', () => {
   });
 
   it('应该处理联动函数抛出错误的情况', async () => {
+    // 必须在 renderHook 之前 mock console.error
     const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
 
     const { result } = renderHook(() => {
@@ -1160,6 +1161,7 @@ describe('useLinkageManager - 错误处理', () => {
   });
 
   it('应该处理异步函数失败的情况', async () => {
+    // 必须在 renderHook 之前 mock console.error
     const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
 
     const { result } = renderHook(() => {

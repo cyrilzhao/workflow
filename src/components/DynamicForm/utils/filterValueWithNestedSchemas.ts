@@ -50,16 +50,6 @@ export function filterValueWithNestedSchemas(
     const filtered: Record<string, any> = {};
     const validKeys = Object.keys(schema.properties);
 
-    console.info(
-      `[filterValueWithNestedSchemas] 处理对象:`,
-      JSON.stringify({
-        currentPath,
-        validKeys,
-        valueKeys: Object.keys(value),
-        schemaType: schema.type,
-      })
-    );
-
     for (const key of validKeys) {
       const fieldPath = currentPath ? `${currentPath}.${key}` : key;
       const fieldSchema = schema.properties[key];
@@ -67,21 +57,8 @@ export function filterValueWithNestedSchemas(
       // 检查是否有注册的嵌套 schema
       const registeredSchema = nestedSchemas.get(fieldPath);
 
-      console.info(
-        `[filterValueWithNestedSchemas] 处理字段 "${key}":`,
-        JSON.stringify({
-          fieldPath,
-          hasRegisteredSchema: !!registeredSchema,
-          fieldSchemaType: fieldSchema.type,
-          valueType: typeof value[key],
-          keyInValue: key in value,
-        })
-      );
-
       if (registeredSchema) {
         // 使用注册的 schema 过滤（这是动态嵌套表单的当前 schema）
-        console.info(`[filterValueWithNestedSchemas] 使用注册的 schema 过滤字段: ${fieldPath}`);
-
         if (key in value) {
           filtered[key] = filterValueWithNestedSchemas(
             value[key],
@@ -113,18 +90,8 @@ export function filterValueWithNestedSchemas(
       } else if (key in value) {
         // 基本类型直接返回
         filtered[key] = value[key];
-      } else {
-        console.info(`[filterValueWithNestedSchemas] 字段 "${key}" 不在 value 中，跳过`);
       }
     }
-
-    console.info(
-      `[filterValueWithNestedSchemas] 过滤结果:`,
-      JSON.stringify({
-        currentPath,
-        filtered,
-      })
-    );
 
     return filtered;
   }
