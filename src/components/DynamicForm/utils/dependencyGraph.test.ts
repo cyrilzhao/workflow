@@ -310,4 +310,135 @@ describe('DependencyGraph', () => {
       });
     });
   });
+
+  describe('getTopologicalLayers', () => {
+    it('应该返回空数组当字段列表为空时', () => {
+      expect(graph.getTopologicalLayers([])).toEqual([]);
+    });
+
+    it('应该处理单个字段', () => {
+      graph.addDependency('B', 'A');
+      const layers = graph.getTopologicalLayers(['A']);
+      expect(layers).toEqual([['A']]);
+    });
+
+    it('应该处理简单的线性依赖链', () => {
+      // A -> B -> C
+      graph.addDependency('B', 'A');
+      graph.addDependency('C', 'B');
+
+      const layers = graph.getTopologicalLayers(['A', 'B', 'C']);
+      expect(layers).toEqual([['A'], ['B'], ['C']]);
+    });
+
+    it('应该处理并行字段（无依赖关系）', () => {
+      // A, B, C 三个字段互不依赖
+      const layers = graph.getTopologicalLayers(['A', 'B', 'C']);
+      expect(layers).toEqual([['A', 'B', 'C']]);
+    });
+
+    it('应该处理简单菱形依赖', () => {
+      // 依赖关系：
+      //     A
+      //    / \
+      //   B   C
+      //    \ /
+      //     D
+      graph.addDependency('B', 'A');
+      graph.addDependency('C', 'A');
+      graph.addDependency('D', 'B');
+      graph.addDependency('D', 'C');
+
+      const layers = graph.getTopologicalLayers(['A', 'B', 'C', 'D']);
+      expect(layers).toEqual([['A'], ['B', 'C'], ['D']]);
+    });
+
+    it('应该处理复杂菱形依赖', () => {
+      // 依赖关系：
+      //       A
+      //      /|\
+      //     B C D
+      //     |X| |
+      //     E F G
+      //      \|/
+      //       H
+      graph.addDependency('B', 'A');
+      graph.addDependency('C', 'A');
+      graph.addDependency('D', 'A');
+      graph.addDependency('E', 'B');
+      graph.addDependency('F', 'B');
+      graph.addDependency('F', 'C');
+      graph.addDependency('G', 'D');
+      graph.addDependency('H', 'E');
+      graph.addDependency('H', 'F');
+      graph.addDependency('H', 'G');
+
+      const layers = graph.getTopologicalLayers(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']);
+      expect(layers).toEqual([['A'], ['B', 'C', 'D'], ['E', 'F', 'G'], ['H']]);
+    });
+
+    it('应该处理不对称复杂依赖（场景 4）', () => {
+      // 依赖关系：
+      //        A
+      //       /|\
+      //      B C D
+      //      |\ /|\
+      //      | X | E  (B→F, B→G, C→F, D→G, D→E)
+      //      |/ \|
+      //      F   G
+      //       \ /|
+      //        H |
+      //         \|
+      //          I
+      graph.addDependency('B', 'A');
+      graph.addDependency('C', 'A');
+      graph.addDependency('D', 'A');
+      graph.addDependency('E', 'D');
+      graph.addDependency('F', 'B');
+      graph.addDependency('F', 'C');
+      graph.addDependency('G', 'B');
+      graph.addDependency('G', 'D');
+      graph.addDependency('H', 'F');
+      graph.addDependency('H', 'G');
+      graph.addDependency('I', 'G');
+      graph.addDependency('I', 'H');
+
+      const layers = graph.getTopologicalLayers(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I']);
+
+      // 验证层级结构
+      expect(layers.length).toBe(5);
+      expect(layers[0]).toEqual(['A']);
+      expect(layers[1]).toEqual(expect.arrayContaining(['B', 'C', 'D']));
+      expect(layers[1].length).toBe(3);
+      expect(layers[2]).toEqual(expect.arrayContaining(['E', 'F', 'G']));
+      expect(layers[2].length).toBe(3);
+      expect(layers[3]).toEqual(['H']);
+      expect(layers[4]).toEqual(['I']);
+    });
+
+    it('应该处理循环依赖（返回剩余字段）', () => {
+      // A -> B -> C -> A (循环)
+      graph.addDependency('B', 'A');
+      graph.addDependency('C', 'B');
+      graph.addDependency('A', 'C');
+
+      const layers = graph.getTopologicalLayers(['A', 'B', 'C']);
+
+      // 循环依赖时，剩余字段会被放入最后一层
+      expect(layers.length).toBeGreaterThan(0);
+      const lastLayer = layers[layers.length - 1];
+      expect(lastLayer).toEqual(expect.arrayContaining(['A', 'B', 'C']));
+    });
+
+    it('应该只处理给定字段列表中的依赖关系', () => {
+      // 完整依赖图：A -> B -> C -> D
+      graph.addDependency('B', 'A');
+      graph.addDependency('C', 'B');
+      graph.addDependency('D', 'C');
+
+      // 只处理 A, B, C
+      const layers = graph.getTopologicalLayers(['A', 'B', 'C']);
+      expect(layers).toEqual([['A'], ['B'], ['C']]);
+    });
+  });
 });

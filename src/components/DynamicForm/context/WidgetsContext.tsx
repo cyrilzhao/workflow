@@ -1,4 +1,4 @@
-import React, { createContext, useContext } from 'react';
+import React, { createContext, useContext, useMemo } from 'react';
 
 /**
  * Widgets Context
@@ -17,8 +17,14 @@ export const WidgetsProvider: React.FC<{
   widgets?: Record<string, React.ComponentType<any>>;
   children: React.ReactNode;
 }> = ({ widgets = {}, children }) => {
+  // 使用 useMemo 缓存 value 对象，避免每次渲染都创建新对象
+  const value = useMemo<WidgetsContextValue>(
+    () => ({ widgets }),
+    [widgets]
+  );
+
   return (
-    <WidgetsContext.Provider value={{ widgets }}>
+    <WidgetsContext.Provider value={value}>
       {children}
     </WidgetsContext.Provider>
   );

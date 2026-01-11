@@ -335,6 +335,80 @@ export class DependencyGraph {
   }
 
   /**
+   * 获取拓扑层级
+   *
+   * 返回按依赖层级分组的字段列表（二维数组）
+   *
+   * 核心保证：
+   * 1. 同一层级的字段之间绝对没有依赖关系（可以安全并行）
+   * 2. 第 N 层的字段只依赖第 0 到 N-1 层的字段
+   * 3. 使用 Kahn 算法的入度计算确保正确性
+   *
+   * @param fields - 需要分层的字段列表
+   * @returns 按层级分组的字段列表
+   *
+   * @example
+   * // 依赖关系：A → B, A → C, B → D, C → D
+   * graph.getTopologicalLayers(['A', 'B', 'C', 'D'])
+   * // 返回：[['A'], ['B', 'C'], ['D']]
+   * // 含义：B 和 C 可以并行，D 必须等待 B 和 C 都完成
+   */
+  getTopologicalLayers(fields: string[]): string[][] {
+    const layers: string[][] = [];
+    const inDegree = new Map<string, number>();
+    const remaining = new Set(fields);
+
+    // 计算入度（只考虑 fields 中的字段）
+    fields.forEach(field => {
+      // 获取该字段依赖的所有字段
+      const deps = this.reverseGraph.get(field) || new Set();
+      // 只统计在 fields 中的依赖
+      const relevantDeps = Array.from(deps).filter(dep => remaining.has(dep));
+      inDegree.set(field, relevantDeps.length);
+    });
+
+    // 按层级提取字段（Kahn 算法的变体）
+    while (remaining.size > 0) {
+      const currentLayer: string[] = [];
+
+      // 找出当前层级的字段（入度为 0 的字段）
+      // 入度为 0 意味着：该字段不依赖任何剩余字段
+      remaining.forEach(field => {
+        if (inDegree.get(field) === 0) {
+          currentLayer.push(field);
+        }
+      });
+
+      if (currentLayer.length === 0) {
+        // 存在循环依赖，将剩余字段放入最后一层
+        console.warn('[getTopologicalLayers] 检测到循环依赖，剩余字段:', Array.from(remaining));
+        layers.push(Array.from(remaining));
+        break;
+      }
+
+      layers.push(currentLayer);
+
+      // 移除当前层级的字段，并更新剩余字段的入度
+      currentLayer.forEach(field => {
+        remaining.delete(field);
+
+        // 更新依赖该字段的其他字段的入度
+        const dependents = this.graph.get(field);
+        if (dependents) {
+          dependents.forEach(dependent => {
+            if (remaining.has(dependent)) {
+              const currentInDegree = inDegree.get(dependent) || 0;
+              inDegree.set(dependent, currentInDegree - 1);
+            }
+          });
+        }
+      });
+    }
+
+    return layers;
+  }
+
+  /**
    * 清空依赖图
    */
   clear() {

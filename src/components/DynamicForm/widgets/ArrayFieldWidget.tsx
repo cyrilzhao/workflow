@@ -1,4 +1,4 @@
-import React, { forwardRef, useMemo, useState, useRef, useEffect } from 'react';
+import React, { forwardRef, useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { useFormContext, useFieldArray, Controller } from 'react-hook-form';
 import {
   Button,
@@ -240,33 +240,76 @@ export const ArrayFieldWidget = forwardRef<HTMLDivElement, ArrayFieldWidgetProps
     // 判断是否可以增删
     const canAddRemove = !disabled && !readonly && arrayMode === 'dynamic';
 
+    // ✅ 使用 useCallback 缓存回调函数，避免每次渲染都创建新函数
     // 添加新项
-    const handleAdd = () => {
+    const handleAdd = useCallback(() => {
       const defaultValue = getDefaultValue(itemSchema);
       append(defaultValue);
-    };
+    }, [itemSchema, append]);
 
     // 删除项
-    const handleRemove = (index: number) => {
+    const handleRemove = useCallback((index: number) => {
       // 删除项时不触发验证
       remove(index);
-    };
+    }, [remove]);
 
     // 上移
-    const handleMoveUp = (index: number) => {
+    const handleMoveUp = useCallback((index: number) => {
       if (index > 0) {
         // 移动项时不触发验证
         move(index, index - 1);
       }
-    };
+    }, [move]);
 
     // 下移
-    const handleMoveDown = (index: number) => {
+    const handleMoveDown = useCallback((index: number) => {
       if (index < fields.length - 1) {
         // 移动项时不触发验证
         move(index, index + 1);
       }
-    };
+    }, [move, fields.length]);
+
+    // ✅ 使用 useMemo 缓存所有 statusMap，避免每次渲染都创建新对象
+    const statusMaps = useMemo(() => {
+      return fields.map((_, index) => ({
+        isAtMinLimit: fields.length <= minItems,
+        isFirstItem: index === 0,
+        isLastItem: index === fields.length - 1,
+      }));
+    }, [fields.length, minItems]);
+
+    // ✅ 使用 useCallback 缓存虚拟滚动的 itemContent 回调
+    const renderItem = useCallback(
+      (index: number, field: any) => (
+        <ArrayItem
+          key={field.id}
+          name={`${name}.${index}`}
+          index={index}
+          schema={itemSchema}
+          onRemove={canAddRemove ? handleRemove : undefined}
+          onMoveUp={canAddRemove ? handleMoveUp : undefined}
+          onMoveDown={canAddRemove ? handleMoveDown : undefined}
+          statusMap={statusMaps[index]}
+          disabled={disabled}
+          readonly={readonly}
+          layout={layout}
+          labelWidth={labelWidth}
+        />
+      ),
+      [
+        name,
+        itemSchema,
+        canAddRemove,
+        handleRemove,
+        handleMoveUp,
+        handleMoveDown,
+        statusMaps,
+        disabled,
+        readonly,
+        layout,
+        labelWidth,
+      ]
+    );
 
     // 如果是 static 模式（枚举数组），渲染为多选框组
     if (arrayMode === 'static' && itemSchema.enum) {
@@ -342,31 +385,12 @@ export const ArrayFieldWidget = forwardRef<HTMLDivElement, ArrayFieldWidgetProps
       <div ref={ref} className="array-field-widget">
         {/* 数组项列表 */}
         {enableVirtualScroll && fields.length > 0 ? (
-          // 虚拟滚动模式
+          // ✅ 虚拟滚动模式：使用缓存的 renderItem 回调
           <Virtuoso
             ref={virtuosoRef}
             style={{ height: `${virtualScrollHeight}px` }}
             data={fields}
-            itemContent={(index, field) => (
-              <ArrayItem
-                key={field.id}
-                name={`${name}.${index}`}
-                index={index}
-                schema={itemSchema}
-                onRemove={canAddRemove ? () => handleRemove(index) : undefined}
-                onMoveUp={canAddRemove ? () => handleMoveUp(index) : undefined}
-                onMoveDown={canAddRemove ? () => handleMoveDown(index) : undefined}
-                statusMap={{
-                  isAtMinLimit: fields.length <= minItems,
-                  isFirstItem: index === 0,
-                  isLastItem: index === fields.length - 1,
-                }}
-                disabled={disabled}
-                readonly={readonly}
-                layout={layout}
-                labelWidth={labelWidth}
-              />
-            )}
+            itemContent={renderItem}
           />
         ) : (
           // 普通渲染模式
@@ -376,14 +400,10 @@ export const ArrayFieldWidget = forwardRef<HTMLDivElement, ArrayFieldWidgetProps
               name={`${name}.${index}`}
               index={index}
               schema={itemSchema}
-              onRemove={canAddRemove ? () => handleRemove(index) : undefined}
-              onMoveUp={canAddRemove ? () => handleMoveUp(index) : undefined}
-              onMoveDown={canAddRemove ? () => handleMoveDown(index) : undefined}
-              statusMap={{
-                isAtMinLimit: fields.length <= minItems,
-                isFirstItem: index === 0,
-                isLastItem: index === fields.length - 1,
-              }}
+              onRemove={canAddRemove ? handleRemove : undefined}
+              onMoveUp={canAddRemove ? handleMoveUp : undefined}
+              onMoveDown={canAddRemove ? handleMoveDown : undefined}
+              statusMap={statusMaps[index]}
               disabled={disabled}
               readonly={readonly}
               layout={layout}
@@ -473,9 +493,9 @@ interface ArrayItemProps {
   name: string;
   index: number;
   schema: ExtendedJSONSchema;
-  onRemove?: () => void;
-  onMoveUp?: () => void;
-  onMoveDown?: () => void;
+  onRemove?: (index: number) => void;
+  onMoveUp?: (index: number) => void;
+  onMoveDown?: (index: number) => void;
   statusMap?: ArrayItemStatusMap;
   disabled?: boolean;
   readonly?: boolean;
@@ -483,23 +503,25 @@ interface ArrayItemProps {
   labelWidth?: number | string;
 }
 
-const ArrayItem: React.FC<ArrayItemProps> = ({
-  name,
-  index,
-  schema,
-  onRemove,
-  onMoveUp,
-  onMoveDown,
-  statusMap,
-  disabled,
-  readonly,
-  layout,
-  labelWidth,
-}) => {
-  const {
-    control,
-    formState: { errors },
-  } = useFormContext();
+/**
+ * ArrayItem 子组件
+ * ✅ 使用 React.memo 优化，避免不必要的重渲染
+ */
+const ArrayItem = React.memo<ArrayItemProps>(
+  ({
+    name,
+    index,
+    schema,
+    onRemove,
+    onMoveUp,
+    onMoveDown,
+    statusMap,
+    disabled,
+    readonly,
+    layout,
+    labelWidth,
+  }) => {
+  const { control } = useFormContext();
 
   // 删除确认 Popover 的状态
   const [isDeletePopoverOpen, setIsDeletePopoverOpen] = useState(false);
@@ -507,7 +529,7 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
   // 处理删除确认
   const handleConfirmDelete = () => {
     setIsDeletePopoverOpen(false);
-    onRemove?.();
+    onRemove?.(index);
   };
 
   // 处理取消删除
@@ -554,7 +576,7 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
                     icon="arrow-up"
                     minimal
                     small
-                    onClick={onMoveUp}
+                    onClick={() => onMoveUp(index)}
                     disabled={disabled || statusMap?.isFirstItem}
                     title="Move up"
                   />
@@ -569,7 +591,7 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
                     icon="arrow-down"
                     minimal
                     small
-                    onClick={onMoveDown}
+                    onClick={() => onMoveDown(index)}
                     disabled={disabled || statusMap?.isLastItem}
                     title="Move down"
                   />
@@ -635,21 +657,6 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
   // 为基础类型生成校验规则
   const validationRules = useMemo(() => SchemaParser.getValidationRules(schema, false), [schema]);
 
-  // 获取错误信息（需要从嵌套的 errors 对象中提取）
-  const getFieldError = (fieldPath: string): string | undefined => {
-    const pathParts = fieldPath.split('.');
-    let errorObj: any = errors;
-
-    for (const part of pathParts) {
-      if (!errorObj) return undefined;
-      errorObj = errorObj[part];
-    }
-
-    return errorObj?.message as string | undefined;
-  };
-
-  const fieldError = getFieldError(`${name}.value`);
-
   return (
     <div
       className="array-item array-item-simple"
@@ -666,7 +673,7 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
           name={`${name}.value`}
           control={control}
           rules={validationRules}
-          render={({ field: controllerField }) => (
+          render={({ field: controllerField, fieldState }) => (
             <>
               <WidgetComponent
                 name={`${name}.value`}
@@ -677,9 +684,9 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
                 readonly={readonly}
                 {...(schema.ui?.widgetProps || {})}
               />
-              {fieldError && (
+              {fieldState.error && (
                 <div style={{ color: '#DB3737', fontSize: '12px', marginTop: '5px' }}>
-                  {fieldError}
+                  {fieldState.error.message}
                 </div>
               )}
             </>
@@ -702,7 +709,7 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
                 icon="arrow-up"
                 minimal
                 small
-                onClick={onMoveUp}
+                onClick={() => onMoveUp(index)}
                 disabled={disabled || statusMap?.isFirstItem}
                 title="Move up"
               />
@@ -717,7 +724,7 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
                 icon="arrow-down"
                 minimal
                 small
-                onClick={onMoveDown}
+                onClick={() => onMoveDown(index)}
                 disabled={disabled || statusMap?.isLastItem}
                 title="Move down"
               />
@@ -762,4 +769,28 @@ const ArrayItem: React.FC<ArrayItemProps> = ({
       )}
     </div>
   );
-};
+  },
+  // ✅ 自定义比较函数：只在关键 props 变化时重渲染
+  (prevProps, nextProps) => {
+    // 深度比较 statusMap（比较值而不是引用）
+    const statusMapEqual =
+      prevProps.statusMap === nextProps.statusMap ||
+      (prevProps.statusMap?.isAtMinLimit === nextProps.statusMap?.isAtMinLimit &&
+        prevProps.statusMap?.isFirstItem === nextProps.statusMap?.isFirstItem &&
+        prevProps.statusMap?.isLastItem === nextProps.statusMap?.isLastItem);
+
+    return (
+      prevProps.name === nextProps.name &&
+      prevProps.index === nextProps.index &&
+      prevProps.schema === nextProps.schema &&
+      prevProps.onRemove === nextProps.onRemove &&
+      prevProps.onMoveUp === nextProps.onMoveUp &&
+      prevProps.onMoveDown === nextProps.onMoveDown &&
+      statusMapEqual &&
+      prevProps.disabled === nextProps.disabled &&
+      prevProps.readonly === nextProps.readonly &&
+      prevProps.layout === nextProps.layout &&
+      prevProps.labelWidth === nextProps.labelWidth
+    );
+  }
+);

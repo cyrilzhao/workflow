@@ -79,6 +79,11 @@ export function useArrayLinkageManager({
 
   // 监听表单数据变化，动态注册数组元素的联动
   useEffect(() => {
+    // ✅ 如果没有基础联动配置，不需要监听字段变化
+    if (Object.keys(baseLinkages).length === 0) {
+      return;
+    }
+
     const subscription = watch(() => {
       if (!schema) return;
 

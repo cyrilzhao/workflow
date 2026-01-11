@@ -1,4 +1,4 @@
-import React, { forwardRef, useState, useEffect, useRef } from 'react';
+import React, { forwardRef, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useFormContext } from 'react-hook-form';
 import { Card } from '@blueprintjs/core';
 import { DynamicForm } from '../DynamicForm';
@@ -39,8 +39,8 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
 
     // 获取父级路径前缀
     const parentPathPrefix = usePathPrefix();
-    // 计算当前字段的完整路径
-    const fullPath = joinPath(parentPathPrefix, name);
+    // ✅ 使用 useMemo 缓存完整路径，避免每次渲染都创建新字符串
+    const fullPath = useMemo(() => joinPath(parentPathPrefix, name), [parentPathPrefix, name]);
 
     // 获取嵌套 schema 注册表
     const nestedSchemaRegistry = useNestedSchemaRegistry();
@@ -103,6 +103,9 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
       }
     }, [linkageStateContext, fullPath]);
 
+    // ✅ 使用 useCallback 缓存 onSubmit 函数，避免每次渲染都创建新函数
+    const handleSubmit = useCallback(() => {}, []);
+
     if (loading) {
       return (
         <div ref={ref} className="nested-form-loading">
@@ -125,7 +128,7 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
         labelWidth={labelWidth}
         showSubmitButton={false}
         renderAsForm={false}
-        onSubmit={() => {}}
+        onSubmit={handleSubmit}
         pathPrefix={fullPath}
         asNestedForm={true}
       />
