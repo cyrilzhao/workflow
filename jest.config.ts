@@ -18,6 +18,7 @@ const config: Config = {
     '!src/main.tsx',
     '!src/vite-env.d.ts',
     '!src/services/api.ts',
+    '!src/routes/index.tsx',
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],

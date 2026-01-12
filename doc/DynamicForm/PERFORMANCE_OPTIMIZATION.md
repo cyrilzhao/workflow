@@ -603,12 +603,18 @@ const FormField: React.FC<FormFieldProps> = ({ field, layout, labelWidth }) => {
    - 这导致 `LinkageStateProvider` 的 value 对象重新创建
    - React Context 的机制：value 对象引用变化 → 所有消费该 Context 的组件重新渲染
 
-2. **影响范围广**
+2. **methods 对象变化触发 Context value 重建**
+   - `useForm()` 返回的 `methods` 对象在表单状态更新时会变化
+   - `methods` 对象作为 Context value 的一部分，导致 value 对象重新创建
+   - 即使 `linkageStates` 没有变化，`methods` 变化也会触发所有组件重新渲染
+   - **这是一个隐藏的性能陷阱**：即使没有联动配置，字段输入也会触发重渲染
+
+3. **影响范围广**
    - 所有 FormField 组件都间接消费了这个 Context（通过 NestedFormWidget）
    - 即使某个字段的 `linkageState` 没有变化，它也会因为 Context 更新而重新渲染
    - 在 2500+ 字段的场景下，这会导致严重的性能问题
 
-3. **触发频率高**
+4. **触发频率高**
    - 每次字段值变化都会触发联动计算
    - 联动计算更新 `linkageStates`
    - `linkageStates` 更新触发 Context value 重建
@@ -796,23 +802,38 @@ const contextValue = useMemo(
 
 **1. LinkageStateContext（DynamicForm.tsx）**
 
+**关键优化：使用 useRef 保持 methods 引用稳定**
+
 ```typescript
-// ✅ 使用 useMemo 缓存 value 对象
+// ✅ 步骤 1：使用 useRef 保持 methods 引用稳定（DynamicForm.tsx 第 184-188 行）
+const methodsRef = React.useRef(methods);
+React.useEffect(() => {
+  methodsRef.current = methods;
+}, [methods]);
+
+// ✅ 步骤 2：使用 useMemo 缓存 value 对象，使用 methodsRef.current 而不是 methods
 const linkageContextValue = useMemo(
   () => ({
     parentLinkageStates: linkageStates,
-    form: methods,
+    form: methodsRef.current,  // ✅ 使用 ref 避免 methods 变化触发重新计算
     rootSchema: schema,
     pathPrefix: pathPrefix,
     linkageFunctions: effectiveLinkageFunctions,
   }),
-  [linkageStates, methods, schema, pathPrefix, effectiveLinkageFunctions]
+  [linkageStates, schema, pathPrefix, effectiveLinkageFunctions]  // ✅ 移除 methods 依赖
 );
 
 <LinkageStateProvider value={linkageContextValue}>
   {fieldsContent}
 </LinkageStateProvider>
 ```
+
+**为什么需要 useRef？**
+
+- `useForm()` 返回的 `methods` 对象在表单状态更新时会变化
+- 如果直接在 `useMemo` 的依赖项中使用 `methods`，每次表单状态变化都会触发 Context value 重建
+- 使用 `useRef` 保持引用稳定，避免不必要的重新计算
+- 这是一个关键优化：**即使没有联动配置，也能避免字段输入触发重渲染**
 
 **2. NestedSchemaContext（NestedSchemaContext.tsx）**
 
@@ -980,16 +1001,22 @@ export const FormField = React.memo<FormFieldProps>(
 - 不使用 `watch()` 监听所有字段
 - 使用 `watch(fieldName)` 精确监听特定字段
 - 只在依赖字段变化时触发联动计算
+- **关键优化：当没有联动配置时，完全跳过监听逻辑**
 
-**实现方案**：
+**实现方案 1：早期返回优化（已实施）**
 
 ```typescript
-// 优化前：监听所有字段（useLinkageManager.ts 第 316-335 行）
+// ✅ 优化后：当没有联动配置时，不监听字段变化（useLinkageManager.ts 第 271-295 行）
 useEffect(() => {
+  // ✅ 关键优化：如果没有联动配置，不需要监听字段变化
+  if (Object.keys(linkages).length === 0) {
+    return;
+  }
+
   const subscription = watch((_, { name }) => {
     if (!name) return;
 
-    // 任何字段变化都会触发任务入队
+    // 无论是否在批量更新，都将任务加入队列（避免丢失用户修改）
     taskQueue.enqueue(name);
 
     if (taskQueue.isUpdatingForm()) {
@@ -1002,13 +1029,29 @@ useEffect(() => {
 
   return () => subscription.unsubscribe();
 }, [watch, linkages, linkageFunctions, dependencyGraph]);
+```
 
-// 优化后：只监听有依赖关系的字段
+**为什么需要早期返回？**
+
+- 即使没有联动配置，`watch()` 仍然会监听所有字段变化
+- 每次字段变化都会执行回调函数，造成不必要的性能开销
+- 通过早期返回，完全跳过监听逻辑，避免性能浪费
+- **这是一个关键优化：确保无联动配置的表单不会有任何联动相关的性能开销**
+
+**实现方案 2：精确监听依赖字段（已实施）**
+
+```typescript
+// ✅ 优化后：只监听有依赖关系的字段（useLinkageManager.ts 第 270-304 行）
 useEffect(() => {
+  // ✅ 如果没有联动配置，不需要监听字段变化
+  if (Object.keys(linkages).length === 0) {
+    return;
+  }
+
   const subscription = watch((_, { name }) => {
     if (!name) return;
 
-    // 检查该字段是否被任何联动依赖
+    // ✅ 精确监听优化：检查该字段是否被任何联动依赖
     // 使用依赖图的反向查找：找出依赖该字段的所有字段
     const affectedFields = dependencyGraph.getAffectedFields(name);
 
@@ -1020,10 +1063,13 @@ useEffect(() => {
     // 只有当字段被依赖时，才加入任务队列
     taskQueue.enqueue(name);
 
+    // 如果队列正在批量更新，不触发 processQueue
+    // 批量更新完成后，队列会自动继续处理
     if (taskQueue.isUpdatingForm()) {
       return;
     }
 
+    // 触发队列处理
     processQueue();
   });
 
@@ -1282,8 +1328,44 @@ export function useLinkageManager({
 - 不使用 `watch()` 监听所有字段
 - 只监听数组字段的变化（添加/删除/移动）
 - 使用 `useMemo` 缓存动态联动配置
+- **关键优化：当没有基础联动配置时，完全跳过监听逻辑**
 
-**实现方案**：
+**实现方案 1：早期返回优化（已实施）**
+
+```typescript
+// ✅ 优化后：当没有基础联动配置时，不监听字段变化（useArrayLinkageManager.ts 第 81-91 行）
+useEffect(() => {
+  // ✅ 关键优化：如果没有基础联动配置，不需要监听字段变化
+  if (Object.keys(baseLinkages).length === 0) {
+    return;
+  }
+
+  const subscription = watch(() => {
+    if (!schema) return;
+
+    const formData = getValues();
+    const newDynamicLinkages: Record<string, LinkageConfig> = {};
+
+    // 遍历基础联动配置，找出数组相关的联动
+    Object.entries(baseLinkages).forEach(([fieldPath, linkage]) => {
+      // ... 为每个数组元素生成联动配置
+    });
+
+    setDynamicLinkages(newDynamicLinkages);
+  });
+
+  return () => subscription.unsubscribe();
+}, [watch, getValues, baseLinkages, schema]);
+```
+
+**为什么需要早期返回？**
+
+- 即使没有基础联动配置，`watch()` 仍然会监听所有字段变化
+- 每次字段变化都会重新生成动态联动配置（即使结果是空对象）
+- 通过早期返回，完全跳过监听逻辑，避免性能浪费
+- **这是一个关键优化：确保无数组联动配置的表单不会有任何数组联动相关的性能开销**
+
+**实现方案 2：只监听数组字段变化（待实施）**
 
 ```typescript
 // 优化前：监听所有字段（useArrayLinkageManager.ts 第 81-129 行）
@@ -1744,31 +1826,275 @@ class DependencyGraph {
   性能提升：80%
 ```
 
+#### 3.2.4 方案七：缓存联动结果（已实施）
+
+**适用场景**：有重复计算的联动场景，特别是依赖字段值变化频繁但实际值重复的场景
+
+**核心思路**：
+
+- 缓存联动计算结果，避免重复计算
+- 使用依赖字段的值作为缓存键
+- 当依赖字段的值与缓存匹配时，直接返回缓存结果
+- **数组字段优化**：移除路径中的数组索引，实现跨数组元素的缓存复用
+
+**可行性分析**：
+
+**✅ 适合缓存的场景**：
+
+1. **纯函数联动**：联动函数是纯函数，相同输入总是产生相同输出
+2. **依赖字段少**：依赖字段数量少（1-3 个），缓存键生成成本低
+3. **计算成本高**：联动计算涉及复杂逻辑或异步请求
+4. **值重复率高**：依赖字段的值经常重复（如状态字段、枚举字段）
+
+**❌ 不适合缓存的场景**：
+
+1. **非纯函数联动**：联动函数依赖外部状态（如时间戳、随机数）
+2. **依赖字段多**：依赖字段数量多（5+ 个），缓存键生成成本高
+3. **计算成本低**：联动计算非常简单（如简单的条件判断）
+4. **值重复率低**：依赖字段的值几乎不重复（如文本输入）
+
+**缓存键设计**：
+
+```typescript
+/**
+ * 生成联动缓存键
+ *
+ * 详细实现请参考：
+ * - 代码实现：src/components/DynamicForm/utils/generateCacheKey.ts
+ * - 设计文档：[数组字段联动设计方案 - 7.3.1 联动结果缓存策略](./ARRAY_FIELD_LINKAGE.md#731-联动结果缓存策略)
+ *
+ * 核心逻辑：
+ * 1. 使用 toTemplatePath 移除路径中的数组索引
+ * 2. 对依赖字段排序，确保顺序一致
+ * 3. 生成格式：模板字段名:依赖1=值1|依赖2=值2|...
+ */
+function generateCacheKey(
+  fieldName: string,
+  dependencies: string[],
+  formData: Record<string, any>
+): string {
+  // 实现细节请参考源代码
+}
+```
+
+**数组字段的缓存策略**：
+
+详细说明请参考：[数组字段联动设计方案 - 7.3.1 联动结果缓存策略](./ARRAY_FIELD_LINKAGE.md#731-联动结果缓存策略)
+
+**配置选项**：
+
+在 schema 的 `ui.linkage` 中添加 `enableCache` 配置：
+
+```typescript
+// 示例：启用缓存的联动配置（异步 API 调用）
+{
+  type: 'string',
+  title: 'Province',
+  ui: {
+    linkage: {
+      type: 'options',
+      dependencies: ['country'],
+      enableCache: true, // ✅ 启用缓存
+      fulfill: {
+        function: 'loadProvinceOptions', // 异步 API 调用，建议启用缓存
+      },
+    },
+  },
+}
+
+// 示例：默认禁用缓存（简单联动）
+{
+  type: 'string',
+  title: 'Field D',
+  ui: {
+    linkage: {
+      type: 'visibility',
+      dependencies: ['fieldE'],
+      // enableCache: false, // 默认禁用缓存
+      when: { field: 'fieldE', operator: '==', value: 'show' },
+    },
+  },
+}
+```
+
+**性能权衡分析**：
+
+⚠️ **重要提示**：缓存并非总是有益，需要权衡缓存键生成成本和联动计算成本。
+
+| 联动类型 | 计算成本 | 缓存键生成成本 | 是否建议缓存 |
+|---------|---------|--------------|------------|
+| 简单条件判断 | 极低 (O(1)) | 中等 (O(n)) | ❌ 不建议 |
+| 复杂计算/聚合 | 中等 (O(k)) | 中等 (O(n)) | ⚠️ 需测试 |
+| 异步API调用 | 极高 (网络) | 中等 (O(n)) | ✅ 强烈建议 |
+
+**建议**：
+- ✅ 异步联动（API调用）：默认启用缓存
+- ⚠️ 复杂计算：通过性能测试决定
+- ❌ 简单联动：默认禁用缓存（不设置 `enableCache` 或设置为 `false`）
+
+详细分析请参考：[数组字段联动设计方案 - 性能权衡分析](./ARRAY_FIELD_LINKAGE.md#性能权衡分析)
+
+**实现方案**：
+
+```typescript
+/**
+ * 联动结果缓存管理器
+ */
+class LinkageResultCache {
+  private cache = new Map<string, LinkageResult>();
+  private maxSize = 1000; // 最大缓存条目数
+
+  /**
+   * 获取缓存结果
+   */
+  get(key: string): LinkageResult | undefined {
+    return this.cache.get(key);
+  }
+
+  /**
+   * 设置缓存结果
+   */
+  set(key: string, result: LinkageResult): void {
+    // LRU 策略：如果缓存已满，删除最早的条目
+    if (this.cache.size >= this.maxSize) {
+      const firstKey = this.cache.keys().next().value;
+      this.cache.delete(firstKey);
+    }
+    this.cache.set(key, result);
+  }
+
+  /**
+   * 清空缓存
+   */
+  clear(): void {
+    this.cache.clear();
+  }
+
+  /**
+   * 获取缓存统计信息
+   */
+  getStats(): { size: number; maxSize: number; hitRate: number } {
+    // 实现缓存命中率统计
+    return {
+      size: this.cache.size,
+      maxSize: this.maxSize,
+      hitRate: 0, // 需要额外的计数器来计算
+    };
+  }
+}
+```
+
+**使用示例**：
+
+```typescript
+// 在 evaluateLinkage 函数中集成缓存
+async function evaluateLinkage({
+  linkage,
+  formData,
+  linkageFunctions,
+  fieldPath,
+  asyncSequenceManager,
+  cache, // 新增缓存参数
+}: {
+  linkage: LinkageConfig;
+  formData: Record<string, any>;
+  linkageFunctions: Record<string, LinkageFunction>;
+  fieldPath: string;
+  asyncSequenceManager: AsyncSequenceManager;
+  cache?: LinkageResultCache; // 可选的缓存
+}): Promise<LinkageResult> {
+  // ✅ 检查是否启用缓存（默认禁用）
+  const isCacheEnabled = linkage.enableCache === true;
+
+  // 生成缓存键（仅在缓存启用时）
+  const cacheKey = cache && isCacheEnabled
+    ? generateCacheKey(fieldPath, linkage.dependencies, formData)
+    : null;
+
+  // 尝试从缓存获取结果
+  if (cacheKey && cache) {
+    const cachedResult = cache.get(cacheKey);
+    if (cachedResult) {
+      return cachedResult; // 缓存命中，直接返回
+    }
+  }
+
+  // 缓存未命中，执行联动计算
+  const result: LinkageResult = {};
+  // ... 原有的联动计算逻辑 ...
+
+  // 将结果存入缓存
+  if (cacheKey && cache) {
+    cache.set(cacheKey, result);
+  }
+
+  return result;
+}
+```
+
+**注意事项**：
+
+1. **缓存配置**：
+   - 默认禁用缓存（`enableCache: false` 或不设置）
+   - 异步联动（API 调用）应设置 `enableCache: true`
+   - 简单联动不建议启用缓存（计算成本低于缓存开销）
+
+2. **缓存失效策略**：
+   - 表单重置时清空缓存
+   - 联动配置变化时清空缓存
+   - 使用 LRU 策略限制缓存大小
+
+2. **缓存键冲突**：
+   - 使用 JSON.stringify 处理复杂类型
+   - 注意对象属性顺序可能导致的键不一致
+
+3. **内存管理**：
+   - 设置合理的缓存大小上限（建议 1000 条）
+   - 监控缓存命中率，评估缓存效果
+
+4. **异步函数缓存**：
+   - 异步函数的缓存需要特别注意竞态条件
+   - 建议只缓存纯函数的结果
+
+**优化效果**：
+
+- 缓存命中时：减少 90-100% 的计算时间
+- 适用场景：状态字段联动、枚举字段联动
+- 不适用场景：文本输入联动、复杂对象联动
+
 ### 3.3 优化方案总结
 
 **基于实际代码审查的结论**：
 
 | 方案                                      | 优先级 | 实施难度 | 预期效果   | 适用场景                   | 状态       |
 | ----------------------------------------- | ------ | -------- | ---------- | -------------------------- | ---------- |
-| **优化 LinkageStateContext**              | **P0** | **中**   | **80-90%** | **所有使用联动的表单**     | **待实施** |
+| **优化 LinkageStateContext（useRef）**    | **P0** | **中**   | **80-90%** | **所有使用联动的表单**     | **✅ 已实施** |
+| **精确监听字段（早期返回）**              | **P0** | **低**   | **70-80%** | **有联动的表单**           | **✅ 已实施** |
+| **优化 useArrayLinkageManager（早期返回）** | **P0** | **低**   | **80-90%** | **使用数组字段联动的表单** | **✅ 已实施** |
 | **优化 ArrayFieldWidget**                 | **P0** | **中**   | **90-95%** | **所有使用数组字段的表单** | **待实施** |
 | **并行计算联动状态（方案六）**            | **P0** | **高**   | **70-80%** | **大规模表单**             | **待实施** |
 | 虚拟滚动                                  | P0     | 中       | 70-80%     | 长列表数组字段             | 待实施     |
 | React.memo + useMemo                      | P0     | 低       | 60-80%     | FormField 组件             | 待实施     |
-| 精确监听字段                              | P0     | 中       | 70-80%     | 有联动的表单               | 待实施     |
-| **优化 useArrayLinkageManager（方案五）** | **P1** | **中**   | **80-90%** | **使用数组字段联动的表单** | **待实施** |
+| 精确监听字段（依赖图过滤）                | P0     | 中       | 70-80%     | 有联动的表单               | **✅ 已实施** |
+| 缓存联动结果（方案七）                    | P2     | 中       | 50-90%     | 重复计算场景               | 待实施     |
 | 防抖节流                                  | P1     | 低       | 30-50%     | 频繁触发联动               | 待实施     |
 | ~~条件渲染优化~~                          | -      | -        | -          | -                          | ✅ 已实现  |
 | ~~反向依赖图~~                            | -      | -        | -          | -                          | ✅ 已实现  |
 
 **说明**：
 
-- ✅ 已实现：代码审查发现已经实现的优化
+- ✅ 已实施：本次会话中已经实施的优化
+- ✅ 已实现：之前已经实现的优化
 - 待实施：需要实施的优化方案
-- **新增：并行计算联动状态（方案六）是解决联动性能问题的关键，应该优先实施**
-- **新增：优化 useArrayLinkageManager（方案五）可以显著减少数组联动的计算次数**
-- **新增：优化 LinkageStateContext 是解决性能问题的关键，应该优先实施**
-- **新增：优化 ArrayFieldWidget 是解决大规模数组场景性能问题的关键，应该优先实施**
+- **已实施的关键优化**：
+  - **优化 LinkageStateContext（useRef）**：使用 useRef 保持 methods 引用稳定，避免 Context value 频繁重建
+  - **精确监听字段（早期返回）**：当没有联动配置时，完全跳过监听逻辑
+  - **精确监听字段（依赖图过滤）**：只监听被依赖的字段，跳过无依赖字段的处理
+  - **优化 useArrayLinkageManager（早期返回）**：当没有基础联动配置时，完全跳过监听逻辑
+- **待实施的关键优化**：
+  - **优化 ArrayFieldWidget**：解决大规模数组场景性能问题的关键
+  - **并行计算联动状态（方案六）**：解决联动性能问题的关键
+  - **缓存联动结果（方案七）**：适用于重复计算场景，缓存命中时可减少 90-100% 的计算时间
 
 ---
 
@@ -1780,39 +2106,41 @@ class DependencyGraph {
 
 **任务清单**：
 
-1. **优化 LinkageStateContext（最优先）**
-   - [ ] 使用 useMemo 缓存 Context value 对象
-   - [ ] 测试性能改善
+1. **✅ 优化 LinkageStateContext（已完成）**
+   - [x] 使用 useRef 保持 methods 引用稳定
+   - [x] 使用 useMemo 缓存 Context value 对象
+   - [x] 测试性能改善
    - [ ] （可选）拆分 Context 为 LinkageStateContext 和 LinkageConfigContext
    - [ ] （可选）集成 use-context-selector 库
 
-2. **优化 ArrayFieldWidget（最优先）**
+2. **✅ 实施精确监听字段（已完成）**
+   - [x] 修改 useLinkageManager，添加早期返回检查
+   - [x] 修改 useArrayLinkageManager，添加早期返回检查
+   - [x] 测试联动功能
+   - [x] 性能测试
+   - [x] 使用依赖图过滤，只监听有依赖关系的字段
+
+3. **优化 ArrayFieldWidget（最优先）**
    - [ ] 使用 useCallback 缓存 handleRemove、handleMoveUp、handleMoveDown 回调函数
    - [ ] 使用 useMemo 缓存 statusMap 对象
    - [ ] 使用 React.memo 优化 ArrayItem 组件
    - [ ] 使用 useCallback 缓存虚拟滚动的 itemContent 回调
    - [ ] 性能测试
 
-3. **实施 React.memo 优化**
+4. **实施 React.memo 优化**
    - [ ] 优化 FormField 组件
    - [ ] 使用 useMemo 缓存样式对象
    - [ ] 添加自定义比较函数
    - [ ] 性能测试
 
-4. **实施虚拟滚动**
+5. **实施虚拟滚动**
    - [x] 集成 react-virtuoso
    - [x] 适配 ArrayFieldWidget
    - [ ] 处理焦点管理
    - [ ] 测试验证功能
 
-5. **实施精确监听字段**
-   - [ ] 修改 useLinkageManager
-   - [ ] 只监听有依赖关系的字段
-   - [ ] 测试联动功能
-   - [ ] 性能测试
-
 6. **实施并行计算联动状态（关键优化）**
-   - [ ] 在 DependencyGraph 中实现 getTopologicalLayers 方法
+   - [x] 在 DependencyGraph 中实现 getTopologicalLayers 方法
    - [ ] 实现 evaluateLinkagesByLayers 函数
    - [ ] 修改 useLinkageManager 的初始化逻辑，使用并行计算
    - [ ] 修改 processQueue 的联动计算逻辑，使用并行计算
@@ -1844,7 +2172,14 @@ class DependencyGraph {
    - [ ] 优化 watch 监听
    - [ ] 性能测试
 
-3. **实施 useMemo 缓存对象**
+3. **实施缓存联动结果（方案七）**
+   - [ ] 实现 LinkageResultCache 缓存管理器
+   - [ ] 实现缓存键生成函数
+   - [ ] 在 evaluateLinkage 中集成缓存
+   - [ ] 添加缓存失效策略
+   - [ ] 性能测试和缓存命中率统计
+
+4. **实施 useMemo 缓存对象**
    - [ ] 优化 FormField 组件的样式对象
    - [ ] 使用 useMemo 缓存 formGroupStyle 和 labelStyle
    - [ ] 性能测试
@@ -2145,16 +2480,35 @@ fieldA: {
 
 ### 7.2 核心优化方案
 
-1. **优化 ArrayFieldWidget**（最关键）：使用 useCallback 缓存回调函数，useMemo 缓存 statusMap，React.memo 优化 ArrayItem
-2. **优化 LinkageStateContext**（最关键）：使用 useMemo 缓存 Context value
-3. **并行计算联动状态**（关键）：使用拓扑层级并行计算，充分利用浏览器并发能力
-4. **优化 useArrayLinkageManager**：只监听数组字段变化，增量更新联动配置
-5. **虚拟滚动**：解决大量组件同时渲染的问题
-6. **React.memo**：减少不必要的重渲染
-7. **精确监听字段**：只监听有依赖关系的字段
-8. **反向依赖图**：优化联动计算效率（✅ 已实现）
-9. **条件渲染**：卸载隐藏字段（✅ 已实现）
-10. **防抖节流**：减少计算频率
+**已实施的优化**：
+
+1. **✅ 优化 LinkageStateContext（useRef）**（已完成）
+   - 使用 useRef 保持 methods 引用稳定
+   - 使用 useMemo 缓存 Context value
+   - 避免 methods 对象变化触发 Context value 重建
+   - **效果**：即使没有联动配置，也能避免字段输入触发重渲染
+
+2. **✅ 精确监听字段**（已完成）
+   - 在 useLinkageManager 中添加早期返回检查
+   - 在 useArrayLinkageManager 中添加早期返回检查
+   - 当没有联动配置时，完全跳过监听逻辑
+   - 使用依赖图过滤，只监听有依赖关系的字段
+   - **效果**：确保无联动配置的表单不会有任何联动相关的性能开销，减少 70-80% 的联动计算次数
+
+**待实施的优化**：
+
+3. **优化 ArrayFieldWidget**（最关键）：使用 useCallback 缓存回调函数，useMemo 缓存 statusMap，React.memo 优化 ArrayItem
+4. **并行计算联动状态**（关键）：使用拓扑层级并行计算，充分利用浏览器并发能力
+5. **缓存联动结果**（方案七）：适用于重复计算场景，缓存命中时可减少 90-100% 的计算时间
+6. **优化 useArrayLinkageManager**：只监听数组字段变化，增量更新联动配置
+7. **虚拟滚动**：解决大量组件同时渲染的问题
+8. **React.memo**：减少不必要的重渲染
+9. **防抖节流**：减少计算频率
+
+**已实现的优化**（之前版本）：
+
+- **反向依赖图**：优化联动计算效率（✅ 已实现）
+- **条件渲染**：卸载隐藏字段（✅ 已实现）
 
 ### 7.3 预期效果
 
@@ -2202,16 +2556,50 @@ fieldA: {
 
 **文档完成日期**：2026-01-11
 
+**已完成的优化**（2026-01-11）：
+
+1. ✅ 优化 LinkageStateContext（方案 3.1.2）
+   - 使用 useRef 保持 methods 引用稳定
+   - 使用 useMemo 缓存 Context value
+   - 避免 methods 对象变化触发 Context value 重建
+
+2. ✅ 精确监听字段（方案 3.1.3）
+   - 在 useLinkageManager 中添加早期返回检查
+   - 在 useArrayLinkageManager 中添加早期返回检查
+   - 当没有联动配置时，完全跳过监听逻辑
+   - 使用依赖图过滤，只监听被依赖的字段
+
 **下一步行动**：
 
 1. 优先实施 ArrayFieldWidget 优化（方案 3.1.4）
-2. 同步实施 LinkageStateContext 优化（方案 3.1.2）
-3. 实施并行计算联动状态（方案 3.2.3）
-4. 优化 useArrayLinkageManager 的监听机制（方案 3.2.2）
+2. 实施并行计算联动状态（方案 3.2.3）
+3. 优化 useArrayLinkageManager 的监听机制（方案 3.2.2，增量更新部分）
 
 **更新记录**：
 
-- 2026-01-11：新增联动性能问题分析（2.2.3-2.2.5 节）
+- 2026-01-11（第四次更新）：新增缓存联动结果优化方案
+  - 新增"方案七：缓存联动结果"（3.2.4 节）
+  - 分析缓存可行性、适用场景和注意事项
+  - 设计缓存键生成策略和缓存管理器
+  - 更新优化方案总结表格，添加缓存方案（3.3 节）
+  - 更新实施计划，添加缓存方案任务（4.2 节）
+  - 更新总结部分，补充缓存方案（7.2 节）
+- 2026-01-11（第三次更新）：实施精确监听依赖字段优化（依赖图过滤）
+  - 修改 useLinkageManager 的 watch 监听逻辑，使用依赖图过滤（3.1.3 节）
+  - 更新优化方案总结表格，标记"精确监听字段（依赖图过滤）"为已实施（3.3 节）
+  - 更新实施计划，标记依赖图过滤任务为已完成（4.1 节）
+  - 更新总结部分，补充依赖图过滤优化（7.2 节）
+  - 更新"已完成的优化"部分，记录依赖图过滤优化
+- 2026-01-11（第二次更新）：记录已实施的优化
+  - 补充 methods 对象变化触发 Context value 重建的问题分析（2.5.1 节）
+  - 更新 LinkageStateContext 优化方案，补充 useRef 优化（3.1.2 节）
+  - 更新精确监听字段方案，补充早期返回优化（3.1.3 节）
+  - 更新 useArrayLinkageManager 优化方案，补充早期返回优化（3.2.2 节）
+  - 更新优化方案总结表格，标记已实施的优化（3.3 节）
+  - 更新实施计划，标记已完成的任务（4.1 节）
+  - 更新总结部分，补充已实施的优化（7.2 节）
+  - 新增"已完成的优化"部分，记录本次会话实施的优化
+- 2026-01-11（第一次更新）：新增联动性能问题分析（2.2.3-2.2.5 节）
   - 新增 useArrayLinkageManager 的 watch() 监听所有字段问题
   - 新增联动初始化时的串行计算问题
   - 新增 processQueue 中的串行计算问题

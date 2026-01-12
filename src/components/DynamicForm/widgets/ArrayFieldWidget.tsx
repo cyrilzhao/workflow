@@ -109,7 +109,18 @@ function isPrimitiveType(schema: ExtendedJSONSchema): boolean {
 /**
  * 获取基本类型的默认值
  */
+function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0,
+      v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 function getDefaultPrimitiveValue(schema: ExtendedJSONSchema): any {
+  if (schema.ui?.autogenerate === 'uuid') {
+    return generateUUID();
+  }
   switch (schema.type) {
     case 'string':
       return '';
@@ -148,7 +159,9 @@ function getDefaultValue(itemsSchema: ExtendedJSONSchema): any {
       const defaultObj: any = {};
       Object.entries(itemsSchema.properties).forEach(([key, propSchema]) => {
         const prop = propSchema as ExtendedJSONSchema;
-        if (prop.default !== undefined) {
+        if (prop.ui?.autogenerate === 'uuid') {
+          defaultObj[key] = generateUUID();
+        } else if (prop.default !== undefined) {
           defaultObj[key] = prop.default;
         } else if (prop.type === 'string') {
           defaultObj[key] = '';
@@ -248,26 +261,35 @@ export const ArrayFieldWidget = forwardRef<HTMLDivElement, ArrayFieldWidgetProps
     }, [itemSchema, append]);
 
     // 删除项
-    const handleRemove = useCallback((index: number) => {
-      // 删除项时不触发验证
-      remove(index);
-    }, [remove]);
+    const handleRemove = useCallback(
+      (index: number) => {
+        // 删除项时不触发验证
+        remove(index);
+      },
+      [remove]
+    );
 
     // 上移
-    const handleMoveUp = useCallback((index: number) => {
-      if (index > 0) {
-        // 移动项时不触发验证
-        move(index, index - 1);
-      }
-    }, [move]);
+    const handleMoveUp = useCallback(
+      (index: number) => {
+        if (index > 0) {
+          // 移动项时不触发验证
+          move(index, index - 1);
+        }
+      },
+      [move]
+    );
 
     // 下移
-    const handleMoveDown = useCallback((index: number) => {
-      if (index < fields.length - 1) {
-        // 移动项时不触发验证
-        move(index, index + 1);
-      }
-    }, [move, fields.length]);
+    const handleMoveDown = useCallback(
+      (index: number) => {
+        if (index < fields.length - 1) {
+          // 移动项时不触发验证
+          move(index, index + 1);
+        }
+      },
+      [move, fields.length]
+    );
 
     // ✅ 使用 useMemo 缓存所有 statusMap，避免每次渲染都创建新对象
     const statusMaps = useMemo(() => {
@@ -521,254 +543,254 @@ const ArrayItem = React.memo<ArrayItemProps>(
     layout,
     labelWidth,
   }) => {
-  const { control } = useFormContext();
+    const { control } = useFormContext();
 
-  // 删除确认 Popover 的状态
-  const [isDeletePopoverOpen, setIsDeletePopoverOpen] = useState(false);
+    // 删除确认 Popover 的状态
+    const [isDeletePopoverOpen, setIsDeletePopoverOpen] = useState(false);
 
-  // 处理删除确认
-  const handleConfirmDelete = () => {
-    setIsDeletePopoverOpen(false);
-    onRemove?.(index);
-  };
+    // 处理删除确认
+    const handleConfirmDelete = () => {
+      setIsDeletePopoverOpen(false);
+      onRemove?.(index);
+    };
 
-  // 处理取消删除
-  const handleCancelDelete = () => {
-    setIsDeletePopoverOpen(false);
-  };
+    // 处理取消删除
+    const handleCancelDelete = () => {
+      setIsDeletePopoverOpen(false);
+    };
 
-  // 根据 schema 获取对应的 Widget
-  const itemWidget = useMemo(() => determineItemWidget(schema), [schema]);
-  const WidgetComponent = FieldRegistry.getWidget(itemWidget);
+    // 根据 schema 获取对应的 Widget
+    const itemWidget = useMemo(() => determineItemWidget(schema), [schema]);
+    const WidgetComponent = FieldRegistry.getWidget(itemWidget);
 
-  if (!WidgetComponent) {
-    console.error(`Widget "${itemWidget}" not found in registry`);
-    return null;
-  }
+    if (!WidgetComponent) {
+      console.error(`Widget "${itemWidget}" not found in registry`);
+      return null;
+    }
 
-  // 如果是对象类型，使用特殊渲染
-  if (schema.type === 'object') {
-    return (
-      <Card
-        className="array-item array-item-object"
-        elevation={1}
-        style={{ marginBottom: '15px', padding: '15px' }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '10px',
-          }}
+    // 如果是对象类型，使用特殊渲染
+    if (schema.type === 'object') {
+      return (
+        <Card
+          className="array-item array-item-object"
+          elevation={1}
+          style={{ marginBottom: '15px', padding: '15px' }}
         >
-          <span style={{ fontWeight: 'bold' }}>
-            {schema.title || 'Item'} {index + 1}
-          </span>
-          {(onMoveUp || onMoveDown || onRemove) && (
-            <div className="array-item-actions" style={{ display: 'flex', gap: '5px' }}>
-              {onMoveUp && (
-                <Tooltip
-                  content={statusMap?.isFirstItem ? 'Already at the first item' : ''}
-                  disabled={!statusMap?.isFirstItem}
-                >
-                  <Button
-                    icon="arrow-up"
-                    minimal
-                    small
-                    onClick={() => onMoveUp(index)}
-                    disabled={disabled || statusMap?.isFirstItem}
-                    title="Move up"
-                  />
-                </Tooltip>
-              )}
-              {onMoveDown && (
-                <Tooltip
-                  content={statusMap?.isLastItem ? 'Already at the last item' : ''}
-                  disabled={!statusMap?.isLastItem}
-                >
-                  <Button
-                    icon="arrow-down"
-                    minimal
-                    small
-                    onClick={() => onMoveDown(index)}
-                    disabled={disabled || statusMap?.isLastItem}
-                    title="Move down"
-                  />
-                </Tooltip>
-              )}
-              {onRemove && (
-                <Popover
-                  content={
-                    <DeleteConfirmPopover
-                      onConfirm={handleConfirmDelete}
-                      onCancel={handleCancelDelete}
-                      itemIndex={index}
-                    />
-                  }
-                  isOpen={isDeletePopoverOpen}
-                  onInteraction={nextOpenState => {
-                    // 如果按钮被禁用，不允许打开 Popover
-                    if (disabled || statusMap?.isAtMinLimit) {
-                      return;
-                    }
-                    setIsDeletePopoverOpen(nextOpenState);
-                  }}
-                  interactionKind={PopoverInteractionKind.CLICK}
-                  placement="top"
-                >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '10px',
+            }}
+          >
+            <span style={{ fontWeight: 'bold' }}>
+              {schema.title || 'Item'} {index + 1}
+            </span>
+            {(onMoveUp || onMoveDown || onRemove) && (
+              <div className="array-item-actions" style={{ display: 'flex', gap: '5px' }}>
+                {onMoveUp && (
                   <Tooltip
-                    content={statusMap?.isAtMinLimit ? 'At least one item is required' : ''}
-                    disabled={!statusMap?.isAtMinLimit}
+                    content={statusMap?.isFirstItem ? 'Already at the first item' : ''}
+                    disabled={!statusMap?.isFirstItem}
                   >
                     <Button
-                      icon="trash"
+                      icon="arrow-up"
                       minimal
                       small
-                      intent="danger"
-                      disabled={disabled || statusMap?.isAtMinLimit}
-                      title="Delete"
+                      onClick={() => onMoveUp(index)}
+                      disabled={disabled || statusMap?.isFirstItem}
+                      title="Move up"
                     />
                   </Tooltip>
-                </Popover>
-              )}
-            </div>
-          )}
+                )}
+                {onMoveDown && (
+                  <Tooltip
+                    content={statusMap?.isLastItem ? 'Already at the last item' : ''}
+                    disabled={!statusMap?.isLastItem}
+                  >
+                    <Button
+                      icon="arrow-down"
+                      minimal
+                      small
+                      onClick={() => onMoveDown(index)}
+                      disabled={disabled || statusMap?.isLastItem}
+                      title="Move down"
+                    />
+                  </Tooltip>
+                )}
+                {onRemove && (
+                  <Popover
+                    content={
+                      <DeleteConfirmPopover
+                        onConfirm={handleConfirmDelete}
+                        onCancel={handleCancelDelete}
+                        itemIndex={index}
+                      />
+                    }
+                    isOpen={isDeletePopoverOpen}
+                    onInteraction={nextOpenState => {
+                      // 如果按钮被禁用，不允许打开 Popover
+                      if (disabled || statusMap?.isAtMinLimit) {
+                        return;
+                      }
+                      setIsDeletePopoverOpen(nextOpenState);
+                    }}
+                    interactionKind={PopoverInteractionKind.CLICK}
+                    placement="top"
+                  >
+                    <Tooltip
+                      content={statusMap?.isAtMinLimit ? 'At least one item is required' : ''}
+                      disabled={!statusMap?.isAtMinLimit}
+                    >
+                      <Button
+                        icon="trash"
+                        minimal
+                        small
+                        intent="danger"
+                        disabled={disabled || statusMap?.isAtMinLimit}
+                        title="Delete"
+                      />
+                    </Tooltip>
+                  </Popover>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 直接渲染 NestedFormWidget，不再使用 Controller 包裹 */}
+          {/* NestedFormWidget 内部使用 asNestedForm 模式，子字段会直接注册到父表单 */}
+          {/* 传递 noCard={true} 避免双层 Card 嵌套 */}
+          <WidgetComponent
+            name={name}
+            schema={schema}
+            disabled={disabled}
+            readonly={readonly}
+            layout={layout}
+            labelWidth={labelWidth}
+            noCard={true}
+            {...(schema.ui?.widgetProps || {})}
+          />
+        </Card>
+      );
+    }
+
+    // 基本类型：渲染为简单的输入框 + 操作按钮
+    // 为基础类型生成校验规则
+    const validationRules = useMemo(() => SchemaParser.getValidationRules(schema, false), [schema]);
+
+    return (
+      <div
+        className="array-item array-item-simple"
+        style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '10px' }}
+      >
+        {/* 索引标签 */}
+        <div className="array-item-index" style={{ minWidth: '30px', color: '#999' }}>
+          #{index + 1}
         </div>
 
-        {/* 直接渲染 NestedFormWidget，不再使用 Controller 包裹 */}
-        {/* NestedFormWidget 内部使用 asNestedForm 模式，子字段会直接注册到父表单 */}
-        {/* 传递 noCard={true} 避免双层 Card 嵌套 */}
-        <WidgetComponent
-          name={name}
-          schema={schema}
-          disabled={disabled}
-          readonly={readonly}
-          layout={layout}
-          labelWidth={labelWidth}
-          noCard={true}
-          {...(schema.ui?.widgetProps || {})}
-        />
-      </Card>
-    );
-  }
-
-  // 基本类型：渲染为简单的输入框 + 操作按钮
-  // 为基础类型生成校验规则
-  const validationRules = useMemo(() => SchemaParser.getValidationRules(schema, false), [schema]);
-
-  return (
-    <div
-      className="array-item array-item-simple"
-      style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '10px' }}
-    >
-      {/* 索引标签 */}
-      <div className="array-item-index" style={{ minWidth: '30px', color: '#999' }}>
-        #{index + 1}
-      </div>
-
-      {/* 字段内容 */}
-      <div className="array-item-field" style={{ flex: 1 }}>
-        <Controller
-          name={`${name}.value`}
-          control={control}
-          rules={validationRules}
-          render={({ field: controllerField, fieldState }) => (
-            <>
-              <WidgetComponent
-                name={`${name}.value`}
-                schema={schema}
-                value={controllerField.value}
-                onChange={controllerField.onChange}
-                disabled={disabled}
-                readonly={readonly}
-                {...(schema.ui?.widgetProps || {})}
-              />
-              {fieldState.error && (
-                <div style={{ color: '#DB3737', fontSize: '12px', marginTop: '5px' }}>
-                  {fieldState.error.message}
-                </div>
-              )}
-            </>
-          )}
-        />
-      </div>
-
-      {/* 操作按钮 */}
-      {(onMoveUp || onMoveDown || onRemove) && (
-        <div
-          className="array-item-actions"
-          style={{ display: 'flex', height: '30px', gap: '5px', alignItems: 'center' }}
-        >
-          {onMoveUp && (
-            <Tooltip
-              content={statusMap?.isFirstItem ? 'Already at the first item' : ''}
-              disabled={!statusMap?.isFirstItem}
-            >
-              <Button
-                icon="arrow-up"
-                minimal
-                small
-                onClick={() => onMoveUp(index)}
-                disabled={disabled || statusMap?.isFirstItem}
-                title="Move up"
-              />
-            </Tooltip>
-          )}
-          {onMoveDown && (
-            <Tooltip
-              content={statusMap?.isLastItem ? 'Already at the last item' : ''}
-              disabled={!statusMap?.isLastItem}
-            >
-              <Button
-                icon="arrow-down"
-                minimal
-                small
-                onClick={() => onMoveDown(index)}
-                disabled={disabled || statusMap?.isLastItem}
-                title="Move down"
-              />
-            </Tooltip>
-          )}
-          {onRemove && (
-            <Popover
-              content={
-                <DeleteConfirmPopover
-                  onConfirm={handleConfirmDelete}
-                  onCancel={handleCancelDelete}
-                  itemIndex={index}
+        {/* 字段内容 */}
+        <div className="array-item-field" style={{ flex: 1 }}>
+          <Controller
+            name={`${name}.value`}
+            control={control}
+            rules={validationRules}
+            render={({ field: controllerField, fieldState }) => (
+              <>
+                <WidgetComponent
+                  name={`${name}.value`}
+                  schema={schema}
+                  value={controllerField.value}
+                  onChange={controllerField.onChange}
+                  disabled={disabled}
+                  readonly={readonly}
+                  {...(schema.ui?.widgetProps || {})}
                 />
-              }
-              isOpen={isDeletePopoverOpen}
-              onInteraction={nextOpenState => {
-                // 如果按钮被禁用，不允许打开 Popover
-                if (disabled || statusMap?.isAtMinLimit) {
-                  return;
-                }
-                setIsDeletePopoverOpen(nextOpenState);
-              }}
-              interactionKind={PopoverInteractionKind.CLICK}
-              placement="top"
-            >
+                {fieldState.error && (
+                  <div style={{ color: '#DB3737', fontSize: '12px', marginTop: '5px' }}>
+                    {fieldState.error.message}
+                  </div>
+                )}
+              </>
+            )}
+          />
+        </div>
+
+        {/* 操作按钮 */}
+        {(onMoveUp || onMoveDown || onRemove) && (
+          <div
+            className="array-item-actions"
+            style={{ display: 'flex', height: '30px', gap: '5px', alignItems: 'center' }}
+          >
+            {onMoveUp && (
               <Tooltip
-                content={statusMap?.isAtMinLimit ? 'At least one item is required' : ''}
-                disabled={!statusMap?.isAtMinLimit}
+                content={statusMap?.isFirstItem ? 'Already at the first item' : ''}
+                disabled={!statusMap?.isFirstItem}
               >
                 <Button
-                  icon="trash"
+                  icon="arrow-up"
                   minimal
                   small
-                  intent="danger"
-                  disabled={disabled || statusMap?.isAtMinLimit}
-                  title="Delete"
+                  onClick={() => onMoveUp(index)}
+                  disabled={disabled || statusMap?.isFirstItem}
+                  title="Move up"
                 />
               </Tooltip>
-            </Popover>
-          )}
-        </div>
-      )}
-    </div>
-  );
+            )}
+            {onMoveDown && (
+              <Tooltip
+                content={statusMap?.isLastItem ? 'Already at the last item' : ''}
+                disabled={!statusMap?.isLastItem}
+              >
+                <Button
+                  icon="arrow-down"
+                  minimal
+                  small
+                  onClick={() => onMoveDown(index)}
+                  disabled={disabled || statusMap?.isLastItem}
+                  title="Move down"
+                />
+              </Tooltip>
+            )}
+            {onRemove && (
+              <Popover
+                content={
+                  <DeleteConfirmPopover
+                    onConfirm={handleConfirmDelete}
+                    onCancel={handleCancelDelete}
+                    itemIndex={index}
+                  />
+                }
+                isOpen={isDeletePopoverOpen}
+                onInteraction={nextOpenState => {
+                  // 如果按钮被禁用，不允许打开 Popover
+                  if (disabled || statusMap?.isAtMinLimit) {
+                    return;
+                  }
+                  setIsDeletePopoverOpen(nextOpenState);
+                }}
+                interactionKind={PopoverInteractionKind.CLICK}
+                placement="top"
+              >
+                <Tooltip
+                  content={statusMap?.isAtMinLimit ? 'At least one item is required' : ''}
+                  disabled={!statusMap?.isAtMinLimit}
+                >
+                  <Button
+                    icon="trash"
+                    minimal
+                    small
+                    intent="danger"
+                    disabled={disabled || statusMap?.isAtMinLimit}
+                    title="Delete"
+                  />
+                </Tooltip>
+              </Popover>
+            )}
+          </div>
+        )}
+      </div>
+    );
   },
   // ✅ 自定义比较函数：只在关键 props 变化时重渲染
   (prevProps, nextProps) => {

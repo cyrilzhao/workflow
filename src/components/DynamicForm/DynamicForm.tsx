@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { useForm, FormProvider, useFormContext } from 'react-hook-form';
 import { Button } from '@blueprintjs/core';
 import { SchemaParser } from './core/SchemaParser';
@@ -328,39 +328,43 @@ const DynamicFormInner: React.FC<DynamicFormProps> = React.memo(
       }
     }, [watch, onChange, schema]);
 
-    const onSubmitHandler = async (data: Record<string, any>) => {
-      if (onSubmit) {
-        if (process.env.NODE_ENV !== 'production') {
-          console.info('[DynamicForm] onSubmitHandler - 原始数据:', JSON.stringify(data));
+    // ✅ 使用 useCallback 缓存 onSubmitHandler，避免每次渲染创建新函
+    const onSubmitHandler = useCallback(
+      async (data: Record<string, any>) => {
+        if (onSubmit) {
+          if (process.env.NODE_ENV !== 'production') {
+            console.info('[DynamicForm] onSubmitHandler - 原始数据:', JSON.stringify(data));
+          }
+
+          // 使用公共函数进行数据转换，包含过滤步骤
+          const filteredData = transformFormData(
+            data,
+            schema,
+            nestedSchemaRegistry || undefined,
+            true // 需要过滤数据
+          );
+
+          if (process.env.NODE_ENV !== 'production') {
+            console.info('[DynamicForm] onSubmitHandler - 过滤后:', JSON.stringify(filteredData));
+          }
+
+          await onSubmit(filteredData);
         }
-
-        // 使用公共函数进行数据转换，包含过滤步骤
-        const filteredData = transformFormData(
-          data,
-          schema,
-          nestedSchemaRegistry || undefined,
-          true // 需要过滤数据
-        );
-
-        if (process.env.NODE_ENV !== 'production') {
-          console.info('[DynamicForm] onSubmitHandler - 过滤后:', JSON.stringify(filteredData));
-        }
-
-        await onSubmit(filteredData);
-      }
-    };
+      },
+      [onSubmit, schema, nestedSchemaRegistry]
+    );
 
     // 使用 useMemo 缓存 LinkageStateContext 的 value 对象
     // 避免每次 linkageStates 变化时都创建新对象，导致所有消费该 Context 的组件重新渲染
     const linkageContextValue = useMemo(
       () => ({
         parentLinkageStates: linkageStates,
-        form: methodsRef.current,  // ✅ 使用 ref 避免 methods 变化触发重新计算
+        form: methodsRef.current, // ✅ 使用 ref 避免 methods 变化触发重新计算
         rootSchema: schema,
         pathPrefix: pathPrefix,
         linkageFunctions: effectiveLinkageFunctions,
       }),
-      [linkageStates, schema, pathPrefix, effectiveLinkageFunctions]  // ✅ 移除 methods 依赖
+      [linkageStates, schema, pathPrefix, effectiveLinkageFunctions] // ✅ 移除 methods 依赖
     );
 
     // 使用 useMemo 缓存字段内容，避免每次渲染都创建新的 children

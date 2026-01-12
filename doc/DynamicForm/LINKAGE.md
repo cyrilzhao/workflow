@@ -44,6 +44,10 @@ interface UILinkageConfig {
 
   // 条件不满足时的效果
   otherwise?: LinkageEffect;
+
+  // 是否启用缓存（默认 false，禁用缓存）
+  // 建议仅为异步联动（如 API 调用）启用缓存
+  enableCache?: boolean;
 }
 
 interface LinkageEffect {
@@ -75,6 +79,7 @@ interface LinkageEffect {
   - `visibility`/`disabled`/`readonly` 类型：函数返回值转为 boolean
 - **灵活性**：支持直接指定值/选项/schema（`value`/`options`/`schema`），也支持函数计算（`function`）
 - **异步支持**：所有联动函数都支持异步操作，系统会自动处理异步竞态条件
+- **缓存优化**：默认禁用联动结果缓存，可通过 `enableCache: true` 为异步联动启用缓存
 
 ### 2.2 条件表达式语法
 
@@ -293,7 +298,94 @@ const linkageFunctions = {
 };
 ```
 
-### 3.5 动态 Schema（异步加载）
+### 3.5 启用缓存（异步联动）
+
+默认情况下联动结果缓存是禁用的。对于异步联动（如 API 调用），建议启用缓存以避免重复的网络请求：
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "country": {
+      "type": "string",
+      "title": "国家",
+      "enum": ["china", "usa"]
+    },
+    "province": {
+      "type": "string",
+      "title": "省份/州",
+      "ui": {
+        "linkage": {
+          "type": "options",
+          "dependencies": ["#/properties/country"],
+          "enableCache": true,
+          "fulfill": {
+            "function": "loadProvinceOptions"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+对应的异步函数：
+
+```typescript
+const linkageFunctions = {
+  // 异步函数：从 API 加载省份选项
+  loadProvinceOptions: async (formData: any) => {
+    const { country } = formData;
+    if (!country) return [];
+
+    // API 调用成本高，建议启用缓存
+    const response = await fetch(`/api/provinces?country=${country}`);
+    const data = await response.json();
+    return data.provinces;
+  },
+};
+```
+
+### 3.5.1 数组字段的缓存策略
+
+数组字段的联动缓存需要特殊处理，因为依赖关系可能涉及同级字段、外部字段、父数组字段等多种情况。
+
+**核心原则**：根据依赖类型选择性移除数组索引，实现跨元素缓存复用。
+
+**场景 1：同级字段依赖**
+
+```typescript
+// contacts.0.companyName 依赖 contacts.0.type="work"
+// contacts.1.companyName 依赖 contacts.1.type="work"
+// 缓存键：companyName:type="work"
+// ✅ 可跨元素复用
+```
+
+**场景 2：外部字段依赖**
+
+```typescript
+// contacts.0.vipLevel 依赖 enableVip=true
+// contacts.1.vipLevel 依赖 enableVip=true
+// 缓存键：vipLevel:enableVip=true
+// ✅ 可跨元素复用
+```
+
+**场景 3：父数组字段依赖（嵌套数组）**
+
+```typescript
+// departments.0.employees.0.techStack 依赖 departments.0.type="tech"
+// departments.0.employees.1.techStack 依赖 departments.0.type="tech"
+// 缓存键：techStack:departments.0.type="tech"
+// ⚠️ 只能在同一父元素内复用
+```
+
+**详细说明**：
+
+- **场景1、2**：移除所有数组索引，实现完全跨元素复用
+- **场景3**：保留父数组索引，移除子数组索引，在同一父元素内复用
+- 更多详细场景和算法请参考：[数组字段联动设计方案 - 7.3.1 联动结果缓存策略](./ARRAY_FIELD_LINKAGE.md#731-联动结果缓存策略)
+
+### 3.6 动态 Schema（异步加载）
 
 ```json
 {
@@ -875,39 +967,7 @@ export function useLinkageManager({
 - ✅ 依赖图优化：精确计算受影响的字段，避免不必要的重新计算
 - ✅ 循环依赖检测：自动检测并警告循环依赖
 
-### 6.4 PathMapping 机制
-
-当使用路径透明化（`flattenPath`）时，逻辑路径和物理路径会不一致。PathMapping 机制用于处理这种映射关系。
-
-**类型定义**：`src/utils/schemaLinkageParser.ts`
-
-```typescript
-export interface PathMapping {
-  logicalPath: string;
-  physicalPath: string;
-  isArray?: boolean;
-  skippedSegments?: string[];
-}
-```
-
-**路径转换函数**：
-
-```typescript
-export function logicalToPhysicalPath(logicalPath: string, pathMappings: PathMapping[]): string {
-  for (const mapping of pathMappings) {
-    if (logicalPath === mapping.logicalPath) {
-      return mapping.physicalPath;
-    }
-    if (logicalPath.startsWith(mapping.logicalPath + '.')) {
-      const suffix = logicalPath.slice(mapping.logicalPath.length);
-      return mapping.physicalPath + suffix;
-    }
-  }
-  return logicalPath;
-}
-```
-
-### 6.5 分层计算策略
+### 6.4 分层计算策略
 
 当表单包含嵌套结构时，联动状态的计算采用分层策略。
 
@@ -929,7 +989,7 @@ interface LinkageStateContextValue {
 }
 ```
 
-### 6.6 DynamicForm 集成
+### 6.5 DynamicForm 集成
 
 **实际实现**：`src/components/DynamicForm/DynamicForm.tsx`
 
@@ -944,12 +1004,8 @@ const nestedSchemaRegistry = useNestedSchemaRegistryOptional();
 #### 步骤 2：联动配置解析
 
 ```typescript
-// 解析 schema 中的联动配置（包含路径映射）
-const {
-  linkages: rawLinkages,
-  pathMappings,
-  hasFlattenPath,
-} = useMemo(() => {
+// 解析 schema 中的联动配置
+const { linkages: rawLinkages } = useMemo(() => {
   const parsed = parseSchemaLinkages(schema);
   if (process.env.NODE_ENV !== 'production') {
     console.log('[DynamicForm] 解析 schema 联动配置:', {
@@ -957,8 +1013,6 @@ const {
       pathPrefix,
       asNestedForm,
       rawLinkages: parsed.linkages,
-      pathMappingsCount: parsed.pathMappings.length,
-      hasFlattenPath: parsed.hasFlattenPath,
     });
   }
   return parsed;
@@ -968,8 +1022,6 @@ const {
 **说明**：
 
 - `parseSchemaLinkages` 解析 Schema，提取联动配置
-- 同时生成 PathMapping 表（用于路径透明化）
-- 检测是否使用了 `flattenPath`
 
 #### 步骤 3：路径转换和过滤
 
@@ -1031,7 +1083,6 @@ const ownLinkageStates = useArrayLinkageManager({
   baseLinkages: processedLinkages,
   linkageFunctions: effectiveLinkageFunctions,
   schema,
-  pathMappings,
 });
 
 // 步骤4.2: 合并父级和自己的联动状态
@@ -1771,16 +1822,15 @@ dependencyGraph.getAffectedFields('items.0.quantity')
    - ✅ 确保类型安全，单条件和逻辑组合不能混用
 
 2. **优化章节结构**
-   - ✅ 将 PathMapping、分层计算、DynamicForm 集成合并到第 6 节（实现方案）
+   - ✅ 将分层计算、DynamicForm 集成合并到第 6 节（实现方案）
    - ✅ 调整章节顺序：端到端示例前置到第 7 节
    - ✅ 删除"高级特性"标题，避免误导
 
 3. **补充关键实现细节**
-   - ✅ 6.4 节：PathMapping 机制详细说明
-   - ✅ 6.5 节：分层计算策略和工作流程
-   - ✅ 6.6 节：DynamicForm 集成（五步流程）
-   - ✅ 6.7 节：依赖图优化
-   - ✅ 6.8 节：异步函数支持
+   - ✅ 6.4 节：分层计算策略和工作流程
+   - ✅ 6.5 节：DynamicForm 集成（五步流程）
+   - ✅ 6.6 节：依赖图优化
+   - ✅ 6.7 节：异步函数支持
    - ✅ 第 7 节：完整的端到端示例
 
 4. **精简重复内容**
