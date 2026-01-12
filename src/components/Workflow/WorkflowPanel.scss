@@ -80,6 +80,43 @@
   overflow-y: auto; // Allow scrolling within content
 }
 
+.workflow-panel-search {
+  display: flex;
+  align-items: center;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin-bottom: 12px;
+
+  .search-icon {
+    color: #9ca3af;
+    margin-right: 6px;
+    flex-shrink: 0;
+  }
+
+  input {
+    border: none;
+    background: none;
+    outline: none;
+    width: 100%;
+    font-size: 12px;
+    color: #374151;
+
+    &::placeholder {
+      color: #9ca3af;
+    }
+  }
+}
+
+.no-results {
+  padding: 12px;
+  text-align: center;
+  color: #9ca3af;
+  font-style: italic;
+  font-size: 12px;
+}
+
 .workflow-panel-group {
   margin-bottom: 16px;
 
@@ -122,63 +159,61 @@
 }
 
 .workflow-panel-items {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .workflow-panel-item {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  justify-content: center;
-  padding: 8px 4px;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  padding: 6px 8px;
+  background: white;
+  border: 1px solid transparent; // Invisible border for alignment
   border-radius: 6px;
   cursor: grab;
   transition: all 0.2s;
-  text-align: center;
+  text-align: left;
 
   &:hover {
-    background: white;
-    border-color: #3b82f6;
-    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.1);
+    background: #f3f4f6;
 
     .workflow-panel-item-icon {
-      color: #3b82f6;
+      color: #374151;
     }
 
     .workflow-panel-item-label {
-      color: #3b82f6;
+      color: #111827;
     }
   }
 
   .workflow-panel-item-icon {
-    margin-bottom: 4px;
+    margin-right: 8px;
     color: #6b7280;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: color 0.2s;
-
-    // Scale down icon slightly if needed, but usually icon size is controlled by props
   }
 
   .workflow-panel-item-label {
-    font-size: 11px;
+    font-size: 12px;
     color: #4b5563;
-    width: 100%;
+    flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     transition: color 0.2s;
-    line-height: 1.2;
   }
 }
 
 // Adjust styles for collapsed panel
 .workflow-panel.collapsed {
+  .workflow-panel-search {
+    display: none;
+  }
+
   .workflow-panel-items {
     display: flex;
     flex-direction: column;
@@ -186,9 +221,9 @@
 
   .workflow-panel-item {
     padding: 8px;
+    justify-content: center;
 
     .workflow-panel-item-icon {
-      margin-bottom: 0;
       margin-right: 0;
     }
 

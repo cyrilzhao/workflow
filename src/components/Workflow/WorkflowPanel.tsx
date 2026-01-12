@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Play,
   Square,
@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronUp,
   MessageSquare,
+  Search,
 } from 'lucide-react';
 import './WorkflowPanel.scss';
 
@@ -48,6 +49,20 @@ const defaultGroups: WorkflowPanelGroup[] = [
 export const WorkflowPanel: React.FC<WorkflowPanelProps> = ({ groups = defaultGroups }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredGroups = useMemo(() => {
+    if (!searchTerm) return groups;
+
+    return groups
+      .map(group => ({
+        ...group,
+        items: group.items.filter(item =>
+          item.label.toLowerCase().includes(searchTerm.toLowerCase())
+        ),
+      }))
+      .filter(group => group.items.length > 0);
+  }, [groups, searchTerm]);
 
   const toggleGroup = (groupId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -70,8 +85,25 @@ export const WorkflowPanel: React.FC<WorkflowPanelProps> = ({ groups = defaultGr
           {isCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
         </div>
       </div>
+
+      {!isCollapsed && (
+        <div className="workflow-panel-search">
+          <Search size={14} className="search-icon" />
+          <input
+            type="text"
+            placeholder="Search components..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            onClick={e => e.stopPropagation()}
+          />
+        </div>
+      )}
+
       <div className="workflow-panel-content">
-        {groups.map(group => (
+        {filteredGroups.length === 0 && searchTerm && (
+          <div className="no-results">No components found</div>
+        )}
+        {filteredGroups.map(group => (
           <div
             key={group.id}
             className={`workflow-panel-group ${collapsedGroups[group.id] ? 'group-collapsed' : ''}`}
