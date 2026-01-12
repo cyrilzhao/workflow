@@ -6,26 +6,38 @@ import {
   type WorkflowEdge,
   BaseNode,
   type CustomNodeProps,
-  type NodeConfigSchema,
 } from '@/components/Workflow';
+import type { ExtendedJSONSchema } from '@/components/DynamicForm/types/schema';
 import { ExpressionInput } from '@/components/ExpressionInput';
 import { Position } from 'reactflow';
-import { Mail } from 'lucide-react';
+import { Bot } from 'lucide-react';
 import '@/styles/pages/Home.scss';
 
 // Custom Node Example using BaseNode
-const MessageNode: React.FC<CustomNodeProps> = ({ data, selected }) => {
+const AgentNode: React.FC<CustomNodeProps> = ({ data, selected }) => {
   return (
     <BaseNode
       title={data.label}
-      icon={<Mail size={16} style={{ color: '#8b5cf6' }} />}
+      icon={<Bot size={16} style={{ color: '#8b5cf6' }} />}
       selected={selected}
       handles={[
         { type: 'target', position: Position.Left },
         { type: 'source', position: Position.Right },
       ]}
     >
-      <div style={{ fontSize: '12px', color: '#6b7280' }}>{data.content as string}</div>
+      <div style={{ fontSize: '12px', color: '#6b7280' }}>
+        <div style={{ fontWeight: 500, marginBottom: 4 }}>Prompt:</div>
+        <div
+          style={{
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            maxWidth: '200px',
+          }}
+        >
+          {data.prompt as string}
+        </div>
+      </div>
     </BaseNode>
   );
 };
@@ -45,18 +57,18 @@ const initialNodes: WorkflowNode[] = [
     data: {
       label: 'Select Mode',
       cases: [
-        { id: 'complex', label: 'Complex Loop' },
-        { id: 'simple', label: 'Simple Path' },
-        { id: 'other', label: 'Other' },
+        { id: 'complex', label: 'Complex Loop', condition: '${mode} == "complex"' },
+        { id: 'simple', label: 'Simple Path', condition: '${mode} == "simple"' },
+        { id: 'other', label: 'Other', condition: 'true' },
       ],
     },
   },
   // Simple Path Node
   {
     id: 'node-simple',
-    type: 'message',
+    type: 'agent',
     position: { x: 500, y: 100 },
-    data: { label: 'Simple Task', content: 'Doing simple work...' },
+    data: { label: 'Agent Task', prompt: 'Summarize the input data.' },
   },
   // Outer Loop
   {
@@ -68,9 +80,9 @@ const initialNodes: WorkflowNode[] = [
   // Node A (Inside Outer, Before Inner)
   {
     id: 'node-a',
-    type: 'message',
+    type: 'agent',
     position: { x: 500, y: 500 },
-    data: { label: 'Node A', content: 'Pre-process item' },
+    data: { label: 'Node A', prompt: 'Analyze item {{item}}' },
   },
   // Inner Loop
   {
@@ -82,23 +94,23 @@ const initialNodes: WorkflowNode[] = [
   // Node C (Inside Inner)
   {
     id: 'node-c',
-    type: 'message',
+    type: 'agent',
     position: { x: 800, y: 700 },
-    data: { label: 'Node C', content: 'Step 1' },
+    data: { label: 'Node C', prompt: 'Generate steps for {{subItem}}' },
   },
   // Node D (Inside Inner)
   {
     id: 'node-d',
-    type: 'message',
+    type: 'agent',
     position: { x: 1100, y: 700 },
-    data: { label: 'Node D', content: 'Step 2' },
+    data: { label: 'Node D', prompt: 'Verify steps' },
   },
   // Node B (Inside Outer, After Inner)
   {
     id: 'node-b',
-    type: 'message',
+    type: 'agent',
     position: { x: 1100, y: 500 },
-    data: { label: 'Node B', content: 'Post-process item' },
+    data: { label: 'Node B', prompt: 'Aggregate results' },
   },
   // End
   {
@@ -152,118 +164,341 @@ const initialEdges: WorkflowEdge[] = [
 ];
 
 const customNodeTypes = {
-  message: MessageNode,
-};
-
-// Custom Form Component
-const ColorPicker = ({ value, onChange }: { value: string; onChange: (val: string) => void }) => {
-  return (
-    <div style={{ display: 'flex', gap: '8px' }}>
-      {['#ef4444', '#3b82f6', '#10b981', '#f59e0b'].map(color => (
-        <div
-          key={color}
-          onClick={() => onChange(color)}
-          style={{
-            width: '24px',
-            height: '24px',
-            backgroundColor: color,
-            borderRadius: '50%',
-            cursor: 'pointer',
-            border: value === color ? '2px solid #000' : '2px solid transparent',
-          }}
-        />
-      ))}
-    </div>
-  );
+  agent: AgentNode,
 };
 
 const formComponents = {
-  'color-picker': ColorPicker,
   'expression-input': ExpressionInput,
 };
 
-const nodeConfigSchemas: Record<string, NodeConfigSchema> = {
+const nodeConfigSchemas: Record<string, ExtendedJSONSchema> = {
   start: {
     type: 'object',
     properties: {
-      label: { type: 'string', title: 'Label' },
-      description: { type: 'string', title: 'Description' },
       triggerType: {
         type: 'string',
         title: 'Trigger Type',
         enum: ['manual', 'webhook', 'schedule'],
         enumNames: ['Manual', 'Webhook', 'Schedule'],
+        default: 'manual',
         ui: {
           widget: 'select',
         },
+      },
+    },
+    dependencies: {
+      triggerType: {
+        oneOf: [
+          {
+            properties: {
+              triggerType: { const: 'manual' },
+              inputSchema: {
+                type: 'string',
+                title: 'Input Schema (JSON)',
+                ui: { widget: 'textarea', rows: 5 },
+              },
+            },
+          },
+          {
+            properties: {
+              triggerType: { const: 'webhook' },
+              method: {
+                type: 'string',
+                title: 'HTTP Method',
+                enum: ['GET', 'POST', 'PUT', 'DELETE'],
+                default: 'POST',
+              },
+              path: { type: 'string', title: 'Path', default: '/webhook' },
+            },
+            required: ['method', 'path'],
+          },
+          {
+            properties: {
+              triggerType: { const: 'schedule' },
+              cron: {
+                type: 'string',
+                title: 'Cron Expression',
+                default: '0 0 * * *',
+                ui: { placeholder: 'e.g. 0 0 * * *' },
+              },
+            },
+            required: ['cron'],
+          },
+        ],
       },
     },
   },
   end: {
     type: 'object',
     properties: {
-      label: { type: 'string', title: 'Label' },
       outputType: {
         type: 'string',
         title: 'Output Type',
-        enum: ['json', 'html'],
-        enumNames: ['JSON', 'HTML'],
+        enum: ['json', 'html', 'text'],
+        enumNames: ['JSON', 'HTML', 'Plain Text'],
+        default: 'json',
         ui: {
           widget: 'radio',
         },
       },
-    },
-  },
-  loop: {
-    type: 'object',
-    properties: {
-      label: { type: 'string', title: 'Label' },
-      maxIterations: { type: 'number', title: 'Max Iterations', default: 10 },
-      condition: { type: 'string', title: 'Loop Condition' },
-    },
-  },
-  message: {
-    type: 'object',
-    properties: {
-      label: { type: 'string', title: 'Label' },
-      content: {
-        type: 'string',
-        title: 'Message Content',
-        ui: {
-          widget: 'textarea',
-        },
+      statusCode: {
+        type: 'number',
+        title: 'Status Code',
+        default: 200,
+        minimum: 100,
+        maximum: 599,
       },
-      priority: {
+      body: {
         type: 'string',
-        title: 'Priority',
-        enum: ['high', 'medium', 'low'],
-        enumNames: ['High', 'Medium', 'Low'],
-        ui: {
-          widget: 'select',
-        },
-      },
-      themeColor: {
-        type: 'string',
-        title: 'Theme Color',
-        ui: {
-          widget: 'color-picker', // Custom widget
-        },
-      },
-      dynamicContent: {
-        type: 'string',
-        title: 'Dynamic Content (Template)',
-        description: 'Use {{ variable }} to insert dynamic values',
+        title: 'Response Body',
         ui: {
           widget: 'expression-input',
         },
       },
     },
+    required: ['outputType'],
+  },
+  loop: {
+    type: 'object',
+    properties: {
+      loopType: {
+        type: 'string',
+        title: 'Loop Type',
+        enum: ['collection', 'count', 'condition'],
+        enumNames: ['For Each (Collection)', 'Count (Fixed)', 'While (Condition)'],
+        default: 'collection',
+        ui: { widget: 'select', placeholder: 'Please select' },
+      },
+      inputCollection: {
+        type: 'string',
+        title: 'Input Collection',
+        ui: {
+          widget: 'expression-input',
+          linkage: {
+            type: 'visibility',
+            dependencies: ['#/properties/loopType'],
+            when: {
+              field: 'loopType',
+              operator: '==',
+              value: 'collection',
+            },
+            fulfill: {
+              state: {
+                visible: true,
+              },
+            },
+            otherwise: {
+              state: {
+                visible: false,
+              },
+            },
+          },
+        },
+      },
+      inputElement: {
+        type: 'string',
+        title: 'Input Element',
+        ui: {
+          widget: 'expression-input',
+          linkage: {
+            type: 'visibility',
+            dependencies: ['#/properties/loopType'],
+            when: {
+              field: 'loopType',
+              operator: '==',
+              value: 'collection',
+            },
+            fulfill: {
+              state: {
+                visible: true,
+              },
+            },
+            otherwise: {
+              state: {
+                visible: false,
+              },
+            },
+          },
+        },
+      },
+      outputCollection: {
+        type: 'string',
+        title: 'Output Collection',
+        ui: {
+          widget: 'expression-input',
+          linkage: {
+            type: 'visibility',
+            dependencies: ['#/properties/loopType'],
+            when: {
+              field: 'loopType',
+              operator: '==',
+              value: 'collection',
+            },
+            fulfill: {
+              state: {
+                visible: true,
+              },
+            },
+            otherwise: {
+              state: {
+                visible: false,
+              },
+            },
+          },
+        },
+      },
+      outputElement: {
+        type: 'string',
+        title: 'Output Element',
+        ui: {
+          widget: 'expression-input',
+          linkage: {
+            type: 'visibility',
+            dependencies: ['#/properties/loopType'],
+            when: {
+              field: 'loopType',
+              operator: '==',
+              value: 'collection',
+            },
+            fulfill: {
+              state: {
+                visible: true,
+              },
+            },
+            otherwise: {
+              state: {
+                visible: false,
+              },
+            },
+          },
+        },
+      },
+    },
+    dependencies: {
+      loopType: {
+        oneOf: [
+          {
+            properties: {
+              loopType: { const: 'collection' },
+              collection: {
+                type: 'string',
+                title: 'Input Collection',
+                description: 'The array to iterate over',
+                ui: { widget: 'expression-input' },
+              },
+              itemVar: {
+                type: 'string',
+                title: 'Input Element',
+                description: 'Variable name for current item',
+                default: 'item',
+              },
+              outputCollection: {
+                type: 'string',
+                title: 'Output Collection',
+                description: 'Variable name to store results',
+                default: 'results',
+              },
+              outputElement: {
+                type: 'string',
+                title: 'Output Element',
+                description: 'Expression for the result of each iteration',
+                ui: { widget: 'expression-input' },
+              },
+            },
+            required: ['collection', 'itemVar'],
+          },
+          {
+            properties: {
+              loopType: { const: 'count' },
+              count: {
+                type: 'number',
+                title: 'Iteration Count',
+                default: 3,
+                minimum: 1,
+              },
+            },
+            required: ['count'],
+          },
+          {
+            properties: {
+              loopType: { const: 'condition' },
+              condition: {
+                type: 'string',
+                title: 'Break Condition',
+                description: 'Expression evaluating to boolean',
+                ui: { widget: 'expression-input' },
+              },
+            },
+            required: ['condition'],
+          },
+        ],
+      },
+    },
+  },
+  agent: {
+    type: 'object',
+    properties: {
+      prompt: {
+        type: 'string',
+        title: 'Prompt',
+        description: 'Input prompt for the agent',
+        ui: {
+          widget: 'textarea',
+          // widget: 'expression-input', // Use expression input for dynamic prompts
+        },
+      },
+      model: {
+        type: 'string',
+        title: 'Model',
+        enum: ['gpt-4', 'gpt-3.5-turbo', 'claude-3-opus', 'gemini-pro'],
+        default: 'gpt-3.5-turbo',
+        ui: {
+          widget: 'select',
+        },
+      },
+      temperature: {
+        type: 'number',
+        title: 'Temperature',
+        minimum: 0,
+        maximum: 1,
+        default: 0.7,
+        ui: {
+          widget: 'range',
+          step: 0.1,
+        },
+      },
+    },
+    required: ['prompt'],
   },
   switch: {
     type: 'object',
     properties: {
-      label: { type: 'string', title: 'Label' },
-      description: { type: 'string', title: 'Description' },
+      // Removed global expression, as conditions are per-case
+      cases: {
+        type: 'array',
+        title: 'Conditions',
+        items: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              title: 'Branch ID',
+              ui: { widget: 'hidden', autogenerate: 'uuid' },
+            },
+            label: { type: 'string', title: 'Condition Name' },
+            condition: {
+              type: 'string',
+              title: 'Expression',
+              description: 'Expression evaluating to boolean',
+              ui: { widget: 'expression-input' },
+            },
+          },
+          required: ['id', 'label', 'condition'],
+        },
+        ui: {
+          addButtonText: 'Add Condition',
+        },
+      },
     },
   },
 };

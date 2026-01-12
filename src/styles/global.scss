@@ -15,3 +15,12 @@ body {
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
+
+// Ensure Blueprint popovers appear above our custom modals
+.bp6-portal,
+.bp5-portal,
+.bp4-portal,
+.bp3-portal {
+  z-index: 2000 !important;
+  position: absolute !important; // Ensure it's not static if that's the issue
+}

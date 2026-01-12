@@ -9,6 +9,7 @@ import {
   ChevronUp,
   MessageSquare,
   Search,
+  Bot,
 } from 'lucide-react';
 import './WorkflowPanel.scss';
 
@@ -42,7 +43,7 @@ const defaultGroups: WorkflowPanelGroup[] = [
   {
     id: 'custom',
     title: 'Custom Nodes',
-    items: [{ type: 'message', label: 'Message', icon: <MessageSquare size={16} /> }],
+    items: [{ type: 'agent', label: 'Agent', icon: <Bot size={16} /> }],
   },
 ];
 

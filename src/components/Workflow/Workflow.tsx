@@ -148,7 +148,8 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
 
     // 过滤掉 UI 状态属性（selected, dragging 等），只比较实质性属性
     const cleanNodes = currentNodes.map(node => {
-      const { selected, dragging, className, ...rest } = node as any;
+      const { selected, dragging, className, width, height, positionAbsolute, measured, ...rest } =
+        node as any;
       return { ...rest, className: cleanupClassName(className) };
     });
 
