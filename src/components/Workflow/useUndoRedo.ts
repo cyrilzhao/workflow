@@ -20,6 +20,7 @@ export interface UseUndoRedoReturn<T> {
   canUndo: boolean;
   canRedo: boolean;
   clearHistory: () => void;
+  reset: (newState: T) => void;
 }
 
 /**
@@ -143,6 +144,15 @@ export function useUndoRedo<T>(
     }));
   }, []);
 
+  // 重置状态和历史记录（用于接口数据加载完成后初始化）
+  const reset = useCallback((newState: T) => {
+    setHistory({
+      past: [],
+      present: newState,
+      future: [],
+    });
+  }, []);
+
   return {
     present: history.present,
     past: history.past,
@@ -153,5 +163,6 @@ export function useUndoRedo<T>(
     canUndo: history.past.length > 0,
     canRedo: history.future.length > 0,
     clearHistory,
+    reset,
   };
 }
