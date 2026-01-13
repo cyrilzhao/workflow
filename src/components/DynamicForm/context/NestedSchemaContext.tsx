@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useRef, useCallback, useMemo } from 'react';
 import type { ExtendedJSONSchema } from '../types/schema';
 
 /**
@@ -43,12 +43,16 @@ export const NestedSchemaProvider: React.FC<{ children: React.ReactNode }> = ({ 
     return schemasRef.current;
   }, []);
 
-  const value: NestedSchemaRegistry = {
-    register,
-    unregister,
-    getSchema,
-    getAllSchemas,
-  };
+  // 使用 useMemo 缓存 value 对象，避免每次渲染都创建新对象
+  const value = useMemo<NestedSchemaRegistry>(
+    () => ({
+      register,
+      unregister,
+      getSchema,
+      getAllSchemas,
+    }),
+    [register, unregister, getSchema, getAllSchemas]
+  );
 
   return <NestedSchemaContext.Provider value={value}>{children}</NestedSchemaContext.Provider>;
 };

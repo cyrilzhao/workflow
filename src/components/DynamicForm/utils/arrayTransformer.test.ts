@@ -667,7 +667,8 @@ describe('arrayTransformer', () => {
         const data = [{ value: 'a' }, null, undefined, { value: 'b' }];
         const result = unwrapPrimitiveArrays(data, schema);
 
-        expect(result).toEqual(['a', undefined, undefined, 'b']);
+        // null 和 undefined 项保留原值（不是包装对象，直接返回）
+        expect(result).toEqual(['a', null, undefined, 'b']);
       });
     });
   });

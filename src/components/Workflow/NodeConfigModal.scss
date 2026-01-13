@@ -48,6 +48,39 @@
   }
 }
 
+.node-config-tabs {
+  display: flex;
+  padding: 0 20px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+
+  .tab-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 16px;
+    border: none;
+    background: none;
+    color: #6b7280;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+
+    &:hover {
+      color: #374151;
+      background: #f3f4f6;
+    }
+
+    &.active {
+      color: #3b82f6;
+      border-bottom-color: #3b82f6;
+      background: white;
+    }
+  }
+}
+
 .node-config-modal-body {
   padding: 20px;
   overflow-y: auto;
@@ -58,6 +91,188 @@
     font-style: italic;
     text-align: center;
     padding: 20px;
+  }
+
+  .general-config {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+
+      label {
+        font-size: 13px;
+        font-weight: 500;
+        color: #374151;
+      }
+
+      input,
+      textarea {
+        padding: 8px 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 14px;
+        color: #1f2937;
+        transition: border-color 0.2s;
+
+        &:focus {
+          outline: none;
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+
+        &::placeholder {
+          color: #9ca3af;
+        }
+      }
+
+      textarea {
+        resize: vertical;
+        min-height: 80px;
+      }
+    }
+  }
+
+  .mapping-section {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      background: #f9fafb;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 13px;
+      font-weight: 600;
+      color: #4b5563;
+
+      .add-btn {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 8px;
+        font-size: 12px;
+        color: #3b82f6;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 500;
+
+        &:hover {
+          background: #eff6ff;
+          border-color: #bfdbfe;
+        }
+      }
+    }
+
+    .mapping-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 20px 0 20px; // Match padding of list items + internal padding
+      font-size: 11px;
+      font-weight: 600;
+      color: #6b7280;
+      text-transform: uppercase;
+
+      .col-variable {
+        flex: 1;
+      }
+
+      .col-arrow {
+        width: 20px; // Fixed width for alignment
+        text-align: center;
+      }
+
+      .col-expression {
+        flex: 1;
+      }
+
+      .col-action {
+        width: 24px; // Fixed width for delete button alignment
+      }
+    }
+
+    .mapping-list {
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+
+      .mapping-empty {
+        text-align: center;
+        color: #9ca3af;
+        font-size: 12px;
+        font-style: italic;
+        padding: 8px 0;
+      }
+
+      .mapping-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px;
+        background: #f9fafb;
+        border: 1px solid #f3f4f6;
+        border-radius: 6px;
+
+        .field-group {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+
+          // Remove label styles since we moved to header
+          label {
+            display: none;
+          }
+
+          input {
+            width: 100%;
+            padding: 4px 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            font-size: 12px;
+
+            &:focus {
+              outline: none;
+              border-color: #3b82f6;
+            }
+          }
+        }
+
+        .arrow {
+          color: #9ca3af;
+          font-size: 14px;
+          width: 20px; // Match header width
+          text-align: center;
+          flex-shrink: 0;
+        }
+
+        .delete-btn {
+          background: none;
+          border: none;
+          color: #9ca3af;
+          cursor: pointer;
+          padding: 4px;
+          width: 24px; // Match header width
+          display: flex;
+          justify-content: center;
+          flex-shrink: 0;
+
+          &:hover {
+            color: #ef4444;
+          }
+        }
+      }
+    }
   }
 }
 

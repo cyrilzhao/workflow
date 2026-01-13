@@ -68,6 +68,9 @@ export interface LinkageConfig {
   fulfill?: LinkageEffect;
   // 条件不满足时的效果
   otherwise?: LinkageEffect;
+  // 是否启用缓存（默认 false，禁用缓存）
+  // 建议仅为异步联动（如 API 调用）启用缓存
+  enableCache?: boolean;
 }
 
 /**

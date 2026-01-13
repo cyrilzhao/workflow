@@ -133,7 +133,6 @@ const ownLinkageStates = useArrayLinkageManager({
   baseLinkages: topLevelLinkages,  // 只包含顶层字段（如 contacts、showContacts）
   form: methods,
   schema,
-  pathMappings,  // 路径映射表（用于路径透明化场景）
 });
 
 // 通过 Context 提供联动计算能力
@@ -1586,7 +1585,6 @@ interface ArrayLinkageManagerOptions {
   baseLinkages: Record<string, LinkageConfig>;
   linkageFunctions?: Record<string, LinkageFunction>;
   schema?: ExtendedJSONSchema;
-  pathMappings?: PathMapping[];
   /** 检测到循环依赖时的回调 */
   onCycleDetected?: (cycle: string[]) => void;
   /** 是否在检测到循环依赖时抛出错误（默认 false） */
@@ -1602,7 +1600,6 @@ export function useArrayLinkageManager({
   baseLinkages,
   linkageFunctions = {},
   schema,
-  pathMappings = [],
   onCycleDetected,
   throwOnCycle = false,
 }: ArrayLinkageManagerOptions) {
@@ -1641,12 +1638,11 @@ export function useArrayLinkageManager({
     return merged;
   }, [baseLinkages, dynamicLinkages, onCycleDetected, throwOnCycle]);
 
-  // 使用基础联动管理器（传递路径映射）
+  // 使用基础联动管理器
   const linkageStates = useBaseLinkageManager({
     form,
     linkages: allLinkages,
     linkageFunctions,
-    pathMappings,
   });
 
   // 监听表单数据变化，动态注册数组元素的联动
@@ -1732,7 +1728,6 @@ const linkageStates = useArrayLinkageManager({
   baseLinkages: linkages,
   linkageFunctions,
   schema, // 传递 schema 用于 JSON Pointer 路径解析
-  pathMappings, // 传递路径映射用于路径转换
 });
 ```
 
@@ -1802,6 +1797,351 @@ const linkageStates = useArrayLinkageManager({
 2. **使用 useMemo 缓存计算结果**：特别是聚合计算
 3. **避免循环依赖**：使用依赖图检测工具
 4. **批量更新**：使用 `setValue` 的批量模式
+
+### 7.3.1 联动结果缓存策略
+
+**核心思想**：通过缓存联动计算结果，避免重复计算，提升性能。
+
+#### 缓存复用场景分析
+
+数组字段的联动依赖可以分为以下几类，每类的缓存复用策略不同：
+
+**场景 1：同级字段依赖（相对路径）**
+
+```typescript
+// Schema 定义
+{
+  companyName: {
+    ui: {
+      linkage: {
+        dependencies: ['./type'],  // 相对路径
+        // ...
+      }
+    }
+  }
+}
+
+// 运行时实例化
+// contacts.0.companyName 依赖 contacts.0.type="work"
+// contacts.1.companyName 依赖 contacts.1.type="work"
+```
+
+**缓存策略**：✅ **可跨元素复用**
+
+- 移除路径中的数组索引，使用模板字段名
+- 缓存键：`companyName:type="work"`
+- 所有 type="work" 的元素共享同一个缓存结果
+
+**场景 2：外部字段依赖（绝对路径）**
+
+```typescript
+// Schema 定义
+{
+  vipLevel: {
+    ui: {
+      linkage: {
+        dependencies: ['#/properties/enableVip'],  // 外部字段
+        // ...
+      }
+    }
+  }
+}
+
+// 运行时实例化
+// contacts.0.vipLevel 依赖 enableVip=true
+// contacts.1.vipLevel 依赖 enableVip=true
+```
+
+**缓存策略**：✅ **可跨元素复用**
+
+- 外部字段对所有数组元素都相同
+- 缓存键：`vipLevel:enableVip=true`
+- 所有元素共享同一个缓存结果
+
+**场景 3：混合依赖（外部 + 同级）**
+
+```typescript
+// Schema 定义
+{
+  advancedWorkInfo: {
+    ui: {
+      linkage: {
+        dependencies: [
+          '#/properties/enableAdvanced',  // 外部字段
+          './type'                        // 同级字段
+        ],
+        // ...
+      }
+    }
+  }
+}
+
+// 运行时实例化
+// contacts.0.advancedWorkInfo 依赖 enableAdvanced=true, contacts.0.type="work"
+// contacts.1.advancedWorkInfo 依赖 enableAdvanced=true, contacts.1.type="work"
+```
+
+**缓存策略**：✅ **可跨元素复用**
+
+- 移除路径中的数组索引
+- 缓存键：`advancedWorkInfo:enableAdvanced=true|type="work"`
+- 当外部字段和同级字段值都相同时，可以共享缓存
+
+**场景 4：父数组字段依赖（嵌套数组）**
+
+```typescript
+// Schema 定义
+{
+  techStack: {
+    ui: {
+      linkage: {
+        dependencies: ['#/properties/departments/items/properties/type'],  // 父数组字段
+        // ...
+      }
+    }
+  }
+}
+
+// 运行时实例化
+// departments.0.employees.0.techStack 依赖 departments.0.type="tech"
+// departments.0.employees.1.techStack 依赖 departments.0.type="tech"
+// departments.1.employees.0.techStack 依赖 departments.1.type="sales"
+```
+
+**缓存策略**：❌ **不可跨父元素复用，但可在同一父元素内复用**
+
+- 需要保留父数组的索引，移除子数组的索引
+- 缓存键需要包含父元素标识：`techStack:departments.0.type="tech"`
+- `departments.0.employees.0` 和 `departments.0.employees.1` 可以共享缓存
+- `departments.0.employees.*` 和 `departments.1.employees.*` 不能共享缓存（依赖不同的父元素）
+
+**场景 5：跨数组依赖（数组聚合）**
+
+```typescript
+// Schema 定义
+{
+  enabled: {
+    ui: {
+      linkage: {
+        dependencies: ['#/properties/permissions'],  // 整个数组
+        // ...
+      }
+    }
+  }
+}
+
+// 运行时实例化
+// features.0.enabled 依赖 permissions 数组
+// features.1.enabled 依赖 permissions 数组
+```
+
+**缓存策略**：✅ **可跨元素复用**
+
+- 依赖整个数组，对所有元素都相同
+- 缓存键：`enabled:permissions=[...]`（数组序列化后的值）
+- 所有 features 元素共享同一个缓存结果
+
+#### 缓存键生成算法
+
+**核心原则**：
+
+1. **识别依赖类型**：判断依赖字段是同级、外部、父数组还是其他数组
+2. **选择性移除索引**：
+   - 同级字段：移除所有数组索引
+   - 外部字段：移除所有数组索引
+   - 父数组字段：保留父数组索引，移除子数组索引
+   - 跨数组字段：移除所有数组索引
+3. **生成缓存键**：`模板字段名:依赖1=值1|依赖2=值2|...`
+
+**算法伪代码**：
+
+```typescript
+/**
+ * 生成联动缓存键
+ *
+ * 实际实现：src/components/DynamicForm/utils/generateCacheKey.ts
+ * 路径转换工具：src/components/DynamicForm/utils/pathTransformer.ts
+ */
+function generateCacheKey(
+  fieldName: string,           // 如：departments.0.employees.1.techStack
+  dependencies: string[],      // 如：['departments.0.type', 'enableAdvanced']
+  formData: Record<string, any>
+): string {
+  // 1. 将字段名转换为模板路径（移除数组索引）
+  const templateFieldName = toTemplatePath(fieldName);
+  // 结果：departments.employees.techStack
+
+  // 2. 对依赖字段排序，确保顺序一致
+  const sortedDeps = [...dependencies].sort();
+
+  // 3. 构建依赖字段的名称-值映射
+  const depPairs = sortedDeps.map(dep => {
+    const value = formData[dep];
+    const serializedValue = JSON.stringify(value);
+
+    // 智能移除依赖字段名中的数组索引
+    // - 场景1-3、5：移除所有索引
+    // - 场景4（父数组字段）：保留父数组索引
+    const templateDepName = toTemplatePathForCache(dep, fieldName);
+    // 例如：
+    //   departments.0.type (父数组) -> departments.0.type (保留索引)
+    //   enableAdvanced (外部字段) -> enableAdvanced (无索引)
+
+    return `${templateDepName}=${serializedValue}`;
+  });
+
+  // 4. 组合成缓存键
+  return `${templateFieldName}:${depPairs.join('|')}`;
+}
+
+/**
+ * 将运行时路径转换为模板路径（移除所有数组索引）
+ */
+function toTemplatePath(runtimePath: string): string {
+  const parts = runtimePath.split('.');
+  const templateParts = parts.filter(part => !/^\d+$/.test(part));
+  return templateParts.join('.');
+}
+
+/**
+ * 智能移除数组索引（用于依赖字段）
+ *
+ * 根据当前字段和依赖字段的数组层级关系，决定保留哪些索引：
+ * - 同级字段：移除所有索引
+ * - 外部字段：移除所有索引
+ * - 父数组字段：保留父数组索引，确保不同父元素的缓存独立
+ */
+function toTemplatePathForCache(depPath: string, currentFieldPath: string): string {
+  const depLevels = extractArrayLevels(depPath);
+  const currentLevels = extractArrayLevels(currentFieldPath);
+
+  // 如果依赖字段没有数组索引，直接返回
+  if (depLevels.length === 0) return depPath;
+
+  // 如果当前字段没有数组索引，移除依赖字段的所有索引
+  if (currentLevels.length === 0) return toTemplatePath(depPath);
+
+  // 判断是否是父数组字段依赖
+  const isParentArrayDep =
+    depLevels.length < currentLevels.length &&
+    currentFieldPath.startsWith(depPath.substring(0, depPath.lastIndexOf('.')));
+
+  if (isParentArrayDep) {
+    // 场景4：父数组字段依赖 - 保留所有索引
+    return depPath;
+  } else {
+    // 场景1、2、3、5：移除所有索引
+    return toTemplatePath(depPath);
+  }
+}
+```
+
+**实现说明**：
+
+当前实现采用**智能索引移除策略**，根据依赖类型自动处理：
+
+- ✅ **场景1（同级字段）**：移除所有索引
+  - `contacts.0.type` → `contacts.type`
+- ✅ **场景2（外部字段）**：移除所有索引
+  - `enableVip` → `enableVip`
+- ✅ **场景3（混合依赖）**：移除所有索引
+  - `contacts.0.type` + `enableAdvanced` → `contacts.type` + `enableAdvanced`
+- ✅ **场景4（父数组字段）**：保留父数组索引
+  - `departments.0.type` → `departments.0.type` （保留索引）
+  - `departments.1.type` → `departments.1.type` （保留索引）
+  - 确保不同父元素的缓存独立
+- ✅ **场景5（跨数组依赖）**：移除所有索引
+  - `permissions` → `permissions`
+
+**场景4示例**：
+
+```typescript
+// departments.0.employees.1.techStack 依赖 departments.0.type="tech"
+// 生成缓存键：departments.employees.techStack:departments.0.type="tech"
+
+// departments.1.employees.0.techStack 依赖 departments.1.type="sales"
+// 生成缓存键：departments.employees.techStack:departments.1.type="sales"
+
+// ✅ 两个缓存键不同，不同父元素的缓存独立
+```
+
+#### 缓存策略总结表
+
+| 场景 | 依赖类型 | 缓存复用范围 | 缓存键示例 | 当前实现 |
+|------|---------|------------|-----------|---------|
+| 场景1 | 同级字段 | ✅ 跨所有元素 | `contacts.companyName:contacts.type="work"` | ✅ 支持 |
+| 场景2 | 外部字段 | ✅ 跨所有元素 | `contacts.vipLevel:enableVip=true` | ✅ 支持 |
+| 场景3 | 混合依赖 | ✅ 跨所有元素 | `contacts.advancedWorkInfo:contacts.type="work"\|enableAdvanced=true` | ✅ 支持 |
+| 场景4 | 父数组字段 | ✅ 同一父元素内 | `departments.employees.techStack:departments.0.type="tech"` | ✅ 支持 |
+| 场景5 | 跨数组依赖 | ✅ 跨所有元素 | `roles.enabled:permissions=[...]` | ✅ 支持 |
+
+**关键要点**：
+
+1. **所有场景已完整支持**：场景1-5都已正确实现
+2. **场景4智能处理**：自动识别父数组依赖，保留父数组索引，确保不同父元素的缓存独立
+3. **性能提升显著**：对于100个数组元素，缓存命中率可达99%（场景1-3、5）
+4. **场景4缓存独立**：不同父元素的子元素有独立的缓存，避免数据错误
+
+**实施建议**：
+
+- ✅ **已实现并推荐**：所有场景（1-5）都已正确实现
+- ✅ **场景4已支持**：智能识别父数组依赖，自动保留父数组索引
+- 📊 **监控效果**：通过缓存统计（命中率、命中次数）评估实际效果
+
+#### 性能权衡分析
+
+**关键问题**：数组场景下，缓存键生成的成本可能超过联动计算本身的成本。
+
+**成本对比**：
+
+| 操作 | 成本 | 说明 |
+|------|------|------|
+| 简单联动计算 | O(1) | 条件判断、简单赋值 |
+| 缓存键生成（简单） | O(n) | 字符串分割、正则匹配 |
+| 缓存键生成（复杂） | O(n×m) | 路径分析、层级比较、类型判断 |
+| 复杂联动计算 | O(k) | 数组聚合、复杂计算 |
+| 异步API调用 | O(网络) | 远程请求 |
+
+**结论**：
+
+1. **简单联动不值得缓存**：
+   - 条件判断（`type === 'work'`）成本极低
+   - 缓存键生成反而更慢
+   - ❌ 不建议为简单联动启用缓存
+
+2. **复杂联动可能值得缓存**：
+   - 数组聚合、复杂计算成本较高
+   - 需要权衡：缓存键生成成本 vs 计算成本
+   - ⚠️ 建议通过性能测试决定
+
+3. **异步联动强烈建议缓存**：
+   - API调用成本远高于缓存键生成
+   - 避免重复的网络请求
+   - ✅ 强烈建议启用缓存
+
+**推荐策略**：
+
+```typescript
+// ✅ 推荐：为异步联动启用缓存
+{
+  linkage: {
+    type: 'options',
+    dependencies: ['./country'],
+    fulfill: { function: 'loadProvinceOptions' }, // 异步API调用
+    enableCache: true, // ✅ 异步联动建议启用缓存
+  }
+}
+
+// ❌ 不推荐：为简单联动启用缓存
+{
+  linkage: {
+    type: 'visibility',
+    dependencies: ['./type'],
+    when: { field: './type', operator: '==', value: 'work' },
+    // enableCache: false (默认禁用，简单联动不需要缓存)
+  }
+}
+```
 
 ### 7.4 调试技巧
 

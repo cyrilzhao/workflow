@@ -1,27 +1,38 @@
 /**
+ * 联动任务
+ */
+export interface LinkageTask {
+  fieldName: string;
+  timestamp: number;
+  affectedFields: string[];
+}
+
+/**
  * 联动任务队列管理器
  * 用于解决串行依赖执行和死循环防护问题
  */
 export class LinkageTaskQueue {
-  private queue: Array<{ fieldName: string; timestamp: number }> = [];
+  private queue: LinkageTask[] = [];
   private isProcessing = false;
   private updatingForm = false; // 标记是否正在批量更新表单
+  private updatingFields = new Set<string>(); // 记录正在被联动更新的字段
   private latestTaskMap = new Map<string, number>();
 
   /**
    * 将字段任务加入队列
-   * 如果队列中已有相同字段的任务，更新其 timestamp（任务合并）
+   * 如果队列中已有相同字段的任务，更新其 timestamp 和 affectedFields（任务合并）
    */
-  enqueue(fieldName: string): void {
+  enqueue(fieldName: string, affectedFields: string[]): void {
     const timestamp = Date.now();
     const existingIndex = this.queue.findIndex(t => t.fieldName === fieldName);
 
     if (existingIndex >= 0) {
-      // 队列中已有该字段的任务，更新 timestamp
+      // 队列中已有该字段的任务，更新 timestamp 和 affectedFields
       this.queue[existingIndex].timestamp = timestamp;
+      this.queue[existingIndex].affectedFields = affectedFields;
     } else {
       // 队列中没有该字段的任务，添加新任务
-      this.queue.push({ fieldName, timestamp });
+      this.queue.push({ fieldName, timestamp, affectedFields });
     }
 
     // 记录该字段的最新 timestamp
@@ -31,7 +42,7 @@ export class LinkageTaskQueue {
   /**
    * 从队列中取出下一个任务
    */
-  dequeue(): { fieldName: string; timestamp: number } | undefined {
+  dequeue(): LinkageTask | undefined {
     return this.queue.shift();
   }
 
@@ -79,6 +90,34 @@ export class LinkageTaskQueue {
   }
 
   /**
+   * 标记字段正在被联动更新
+   */
+  markFieldUpdating(fieldName: string): void {
+    this.updatingFields.add(fieldName);
+  }
+
+  /**
+   * 取消标记字段正在被联动更新
+   */
+  unmarkFieldUpdating(fieldName: string): void {
+    this.updatingFields.delete(fieldName);
+  }
+
+  /**
+   * 检查字段是否正在被联动更新
+   */
+  isFieldUpdating(fieldName: string): boolean {
+    return this.updatingFields.has(fieldName);
+  }
+
+  /**
+   * 清除所有正在更新的字段标记
+   */
+  clearUpdatingFields(): void {
+    this.updatingFields.clear();
+  }
+
+  /**
    * 清空队列
    */
   clear(): void {
@@ -93,7 +132,7 @@ export class LinkageTaskQueue {
     queueLength: number;
     isProcessing: boolean;
     isUpdatingForm: boolean;
-    tasks: Array<{ fieldName: string; timestamp: number }>;
+    tasks: LinkageTask[];
   } {
     return {
       queueLength: this.queue.length,

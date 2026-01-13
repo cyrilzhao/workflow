@@ -11,6 +11,8 @@ import { ConditionEvaluator } from '../utils/conditionEvaluator';
 import { DependencyGraph } from '../utils/dependencyGraph';
 import { PathResolver } from '../utils/pathResolver';
 import { LinkageTaskQueue } from '../utils/linkageTaskQueue';
+import { LinkageResultCache } from '../utils/linkageResultCache';
+import { generateCacheKey } from '../utils/generateCacheKey';
 
 /**
  * 异步结果过期错误
@@ -136,6 +138,9 @@ export function useLinkageManager({
   // 创建任务队列管理器实例
   const taskQueue = useRef(new LinkageTaskQueue()).current;
 
+  // 创建缓存管理器实例
+  const cache = useRef(new LinkageResultCache()).current;
+
   // 构建依赖图
   const dependencyGraph = useMemo(() => {
     const graph = new DependencyGraph();
@@ -161,16 +166,21 @@ export function useLinkageManager({
   const [linkageStates, setLinkageStates] = useState<Record<string, LinkageResult>>({});
 
   /**
-   * 队列处理器：串行执行联动任务
+   * 队列处理器：使用拓扑层级并行执行联动任务
    */
   const processQueue = useRef(async () => {
     // 如果已经在处理中，直接返回（避免并发执行）
-    if (taskQueue.getProcessing()) return;
+    if (taskQueue.getProcessing()) {
+      return;
+    }
 
     taskQueue.setProcessing(true);
 
     try {
+      let iterationCount = 0;
       while (!taskQueue.isEmpty()) {
+        iterationCount++;
+
         const task = taskQueue.dequeue();
         if (!task) break;
 
@@ -180,66 +190,50 @@ export function useLinkageManager({
         }
 
         // 获取最新的表单数据
-        let formData = { ...getValues() };
+        const formData = { ...getValues() };
 
-        // 获取受影响的字段并进行拓扑排序
-        const affectedFields = dependencyGraph.getAffectedFields(task.fieldName);
-        const sortedFields = dependencyGraph.topologicalSort(affectedFields);
+        // ✅ 优化：直接使用任务中的 affectedFields，避免重复调用 getAffectedFields
+        const affectedFields = task.affectedFields;
 
-        const newStates: Record<string, LinkageResult> = {};
+        // 使用拓扑层级并行计算受影响的字段
+        const { states: newStates, updatedFormData } = await evaluateLinkagesByLayers({
+          fields: affectedFields,
+          linkages,
+          formData,
+          linkageFunctions,
+          asyncSequenceManager,
+          dependencyGraph,
+          cache,
+        });
 
-        // 串行执行联动，更新 formData
-        for (const fieldName of sortedFields) {
-          const linkage = linkages[fieldName];
-          if (!linkage) continue;
-
-          try {
-            const result = await evaluateLinkage({
-              linkage,
-              formData,
-              linkageFunctions,
-              fieldPath: fieldName,
-              asyncSequenceManager,
-            });
-
-            newStates[fieldName] = result;
-
-            // 如果是值联动，更新 formData 以供后续字段使用
-            if (linkage.type === 'value' && result.value !== undefined) {
-              formData[fieldName] = result.value;
-            }
-          } catch (error) {
-            // 如果是过期的异步结果，跳过该字段的状态更新
-            // 但不影响后续字段的计算（使用当前 formData 中的值）
-            if (error instanceof StaleResultError) {
-              continue;
-            }
-            console.error('联动计算失败:', fieldName, error);
-          }
-        }
+        // ✅ 关键修复：在更新表单之前，设置标志位并标记正在更新的字段
+        taskQueue.setUpdatingForm(true);
 
         // 批量更新状态
         if (Object.keys(newStates).length > 0) {
           setLinkageStates(prev => ({ ...prev, ...newStates }));
         }
 
-        // 批量更新表单（设置标志位防止 watch 触发 processQueue）
-        taskQueue.setUpdatingForm(true);
-        for (const fieldName of sortedFields) {
+        // 批量更新表单
+        affectedFields.forEach(fieldName => {
           const linkage = linkages[fieldName];
-          if (linkage?.type === 'value' && formData[fieldName] !== undefined) {
+          if (linkage?.type === 'value' && updatedFormData[fieldName] !== undefined) {
             const currentValue = getValues(fieldName);
-            if (currentValue !== formData[fieldName]) {
-              setValue(fieldName, formData[fieldName], {
+            if (currentValue !== updatedFormData[fieldName]) {
+              taskQueue.markFieldUpdating(fieldName);
+              setValue(fieldName, updatedFormData[fieldName], {
                 shouldValidate: false,
                 shouldDirty: false,
               });
             }
           }
-        }
+        });
 
-        // 使用 Promise 确保 setValue 触发的 watch 都已执行
+        // 等待 watch 回调执行完成
         await new Promise(resolve => setTimeout(resolve, 0));
+
+        // 清除所有字段的更新标记
+        taskQueue.clearUpdatingFields();
         taskQueue.setUpdatingForm(false);
       }
     } finally {
@@ -252,61 +246,43 @@ export function useLinkageManager({
     }
   }).current;
 
-  // 初始化联动状态
+  // 初始化联动状态（使用并行计算优化）
   useEffect(() => {
     (async () => {
       const formData = { ...getValues() };
-      const states: Record<string, LinkageResult> = {};
 
-      // 获取拓扑排序后的字段列表
-      const sortedFields = dependencyGraph.topologicalSort(Object.keys(linkages));
-
-      // 按拓扑顺序依次计算联动状态
-      for (const fieldName of sortedFields) {
-        const linkage = linkages[fieldName];
-        if (!linkage) continue;
-
-        try {
-          const result = await evaluateLinkage({
-            linkage,
-            formData,
-            linkageFunctions,
-            fieldPath: fieldName,
-            asyncSequenceManager,
-          });
-          states[fieldName] = result;
-
-          // 如果是值联动，更新 formData 以供后续字段使用
-          if (linkage.type === 'value' && result.value !== undefined) {
-            formData[fieldName] = result.value;
-          }
-        } catch (error) {
-          // 如果是过期的异步结果，跳过该字段的状态更新
-          if (error instanceof StaleResultError) {
-            continue;
-          }
-          console.error('联动初始化失败:', fieldName, error);
-        }
-      }
+      // 使用拓扑层级并行计算所有联动
+      const { states, updatedFormData } = await evaluateLinkagesByLayers({
+        fields: Object.keys(linkages),
+        linkages,
+        formData,
+        linkageFunctions,
+        asyncSequenceManager,
+        dependencyGraph,
+        cache,
+      });
 
       setLinkageStates(states);
 
       // 批量更新表单（将计算出的值联动结果写入表单）
       taskQueue.setUpdatingForm(true);
-      for (const fieldName of sortedFields) {
+      Object.keys(linkages).forEach(fieldName => {
         const linkage = linkages[fieldName];
-        if (linkage?.type === 'value' && formData[fieldName] !== undefined) {
+        if (linkage?.type === 'value' && updatedFormData[fieldName] !== undefined) {
           const currentValue = getValues(fieldName);
-          if (currentValue !== formData[fieldName]) {
-            setValue(fieldName, formData[fieldName], {
+          if (currentValue !== updatedFormData[fieldName]) {
+            // ✅ 标记字段正在被联动更新，防止 watch 误判为用户修改
+            taskQueue.markFieldUpdating(fieldName);
+            setValue(fieldName, updatedFormData[fieldName], {
               shouldValidate: false,
               shouldDirty: false,
             });
           }
         }
-      }
+      });
       // 使用 Promise 确保 setValue 触发的 watch 都已执行
       await new Promise(resolve => setTimeout(resolve, 0));
+      taskQueue.clearUpdatingFields();
       taskQueue.setUpdatingForm(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -314,15 +290,30 @@ export function useLinkageManager({
 
   // 统一的字段变化监听和联动处理（使用任务队列）
   useEffect(() => {
+    // ✅ 如果没有联动配置，不需要监听字段变化
+    if (Object.keys(linkages).length === 0) {
+      return;
+    }
+
     const subscription = watch((_, { name }) => {
       if (!name) return;
 
-      // 无论是否在批量更新，都将任务加入队列（避免丢失用户修改）
-      taskQueue.enqueue(name);
+      // ✅ 核心判断：字段正在被联动更新（setValue 触发）→ 跳过
+      if (taskQueue.isFieldUpdating(name)) {
+        return;
+      }
 
-      // 如果队列正在批量更新，不触发 processQueue
-      // 批量更新完成后，队列会自动继续处理
-      if (taskQueue.isUpdatingForm()) {
+      // ✅ 精确监听优化：检查该字段是否被任何联动依赖
+      const affectedFields = dependencyGraph.getAffectedFields(name);
+      if (affectedFields.length === 0) {
+        return;
+      }
+
+      // 将任务加入队列
+      taskQueue.enqueue(name, affectedFields);
+
+      // 如果队列正在处理中，不重复触发（队列会自动继续处理）
+      if (taskQueue.getProcessing()) {
         return;
       }
 
@@ -338,6 +329,95 @@ export function useLinkageManager({
 }
 
 /**
+ * 按拓扑层级并行计算联动
+ *
+ * 核心保证：
+ * 1. 同一层级的字段之间没有依赖关系，可以安全并行计算
+ * 2. 层级之间串行执行，确保依赖顺序正确
+ * 3. 每层计算完成后更新 formData，供下一层使用
+ *
+ * @param params - 计算参数
+ * @returns 所有字段的联动结果
+ */
+async function evaluateLinkagesByLayers({
+  fields,
+  linkages,
+  formData,
+  linkageFunctions,
+  asyncSequenceManager,
+  dependencyGraph,
+  cache,
+}: {
+  fields: string[];
+  linkages: Record<string, LinkageConfig>;
+  formData: Record<string, any>;
+  linkageFunctions: Record<string, LinkageFunction>;
+  asyncSequenceManager: AsyncSequenceManager;
+  dependencyGraph: DependencyGraph;
+  cache?: LinkageResultCache;
+}): Promise<{
+  states: Record<string, LinkageResult>;
+  updatedFormData: Record<string, any>;
+}> {
+  const states: Record<string, LinkageResult> = {};
+  const updatedFormData = { ...formData };
+
+  // 获取拓扑层级
+  const layers = dependencyGraph.getTopologicalLayers(fields);
+
+  // 按层级串行执行，层内并行计算
+  for (const layer of layers) {
+    // 并行计算当前层的所有字段
+    const layerResults = await Promise.allSettled(
+      layer.map(async fieldName => {
+        const linkage = linkages[fieldName];
+        if (!linkage) return { fieldName, result: null };
+
+        try {
+          const result = await evaluateLinkage({
+            linkage,
+            formData: updatedFormData,
+            linkageFunctions,
+            fieldPath: fieldName,
+            asyncSequenceManager,
+            cache,
+          });
+          return { fieldName, result };
+        } catch (error) {
+          // 如果是过期的异步结果，返回 null
+          if (error instanceof StaleResultError) {
+            return { fieldName, result: null };
+          }
+          console.error('[evaluateLinkagesByLayers] 联动计算失败:', fieldName, error);
+          return { fieldName, result: null };
+        }
+      })
+    );
+
+    // 收集当前层的计算结果并更新 formData
+    layerResults.forEach(settledResult => {
+      if (settledResult.status === 'fulfilled') {
+        const { fieldName, result } = settledResult.value;
+
+        // 只有当结果不为 null 时才更新状态
+        // null 表示异步结果过期，保留之前的状态
+        if (result) {
+          states[fieldName] = result;
+
+          // 如果是值联动，更新 formData 以供后续层使用
+          const linkage = linkages[fieldName];
+          if (linkage?.type === 'value' && result.value !== undefined) {
+            updatedFormData[fieldName] = result.value;
+          }
+        }
+      }
+    });
+  }
+
+  return { states, updatedFormData };
+}
+
+/**
  * 求值单个联动配置（支持异步函数）
  */
 async function evaluateLinkage({
@@ -346,13 +426,30 @@ async function evaluateLinkage({
   linkageFunctions,
   fieldPath,
   asyncSequenceManager,
+  cache,
 }: {
   linkage: LinkageConfig;
   formData: Record<string, any>;
   linkageFunctions: Record<string, LinkageFunction>;
   fieldPath: string;
   asyncSequenceManager: AsyncSequenceManager;
+  cache?: LinkageResultCache;
 }): Promise<LinkageResult> {
+  // ✅ 缓存优化：检查是否启用缓存（默认禁用）
+  const isCacheEnabled = linkage.enableCache === true;
+
+  // ✅ 缓存优化：生成缓存键（如果启用缓存）
+  const cacheKey =
+    cache && isCacheEnabled ? generateCacheKey(fieldPath, linkage.dependencies, formData) : null;
+
+  // ✅ 缓存优化：尝试从缓存获取结果
+  if (cacheKey && cache) {
+    const cachedResult = cache.get(cacheKey);
+    if (cachedResult) {
+      return cachedResult;
+    }
+  }
+
   const result: LinkageResult = {};
 
   // 构建联动函数上下文
@@ -386,17 +483,6 @@ async function evaluateLinkage({
 
       // 使用 await 支持异步函数，传递 context
       const fnResult = await fn(formData, context);
-
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('[evaluateLinkage] 函数执行结果:', {
-          fieldPath,
-          functionName: effect.function,
-          linkageType: linkage.type,
-          fnResult,
-          context,
-          formData,
-        });
-      }
 
       // 检查序列号是否仍然是最新的（防止竞态条件）
       if (!asyncSequenceManager.isLatest(fieldPath, sequence)) {
@@ -444,6 +530,11 @@ async function evaluateLinkage({
   // 4. 应用直接指定的选项（优先级低于函数）
   if (effect.options !== undefined && !effect.function) {
     result.options = effect.options;
+  }
+
+  // ✅ 缓存优化：将计算结果存入缓存
+  if (cacheKey && cache) {
+    cache.set(cacheKey, result);
   }
 
   return result;

@@ -4,6 +4,7 @@ import About from '@/pages/About';
 import { DynamicFormExamples } from '@/pages/DynamicFormExamples';
 import WorkflowExecutionHistoryExample from '@/pages/examples/WorkflowExecutionHistoryExample';
 import { VirtualScrollExample } from '@/pages/examples/VirtualScrollExample';
+import { MemoPerformanceTest } from '@/pages/examples/PerformanceTest/MemoPerformanceTest';
 
 const AppRouter = () => {
   return (
@@ -14,6 +15,7 @@ const AppRouter = () => {
         <Route path="/dynamic-form" element={<DynamicFormExamples />} />
         <Route path="/workflow-history" element={<WorkflowExecutionHistoryExample />} />
         <Route path="/virtual-scroll" element={<VirtualScrollExample />} />
+        <Route path="/memo-performance" element={<MemoPerformanceTest />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
