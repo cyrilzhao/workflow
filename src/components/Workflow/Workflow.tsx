@@ -36,6 +36,7 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
   undoRedoOptions,
   onSave,
   onTest,
+  onNodeTest,
   mode = 'edit',
   executionData,
   onNodeClick,
@@ -58,9 +59,6 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
     { maxHistorySize }
   );
 
-  console.info('cyril nodes: ', nodes);
-  console.info('cyril edges: ', edges);
-
   // 用于标记是否正在执行 undo/redo，避免记录历史
   const isUndoingRef = React.useRef(false);
 
@@ -75,6 +73,38 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
   useEffect(() => {
     edgesRef.current = edges;
   }, [edges]);
+
+  // 当 initialNodes/initialEdges 变化时（接口数据加载完成），同步状态并重置历史
+  const prevInitialNodesRef = React.useRef(initialNodes);
+  const prevInitialEdgesRef = React.useRef(initialEdges);
+
+  useEffect(() => {
+    const nodesChanged = !isEqual(prevInitialNodesRef.current, initialNodes);
+    const edgesChanged = !isEqual(prevInitialEdgesRef.current, initialEdges);
+
+    if ((nodesChanged || edgesChanged) && (initialNodes.length > 0 || initialEdges.length > 0)) {
+      // 更新 ref
+      prevInitialNodesRef.current = initialNodes;
+      prevInitialEdgesRef.current = initialEdges;
+
+      // 同步状态
+      setNodes(initialNodes);
+      setEdges(initialEdges);
+
+      // 重置历史栈，将加载的数据作为初始状态
+      if (undoRedoEnabled && !isReadonly) {
+        workflowHistory.reset({ nodes: initialNodes, edges: initialEdges });
+      }
+    }
+  }, [
+    initialNodes,
+    initialEdges,
+    setNodes,
+    setEdges,
+    undoRedoEnabled,
+    isReadonly,
+    workflowHistory,
+  ]);
 
   // Inject execution data into nodes when in history mode
   useEffect(() => {
@@ -124,16 +154,6 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
       );
     }
   }, [isHistoryMode, executionData, setNodes]);
-
-  // 记录初始状态（只在组件挂载时执行一次）
-  const isInitializedRef = React.useRef(false);
-  useEffect(() => {
-    if (!isInitializedRef.current && undoRedoEnabled && !isReadonly) {
-      // 立即记录初始状态
-      workflowHistory.set({ nodes, edges }, true);
-      isInitializedRef.current = true;
-    }
-  }, [undoRedoEnabled, isReadonly, nodes, edges, workflowHistory]);
 
   // 辅助函数：记录当前状态到历史
   const takeSnapshot = useCallback(() => {
@@ -543,6 +563,7 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
         schema={selectedNode ? nodeConfigSchemas[selectedNode.type || ''] : undefined}
         formComponents={formComponents}
         onSave={handleSaveNodeConfig}
+        onNodeTest={onNodeTest}
       />
       <ExecutionDetailModal
         isOpen={isExecutionModalOpen}

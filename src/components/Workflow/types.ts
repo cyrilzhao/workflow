@@ -83,6 +83,7 @@ export interface WorkflowProps {
   undoRedoOptions?: UndoRedoOptions;
   onSave?: (data: { nodes: WorkflowNode[]; edges: WorkflowEdge[] }) => void;
   onTest?: (data: { nodes: WorkflowNode[]; edges: WorkflowEdge[] }) => void;
+  onNodeTest?: (nodeId: string, inputs: any) => Promise<NodeExecutionRecord>;
 
   // New props for execution history
   mode?: 'edit' | 'history' | 'readonly';

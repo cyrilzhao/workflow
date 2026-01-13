@@ -1,6 +1,98 @@
-// import type { UseFormReturn } from 'react-hook-form';
+import type { FieldErrors } from 'react-hook-form';
 import type { ExtendedJSONSchema, FieldOption } from './schema';
 import type { LinkageFunction } from './linkage';
+
+/**
+ * DynamicForm 组件对外暴露的方法
+ * 通过 ref 访问这些方法
+ */
+export interface DynamicFormRef {
+  /**
+   * 设置单个字段的值
+   * @param name - 字段路径，如 'email' 或 'address.city'
+   * @param value - 要设置的值
+   * @param options - 可选配置
+   */
+  setValue: (
+    name: string,
+    value: any,
+    options?: {
+      shouldValidate?: boolean;
+      shouldDirty?: boolean;
+      shouldTouch?: boolean;
+    }
+  ) => void;
+
+  /**
+   * 获取单个字段的值
+   * @param name - 字段路径
+   * @returns 字段值
+   */
+  getValue: (name: string) => any;
+
+  /**
+   * 获取所有表单值
+   * @returns 完整的表单数据对象
+   */
+  getValues: () => Record<string, any>;
+
+  /**
+   * 批量设置表单值
+   * @param values - 要设置的值对象
+   * @param options - 可选配置
+   */
+  setValues: (
+    values: Record<string, any>,
+    options?: {
+      shouldValidate?: boolean;
+      shouldDirty?: boolean;
+      shouldTouch?: boolean;
+    }
+  ) => void;
+
+  /**
+   * 重置表单到初始值或指定值
+   * @param values - 可选的重置目标值
+   */
+  reset: (values?: Record<string, any>) => void;
+
+  /**
+   * 触发表单验证
+   * @param name - 可选，指定要验证的字段路径
+   * @returns 验证是否通过
+   */
+  validate: (name?: string | string[]) => Promise<boolean>;
+
+  /**
+   * 获取表单错误
+   * @returns 错误对象
+   */
+  getErrors: () => FieldErrors;
+
+  /**
+   * 清除表单错误
+   * @param name - 可选，指定要清除错误的字段路径
+   */
+  clearErrors: (name?: string | string[]) => void;
+
+  /**
+   * 设置字段错误
+   * @param name - 字段路径
+   * @param error - 错误信息
+   */
+  setError: (name: string, error: { type: string; message: string }) => void;
+
+  /**
+   * 获取表单状态
+   */
+  getFormState: () => {
+    isDirty: boolean;
+    isValid: boolean;
+    isSubmitting: boolean;
+    isSubmitted: boolean;
+    submitCount: number;
+  };
+}
 
 /**
  * DynamicForm 组件属性
