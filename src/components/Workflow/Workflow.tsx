@@ -36,6 +36,7 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
   undoRedoOptions,
   onSave,
   onTest,
+  onNodeTest,
   mode = 'edit',
   executionData,
   onNodeClick,
@@ -95,7 +96,15 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
         workflowHistory.reset({ nodes: initialNodes, edges: initialEdges });
       }
     }
-  }, [initialNodes, initialEdges, setNodes, setEdges, undoRedoEnabled, isReadonly, workflowHistory]);
+  }, [
+    initialNodes,
+    initialEdges,
+    setNodes,
+    setEdges,
+    undoRedoEnabled,
+    isReadonly,
+    workflowHistory,
+  ]);
 
   // Inject execution data into nodes when in history mode
   useEffect(() => {
@@ -554,6 +563,7 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
         schema={selectedNode ? nodeConfigSchemas[selectedNode.type || ''] : undefined}
         formComponents={formComponents}
         onSave={handleSaveNodeConfig}
+        onNodeTest={onNodeTest}
       />
       <ExecutionDetailModal
         isOpen={isExecutionModalOpen}
