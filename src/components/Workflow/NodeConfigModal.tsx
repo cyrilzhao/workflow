@@ -167,7 +167,7 @@ export const NodeConfigModal: React.FC<NodeConfigModalProps> = ({
             <Settings size={14} />
             Configuration
           </button>
-          {onNodeTest && (
+          {onNodeTest && schema?.testable && (
             <button
               className={`tab-btn ${activeTab === 'test' ? 'active' : ''}`}
               onClick={() => setActiveTab('test')}
@@ -181,9 +181,9 @@ export const NodeConfigModal: React.FC<NodeConfigModalProps> = ({
         <div className="node-config-modal-body">
           {activeTab === 'params' && (
             <div className="params-config">
-              {schema ? (
+              {schema?.inputSchema ? (
                 <DynamicForm
-                  schema={schema}
+                  schema={schema.inputSchema}
                   defaultValues={formData}
                   onChange={setFormData}
                   widgets={formComponents}

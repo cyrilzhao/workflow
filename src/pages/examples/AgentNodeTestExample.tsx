@@ -5,6 +5,7 @@ import type {
   WorkflowEdge,
   CustomNodeProps,
   NodeExecutionRecord,
+  NodeConfigSchema,
 } from '../../components/Workflow/types';
 import { BaseNode } from '@/components/Workflow';
 import { Bot } from 'lucide-react';
@@ -68,34 +69,37 @@ const customNodeTypes = {
 };
 
 // Node Config Schema for Agent Node
-const nodeConfigSchemas: Record<string, any> = {
+const nodeConfigSchemas: Record<string, NodeConfigSchema> = {
   agent: {
-    type: 'object',
-    properties: {
-      prompt: {
-        type: 'string',
-        title: 'Prompt Template',
-        'x-component': 'Textarea',
-        'x-component-props': {
-          rows: 5,
-          placeholder: 'Enter your prompt template here...',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        prompt: {
+          type: 'string',
+          title: 'Prompt Template',
+          'x-component': 'Textarea',
+          'x-component-props': {
+            rows: 5,
+            placeholder: 'Enter your prompt template here...',
+          },
+        },
+        model: {
+          type: 'string',
+          title: 'Model',
+          enum: ['gpt-3.5-turbo', 'gpt-4', 'claude-3-opus'],
+          default: 'gpt-3.5-turbo',
+        },
+        temperature: {
+          type: 'number',
+          title: 'Temperature',
+          minimum: 0,
+          maximum: 1,
+          default: 0.7,
+          'x-component': 'Number',
         },
       },
-      model: {
-        type: 'string',
-        title: 'Model',
-        enum: ['gpt-3.5-turbo', 'gpt-4', 'claude-3-opus'],
-        default: 'gpt-3.5-turbo',
-      },
-      temperature: {
-        type: 'number',
-        title: 'Temperature',
-        minimum: 0,
-        maximum: 1,
-        default: 0.7,
-        'x-component': 'Number',
-      },
     },
+    testable: true, // agent 节点支持测试
   },
 };
 

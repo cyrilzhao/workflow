@@ -1,7 +1,12 @@
 import type { Node, Edge, NodeProps } from 'reactflow';
 import type { ExtendedJSONSchema } from '@/components/DynamicForm/types/schema';
 
-export type NodeConfigSchema = ExtendedJSONSchema;
+export interface NodeConfigSchema {
+  inputSchema?: ExtendedJSONSchema;
+  outputSchema?: ExtendedJSONSchema;
+  configSchema?: ExtendedJSONSchema;
+  testable?: boolean; // 是否支持测试面板，默认 false
+}
 
 export interface WorkflowNodeData {
   label: string;
