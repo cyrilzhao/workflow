@@ -1,10 +1,10 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useImperativeHandle, forwardRef } from 'react';
 import { useForm, FormProvider, useFormContext } from 'react-hook-form';
 import { Button } from '@blueprintjs/core';
 import { SchemaParser } from './core/SchemaParser';
 import { FormField } from './layout/FormField';
 import { ErrorList } from './components/ErrorList';
-import type { DynamicFormProps } from './types';
+import type { DynamicFormProps, DynamicFormRef } from './types';
 import { parseSchemaLinkages, transformToAbsolutePaths } from './utils/schemaLinkageParser';
 import { useArrayLinkageManager } from './hooks/useArrayLinkageManager';
 import type { LinkageConfig } from './types/linkage';
@@ -93,31 +93,35 @@ function isFieldHiddenByLinkage(
 
 // 内层组件：实际的表单逻辑
 // ✅ 使用 React.memo 优化，避免不必要的重渲染
-const DynamicFormInner: React.FC<DynamicFormProps> = React.memo(
-  ({
-    schema,
-    defaultValues = {},
-    onSubmit,
-    onChange,
-    widgets,
-    linkageFunctions,
-    customFormats,
-    layout = 'vertical',
-    labelWidth,
-    showErrorList = false,
-    showSubmitButton = true,
-    renderAsForm = true,
-    validateMode = 'onSubmit',
-    loading = false,
-    disabled = false,
-    readonly = false,
-    className,
-    style,
-    pathPrefix = '',
-    asNestedForm = false,
-    enableVirtualScroll = false,
-    virtualScrollHeight = 600,
-  }) => {
+const DynamicFormInner = React.memo(
+  forwardRef<DynamicFormRef, DynamicFormProps>(
+    (
+      {
+        schema,
+        defaultValues = {},
+        onSubmit,
+        onChange,
+        widgets,
+        linkageFunctions,
+        customFormats,
+        layout = 'vertical',
+        labelWidth,
+        showErrorList = false,
+        showSubmitButton = true,
+        renderAsForm = true,
+        validateMode = 'onSubmit',
+        loading = false,
+        disabled = false,
+        readonly = false,
+        className,
+        style,
+        pathPrefix = '',
+        asNestedForm = false,
+        enableVirtualScroll = false,
+        virtualScrollHeight = 600,
+      },
+      ref
+    ) => {
     // ========== Context 获取（集中管理） ==========
     const parentFormContext = useFormContext();
     const linkageStateContext = useLinkageStateContext();
@@ -186,6 +190,47 @@ const DynamicFormInner: React.FC<DynamicFormProps> = React.memo(
     React.useEffect(() => {
       methodsRef.current = methods;
     }, [methods]);
+
+    // ========== 暴露外部可访问的 API ==========
+    useImperativeHandle(
+      ref,
+      () => ({
+        setValue: (name, value, options) => {
+          methods.setValue(name, value, options);
+        },
+        getValue: name => {
+          return methods.getValues(name);
+        },
+        getValues: () => {
+          return methods.getValues();
+        },
+        setValues: (values, options) => {
+          Object.entries(values).forEach(([name, value]) => {
+            methods.setValue(name, value, options);
+          });
+        },
+        reset: values => {
+          methods.reset(values);
+        },
+        validate: async name => {
+          return methods.trigger(name);
+        },
+        getErrors: () => {
+          return methods.formState.errors;
+        },
+        clearErrors: name => {
+          methods.clearErrors(name);
+        },
+        setError: (name, error) => {
+          methods.setError(name, error);
+        },
+        getFormState: () => {
+          const { isDirty, isValid, isSubmitting, isSubmitted, submitCount } = methods.formState;
+          return { isDirty, isValid, isSubmitting, isSubmitted, submitCount };
+        },
+      }),
+      [methods]
+    );
 
     // 解析 schema 中的联动配置
     // 分层计算策略：遇到数组字段时停止递归，数组元素内部由 NestedFormWidget 独立处理
@@ -486,18 +531,18 @@ const DynamicFormInner: React.FC<DynamicFormProps> = React.memo(
 );
 
 // 外层组件：提供 NestedSchemaProvider
-export const DynamicForm: React.FC<DynamicFormProps> = props => {
+export const DynamicForm = forwardRef<DynamicFormRef, DynamicFormProps>((props, ref) => {
   // 如果已经在 NestedSchemaProvider 内部（嵌套表单场景），直接渲染内层组件
   const existingRegistry = useNestedSchemaRegistryOptional();
 
   if (existingRegistry) {
-    return <DynamicFormInner {...props} />;
+    return <DynamicFormInner {...props} ref={ref} />;
   }
 
   // 否则提供新的 NestedSchemaProvider（顶层表单场景）
   return (
     <NestedSchemaProvider>
-      <DynamicFormInner {...props} />
+      <DynamicFormInner {...props} ref={ref} />
     </NestedSchemaProvider>
   );
-};
+});
