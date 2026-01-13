@@ -63,7 +63,6 @@ export const NodeConfigModal: React.FC<NodeConfigModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'params' | 'output' | 'config' | 'test'>('params');
   const [formData, setFormData] = useState<any>({});
-  const [testInput, setTestInput] = useState('{}');
   const [testResult, setTestResult] = useState<NodeExecutionRecord | null>(null);
   const [isTesting, setIsTesting] = useState(false);
   const [testError, setTestError] = useState<string | null>(null);
@@ -73,7 +72,6 @@ export const NodeConfigModal: React.FC<NodeConfigModalProps> = ({
       setFormData({ ...node.data });
       // Reset tab when node changes
       setActiveTab('params');
-      setTestInput('{}');
       setTestResult(null);
       setTestError(null);
     }
