@@ -1,4 +1,5 @@
 import { toTemplatePath, toTemplatePathForCache } from './pathTransformer';
+import { PathResolver } from './pathResolver';
 
 /**
  * 生成联动缓存键
@@ -36,14 +37,18 @@ export function generateCacheKey(
 
   // 构建依赖字段的名称-值映射
   const depPairs = sortedDeps.map(dep => {
-    const value = formData[dep];
+    // 将 JSON Pointer 格式转换为字段路径格式
+    // 例如：'#/properties/actionId' -> 'actionId'
+    const fieldPath = PathResolver.toFieldPath(dep);
+    // 使用 PathResolver.resolve 获取值，支持嵌套路径
+    const value = PathResolver.resolve(dep, formData);
     // 处理复杂类型（对象、数组）
     const serializedValue = JSON.stringify(value);
 
     // 智能移除依赖字段名中的数组索引
     // 场景1-3、5：移除所有索引
     // 场景4（父数组字段）：保留父数组索引
-    const templateDepName = toTemplatePathForCache(dep, fieldName);
+    const templateDepName = toTemplatePathForCache(fieldPath, fieldName);
 
     // 返回 "字段名=值" 的格式
     return `${templateDepName}=${serializedValue}`;

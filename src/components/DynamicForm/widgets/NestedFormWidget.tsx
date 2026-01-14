@@ -65,43 +65,42 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
       };
     }, [fullPath, currentSchema, nestedSchemaRegistry]);
 
+    // 获取当前字段的联动 schema（用于依赖追踪）
+    const linkageSchema = linkageStateContext?.parentLinkageStates[fullPath]?.schema;
+
     // 处理 schema 联动（新的联动系统）
     useEffect(() => {
-      // 如果没有联动状态 Context，说明不在联动环境中
-      if (!linkageStateContext) return;
+      // 如果没有联动 schema，不需要更新
+      if (!linkageSchema) return;
 
-      const { parentLinkageStates } = linkageStateContext;
+      console.log('[NestedFormWidget] 检测到 schema 联动，更新 schema:', {
+        fullPath,
+        linkageSchema,
+        currentSchemaProperties: Object.keys(linkageSchema.properties || {}),
+      });
 
-      // 获取当前字段的联动状态
-      const linkageState = parentLinkageStates[fullPath];
-
-      // 如果有 schema 联动结果，更新 currentSchema
-      if (linkageState?.schema) {
-        console.log('[NestedFormWidget] 检测到 schema 联动，更新 schema:', linkageState.schema);
-
-        // 选择性合并 schema，只更新 properties 和校验相关字段
-        // 保留原有的 ui 配置（包括 ui.linkage）
-        setCurrentSchema(prevSchema => ({
-          ...prevSchema,
-          // 更新 properties
-          properties: linkageState.schema.properties || prevSchema.properties,
-          // 更新校验相关字段
-          required: linkageState.schema.required,
-          minProperties: linkageState.schema.minProperties,
-          maxProperties: linkageState.schema.maxProperties,
-          dependencies: linkageState.schema.dependencies,
-          if: linkageState.schema.if,
-          then: linkageState.schema.then,
-          else: linkageState.schema.else,
-          allOf: linkageState.schema.allOf,
-          anyOf: linkageState.schema.anyOf,
-          oneOf: linkageState.schema.oneOf,
-          not: linkageState.schema.not,
-          // 保留原有的 ui 配置
-          ui: prevSchema.ui,
-        }));
-      }
-    }, [linkageStateContext, fullPath]);
+      // 选择性合并 schema，只更新 properties 和校验相关字段
+      // 保留原有的 ui 配置（包括 ui.linkage）
+      setCurrentSchema(prevSchema => ({
+        ...prevSchema,
+        // 更新 properties
+        properties: linkageSchema.properties || prevSchema.properties,
+        // 更新校验相关字段
+        required: linkageSchema.required,
+        minProperties: linkageSchema.minProperties,
+        maxProperties: linkageSchema.maxProperties,
+        dependencies: linkageSchema.dependencies,
+        if: linkageSchema.if,
+        then: linkageSchema.then,
+        else: linkageSchema.else,
+        allOf: linkageSchema.allOf,
+        anyOf: linkageSchema.anyOf,
+        oneOf: linkageSchema.oneOf,
+        not: linkageSchema.not,
+        // 保留原有的 ui 配置
+        ui: prevSchema.ui,
+      }));
+    }, [linkageSchema]);
 
     // ✅ 使用 useCallback 缓存 onSubmit 函数，避免每次渲染都创建新函数
     const handleSubmit = useCallback(() => {}, []);

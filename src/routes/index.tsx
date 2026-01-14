@@ -7,6 +7,7 @@ import AgentNodeTestExample from '@/pages/examples/AgentNodeTestExample';
 import { VirtualScrollExample } from '@/pages/examples/VirtualScrollExample';
 import { MemoPerformanceTest } from '@/pages/examples/PerformanceTest/MemoPerformanceTest';
 import DynamicIconExample from '@/pages/examples/DynamicIconExample';
+import { AsyncSchemaLinkageExample } from '@/pages/examples/NestedForm/AsyncSchemaLinkageExample';
 
 const AppRouter = () => {
   return (
@@ -20,6 +21,7 @@ const AppRouter = () => {
         <Route path="/virtual-scroll" element={<VirtualScrollExample />} />
         <Route path="/memo-performance" element={<MemoPerformanceTest />} />
         <Route path="/dynamic-icon" element={<DynamicIconExample />} />
+        <Route path="/async-schema-linkage" element={<AsyncSchemaLinkageExample />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
