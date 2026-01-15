@@ -690,8 +690,13 @@ const ArrayItem = React.memo<ArrayItemProps>(
     }
 
     // 基本类型：渲染为简单的输入框 + 操作按钮
+
     // 为基础类型生成校验规则
-    const validationRules = useMemo(() => SchemaParser.getValidationRules(schema, false), [schema]);
+    const validationRules = useMemo(() => {
+      const rules = SchemaParser.getValidationRules(schema, false);
+
+      return rules;
+    }, [schema, name]);
 
     return (
       <div
@@ -709,25 +714,51 @@ const ArrayItem = React.memo<ArrayItemProps>(
           <Controller
             name={`${name}.value`}
             control={control}
-            rules={validationRules}
-            render={({ field: controllerField, fieldState }) => (
-              <>
-                <WidgetComponent
-                  name={`${name}.value`}
-                  schema={schema}
-                  value={controllerField.value}
-                  onChange={controllerField.onChange}
-                  disabled={disabled}
-                  readonly={readonly}
-                  {...(schema.ui?.widgetProps || {})}
-                />
-                {fieldState.error && (
-                  <div style={{ color: '#DB3737', fontSize: '12px', marginTop: '5px' }}>
-                    {fieldState.error.message}
-                  </div>
-                )}
-              </>
-            )}
+            rules={{
+              ...validationRules,
+              // ✅ 添加 onChange 验证，确保用户输入时实时验证
+              onChange: validationRules.validate
+                ? (value: any) => {
+                    // 执行所有自定义验证规则
+                    if (validationRules.validate) {
+                      if (typeof validationRules.validate === 'function') {
+                        const result = validationRules.validate(value);
+                        return result;
+                      }
+                      // 如果是对象形式的验证规则，执行所有验证
+                      for (const key in validationRules.validate) {
+                        const result = validationRules.validate[key](value);
+                        if (result !== true) {
+                          return result;
+                        }
+                      }
+                    }
+                    return true;
+                  }
+                : undefined,
+            }}
+            render={({ field: controllerField, fieldState }) => {
+              return (
+                <>
+                  <WidgetComponent
+                    name={`${name}.value`}
+                    schema={schema}
+                    value={controllerField.value}
+                    onChange={(newValue: any) => {
+                      controllerField.onChange(newValue);
+                    }}
+                    disabled={disabled}
+                    readonly={readonly}
+                    {...(schema.ui?.widgetProps || {})}
+                  />
+                  {fieldState.error && (
+                    <div style={{ color: '#DB3737', fontSize: '12px', marginTop: '5px' }}>
+                      {fieldState.error.message}
+                    </div>
+                  )}
+                </>
+              );
+            }}
           />
         </div>
 
