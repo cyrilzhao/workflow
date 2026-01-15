@@ -167,6 +167,11 @@ function arePropsEqual(prevProps: FormFieldProps, nextProps: FormFieldProps): bo
     return false;
   }
 
+  // 比较 field.schema（用于 schema 联动）
+  if (prevProps.field.schema !== nextProps.field.schema) {
+    return false;
+  }
+
   // 比较 linkageState（浅比较）
   if (prevProps.linkageState !== nextProps.linkageState) {
     // 如果引用不同，检查内容是否相同
@@ -181,7 +186,9 @@ function arePropsEqual(prevProps: FormFieldProps, nextProps: FormFieldProps): bo
       prevProps.linkageState.visible !== nextProps.linkageState.visible ||
       prevProps.linkageState.disabled !== nextProps.linkageState.disabled ||
       prevProps.linkageState.readonly !== nextProps.linkageState.readonly ||
-      prevProps.linkageState.value !== nextProps.linkageState.value
+      prevProps.linkageState.value !== nextProps.linkageState.value ||
+      prevProps.linkageState.schema !== nextProps.linkageState.schema ||
+      prevProps.linkageState.options !== nextProps.linkageState.options
     ) {
       return false;
     }

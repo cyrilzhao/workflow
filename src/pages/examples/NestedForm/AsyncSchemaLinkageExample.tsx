@@ -8,6 +8,48 @@ import { Card, Callout, Tag } from '@blueprintjs/core';
  * 实际场景中这些数据会从服务器获取
  */
 const mockActionSchemas: Record<string, ExtendedJSONSchema> = {
+  agentA: {
+    type: 'object',
+    properties: {
+      body: {
+        type: 'object',
+        title: 'Body',
+        properties: {
+          input: {
+            title: 'PromptA',
+            type: 'string',
+            ui: {
+              widget: 'textarea',
+            },
+          },
+        },
+        ui: {
+          flattenPath: true,
+        },
+      },
+    },
+  },
+  agentB: {
+    type: 'object',
+    properties: {
+      body: {
+        type: 'object',
+        title: 'Body',
+        properties: {
+          input: {
+            title: 'PromptB',
+            type: 'string',
+            ui: {
+              widget: 'textarea',
+            },
+          },
+        },
+        ui: {
+          flattenPath: true,
+        },
+      },
+    },
+  },
   sendEmail: {
     type: 'object',
     properties: {
@@ -216,8 +258,8 @@ export const AsyncSchemaLinkageExample: React.FC = () => {
         actionId: {
           type: 'string',
           title: 'Action Type',
-          enum: ['sendEmail', 'httpRequest', 'runScript', 'delay'],
-          enumNames: ['Send Email', 'HTTP Request', 'Run Script', 'Delay'],
+          enum: ['sendEmail', 'httpRequest', 'runScript', 'delay', 'agentA', 'agentB'],
+          enumNames: ['Send Email', 'HTTP Request', 'Run Script', 'Delay', 'AgentA', 'AgentB'],
           ui: {
             widget: 'select',
             placeholder: 'Select an action type',
@@ -244,7 +286,7 @@ export const AsyncSchemaLinkageExample: React.FC = () => {
               type: 'schema',
               dependencies: ['#/properties/actionId'],
               // 启用缓存，避免重复的 API 调用
-              enableCache: true,
+              // enableCache: true,
               when: {
                 field: '#/properties/actionId',
                 operator: 'isNotEmpty',

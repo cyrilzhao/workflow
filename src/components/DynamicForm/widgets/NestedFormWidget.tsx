@@ -68,6 +68,31 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
     // 获取当前字段的联动 schema（用于依赖追踪）
     const linkageSchema = linkageStateContext?.parentLinkageStates[fullPath]?.schema;
 
+    // 保存上一次的 schema prop 引用，用于检测变化
+    const prevSchemaRef = useRef<ExtendedJSONSchema>(schema);
+
+    // 同步 schema prop 到 currentSchema 状态
+    // 当父组件传入新的 schema prop 时（例如父级 schema 联动导致子级 schema 变化），
+    // 需要更新 currentSchema 状态以触发重新渲染
+    useEffect(() => {
+      // 如果有联动 schema，优先使用联动 schema（由下面的 useEffect 处理）
+      if (linkageSchema) {
+        prevSchemaRef.current = schema;
+        return;
+      }
+
+      // 比较 schema 引用是否变化
+      if (schema !== prevSchemaRef.current) {
+        console.log('[NestedFormWidget] 检测到 schema prop 变化，同步更新:', {
+          fullPath,
+          prevSchema: prevSchemaRef.current,
+          newSchema: schema,
+        });
+        prevSchemaRef.current = schema;
+        setCurrentSchema(schema);
+      }
+    }, [schema, linkageSchema, fullPath]);
+
     // 处理 schema 联动（新的联动系统）
     useEffect(() => {
       // 如果没有联动 schema，不需要更新
