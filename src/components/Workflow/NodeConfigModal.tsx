@@ -125,7 +125,8 @@ export const NodeConfigModal: React.FC<NodeConfigModalProps> = ({
     if (schema?.inputSchema) {
       // 第一步：使用 SchemaValidator 快速检查是否有错误
       const validator = new SchemaValidator(schema.inputSchema);
-      const hasValidationErrors = validator.hasErrors(formData);
+      const validationErrors = validator.validate(formData, true);
+      const hasValidationErrors = Object.keys(validationErrors).length > 0;
 
       // 如果快速检查发现有错误
       if (hasValidationErrors) {
@@ -133,7 +134,31 @@ export const NodeConfigModal: React.FC<NodeConfigModalProps> = ({
         if (activeTab === 'params' && formRef.current) {
           const isValid = await formRef.current.validate();
           if (!isValid) {
-            // 校验失败，错误会自动显示在 DynamicForm 中
+            // 校验失败，手动滚动到第一个错误字段
+            setTimeout(() => {
+              // 从 validationErrors 中找到第一个数组错误的索引
+              // 例如 "cases[3].label" -> 提取出字段名 "cases" 和索引 3
+              const firstArrayError = Object.keys(validationErrors).find(key => key.includes('['));
+              if (firstArrayError) {
+                const match = firstArrayError.match(/^(\w+)\[(\d+)\]/);
+                if (match) {
+                  const fieldName = match[1]; // "cases"
+                  const errorIndex = match[2]; // "3"
+
+                  // 查找对应的数组项元素
+                  const errorElement = document.querySelector(
+                    `[data-array-item-name="${fieldName}.${errorIndex}"]`
+                  );
+
+                  if (errorElement) {
+                    errorElement.scrollIntoView({
+                      behavior: 'smooth',
+                      block: 'center',
+                    });
+                  }
+                }
+              }
+            }, 150);
             return;
           }
         } else {
