@@ -6,8 +6,8 @@ import {
   type WorkflowEdge,
   BaseNode,
   type CustomNodeProps,
+  type NodeConfigSchema,
 } from '@/components/Workflow';
-import type { ExtendedJSONSchema } from '@/components/DynamicForm/types/schema';
 import { ExpressionInput } from '@/components/ExpressionInput';
 import { Position } from 'reactflow';
 import { Bot } from 'lucide-react';
@@ -171,332 +171,342 @@ const formComponents = {
   'expression-input': ExpressionInput,
 };
 
-const nodeConfigSchemas: Record<string, ExtendedJSONSchema> = {
+const nodeConfigSchemas: Record<string, NodeConfigSchema> = {
   start: {
-    type: 'object',
-    properties: {
-      triggerType: {
-        type: 'string',
-        title: 'Trigger Type',
-        enum: ['manual', 'webhook', 'schedule'],
-        enumNames: ['Manual', 'Webhook', 'Schedule'],
-        default: 'manual',
-        ui: {
-          widget: 'select',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        triggerType: {
+          type: 'string',
+          title: 'Trigger Type',
+          enum: ['manual', 'webhook', 'schedule'],
+          enumNames: ['Manual', 'Webhook', 'Schedule'],
+          default: 'manual',
+          ui: {
+            widget: 'select',
+          },
         },
       },
-    },
-    dependencies: {
-      triggerType: {
-        oneOf: [
-          {
-            properties: {
-              triggerType: { const: 'manual' },
-              inputSchema: {
-                type: 'string',
-                title: 'Input Schema (JSON)',
-                ui: { widget: 'textarea', rows: 5 },
+      dependencies: {
+        triggerType: {
+          oneOf: [
+            {
+              properties: {
+                triggerType: { const: 'manual' },
+                inputSchema: {
+                  type: 'string',
+                  title: 'Input Schema (JSON)',
+                  ui: { widget: 'textarea', rows: 5 },
+                },
               },
             },
-          },
-          {
-            properties: {
-              triggerType: { const: 'webhook' },
-              method: {
-                type: 'string',
-                title: 'HTTP Method',
-                enum: ['GET', 'POST', 'PUT', 'DELETE'],
-                default: 'POST',
+            {
+              properties: {
+                triggerType: { const: 'webhook' },
+                method: {
+                  type: 'string',
+                  title: 'HTTP Method',
+                  enum: ['GET', 'POST', 'PUT', 'DELETE'],
+                  default: 'POST',
+                },
+                path: { type: 'string', title: 'Path', default: '/webhook' },
               },
-              path: { type: 'string', title: 'Path', default: '/webhook' },
+              required: ['method', 'path'],
             },
-            required: ['method', 'path'],
-          },
-          {
-            properties: {
-              triggerType: { const: 'schedule' },
-              cron: {
-                type: 'string',
-                title: 'Cron Expression',
-                default: '0 0 * * *',
-                ui: { placeholder: 'e.g. 0 0 * * *' },
+            {
+              properties: {
+                triggerType: { const: 'schedule' },
+                cron: {
+                  type: 'string',
+                  title: 'Cron Expression',
+                  default: '0 0 * * *',
+                  ui: { placeholder: 'e.g. 0 0 * * *' },
+                },
               },
+              required: ['cron'],
             },
-            required: ['cron'],
-          },
-        ],
+          ],
+        },
       },
     },
   },
   end: {
-    type: 'object',
-    properties: {
-      outputType: {
-        type: 'string',
-        title: 'Output Type',
-        enum: ['json', 'html', 'text'],
-        enumNames: ['JSON', 'HTML', 'Plain Text'],
-        default: 'json',
-        ui: {
-          widget: 'radio',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        outputType: {
+          type: 'string',
+          title: 'Output Type',
+          enum: ['json', 'html', 'text'],
+          enumNames: ['JSON', 'HTML', 'Plain Text'],
+          default: 'json',
+          ui: {
+            widget: 'radio',
+          },
+        },
+        statusCode: {
+          type: 'number',
+          title: 'Status Code',
+          default: 200,
+          minimum: 100,
+          maximum: 599,
+        },
+        body: {
+          type: 'string',
+          title: 'Response Body',
+          ui: {
+            widget: 'expression-input',
+          },
         },
       },
-      statusCode: {
-        type: 'number',
-        title: 'Status Code',
-        default: 200,
-        minimum: 100,
-        maximum: 599,
-      },
-      body: {
-        type: 'string',
-        title: 'Response Body',
-        ui: {
-          widget: 'expression-input',
-        },
-      },
+      required: ['outputType'],
     },
-    required: ['outputType'],
   },
   loop: {
-    type: 'object',
-    properties: {
-      loopType: {
-        type: 'string',
-        title: 'Loop Type',
-        enum: ['collection', 'count', 'condition'],
-        enumNames: ['For Each (Collection)', 'Count (Fixed)', 'While (Condition)'],
-        default: 'collection',
-        ui: { widget: 'select', placeholder: 'Please select' },
-      },
-      inputCollection: {
-        type: 'string',
-        title: 'Input Collection',
-        ui: {
-          widget: 'expression-input',
-          linkage: {
-            type: 'visibility',
-            dependencies: ['#/properties/loopType'],
-            when: {
-              field: 'loopType',
-              operator: '==',
-              value: 'collection',
-            },
-            fulfill: {
-              state: {
-                visible: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        loopType: {
+          type: 'string',
+          title: 'Loop Type',
+          enum: ['collection', 'count', 'condition'],
+          enumNames: ['For Each (Collection)', 'Count (Fixed)', 'While (Condition)'],
+          default: 'collection',
+          ui: { widget: 'select', placeholder: 'Please select' },
+        },
+        inputCollection: {
+          type: 'string',
+          title: 'Input Collection',
+          ui: {
+            widget: 'expression-input',
+            linkage: {
+              type: 'visibility',
+              dependencies: ['#/properties/loopType'],
+              when: {
+                field: 'loopType',
+                operator: '==',
+                value: 'collection',
+              },
+              fulfill: {
+                state: {
+                  visible: true,
+                },
+              },
+              otherwise: {
+                state: {
+                  visible: false,
+                },
               },
             },
-            otherwise: {
-              state: {
-                visible: false,
+          },
+        },
+        inputElement: {
+          type: 'string',
+          title: 'Input Element',
+          ui: {
+            widget: 'expression-input',
+            linkage: {
+              type: 'visibility',
+              dependencies: ['#/properties/loopType'],
+              when: {
+                field: 'loopType',
+                operator: '==',
+                value: 'collection',
+              },
+              fulfill: {
+                state: {
+                  visible: true,
+                },
+              },
+              otherwise: {
+                state: {
+                  visible: false,
+                },
+              },
+            },
+          },
+        },
+        outputCollection: {
+          type: 'string',
+          title: 'Output Collection',
+          ui: {
+            widget: 'expression-input',
+            linkage: {
+              type: 'visibility',
+              dependencies: ['#/properties/loopType'],
+              when: {
+                field: 'loopType',
+                operator: '==',
+                value: 'collection',
+              },
+              fulfill: {
+                state: {
+                  visible: true,
+                },
+              },
+              otherwise: {
+                state: {
+                  visible: false,
+                },
+              },
+            },
+          },
+        },
+        outputElement: {
+          type: 'string',
+          title: 'Output Element',
+          ui: {
+            widget: 'expression-input',
+            linkage: {
+              type: 'visibility',
+              dependencies: ['#/properties/loopType'],
+              when: {
+                field: 'loopType',
+                operator: '==',
+                value: 'collection',
+              },
+              fulfill: {
+                state: {
+                  visible: true,
+                },
+              },
+              otherwise: {
+                state: {
+                  visible: false,
+                },
               },
             },
           },
         },
       },
-      inputElement: {
-        type: 'string',
-        title: 'Input Element',
-        ui: {
-          widget: 'expression-input',
-          linkage: {
-            type: 'visibility',
-            dependencies: ['#/properties/loopType'],
-            when: {
-              field: 'loopType',
-              operator: '==',
-              value: 'collection',
-            },
-            fulfill: {
-              state: {
-                visible: true,
+      dependencies: {
+        loopType: {
+          oneOf: [
+            {
+              properties: {
+                loopType: { const: 'collection' },
+                collection: {
+                  type: 'string',
+                  title: 'Input Collection',
+                  description: 'The array to iterate over',
+                  ui: { widget: 'expression-input' },
+                },
+                itemVar: {
+                  type: 'string',
+                  title: 'Input Element',
+                  description: 'Variable name for current item',
+                  default: 'item',
+                },
+                outputCollection: {
+                  type: 'string',
+                  title: 'Output Collection',
+                  description: 'Variable name to store results',
+                  default: 'results',
+                },
+                outputElement: {
+                  type: 'string',
+                  title: 'Output Element',
+                  description: 'Expression for the result of each iteration',
+                  ui: { widget: 'expression-input' },
+                },
               },
+              required: ['collection', 'itemVar'],
             },
-            otherwise: {
-              state: {
-                visible: false,
+            {
+              properties: {
+                loopType: { const: 'count' },
+                count: {
+                  type: 'number',
+                  title: 'Iteration Count',
+                  default: 3,
+                  minimum: 1,
+                },
               },
+              required: ['count'],
             },
-          },
+            {
+              properties: {
+                loopType: { const: 'condition' },
+                condition: {
+                  type: 'string',
+                  title: 'Break Condition',
+                  description: 'Expression evaluating to boolean',
+                  ui: { widget: 'expression-input' },
+                },
+              },
+              required: ['condition'],
+            },
+          ],
         },
-      },
-      outputCollection: {
-        type: 'string',
-        title: 'Output Collection',
-        ui: {
-          widget: 'expression-input',
-          linkage: {
-            type: 'visibility',
-            dependencies: ['#/properties/loopType'],
-            when: {
-              field: 'loopType',
-              operator: '==',
-              value: 'collection',
-            },
-            fulfill: {
-              state: {
-                visible: true,
-              },
-            },
-            otherwise: {
-              state: {
-                visible: false,
-              },
-            },
-          },
-        },
-      },
-      outputElement: {
-        type: 'string',
-        title: 'Output Element',
-        ui: {
-          widget: 'expression-input',
-          linkage: {
-            type: 'visibility',
-            dependencies: ['#/properties/loopType'],
-            when: {
-              field: 'loopType',
-              operator: '==',
-              value: 'collection',
-            },
-            fulfill: {
-              state: {
-                visible: true,
-              },
-            },
-            otherwise: {
-              state: {
-                visible: false,
-              },
-            },
-          },
-        },
-      },
-    },
-    dependencies: {
-      loopType: {
-        oneOf: [
-          {
-            properties: {
-              loopType: { const: 'collection' },
-              collection: {
-                type: 'string',
-                title: 'Input Collection',
-                description: 'The array to iterate over',
-                ui: { widget: 'expression-input' },
-              },
-              itemVar: {
-                type: 'string',
-                title: 'Input Element',
-                description: 'Variable name for current item',
-                default: 'item',
-              },
-              outputCollection: {
-                type: 'string',
-                title: 'Output Collection',
-                description: 'Variable name to store results',
-                default: 'results',
-              },
-              outputElement: {
-                type: 'string',
-                title: 'Output Element',
-                description: 'Expression for the result of each iteration',
-                ui: { widget: 'expression-input' },
-              },
-            },
-            required: ['collection', 'itemVar'],
-          },
-          {
-            properties: {
-              loopType: { const: 'count' },
-              count: {
-                type: 'number',
-                title: 'Iteration Count',
-                default: 3,
-                minimum: 1,
-              },
-            },
-            required: ['count'],
-          },
-          {
-            properties: {
-              loopType: { const: 'condition' },
-              condition: {
-                type: 'string',
-                title: 'Break Condition',
-                description: 'Expression evaluating to boolean',
-                ui: { widget: 'expression-input' },
-              },
-            },
-            required: ['condition'],
-          },
-        ],
       },
     },
   },
   agent: {
-    type: 'object',
-    properties: {
-      prompt: {
-        type: 'string',
-        title: 'Prompt',
-        description: 'Input prompt for the agent',
-        ui: {
-          widget: 'textarea',
-          // widget: 'expression-input', // Use expression input for dynamic prompts
+    inputSchema: {
+      type: 'object',
+      properties: {
+        prompt: {
+          type: 'string',
+          title: 'Prompt',
+          description: 'Input prompt for the agent',
+          ui: {
+            widget: 'textarea',
+            // widget: 'expression-input', // Use expression input for dynamic prompts
+          },
+        },
+        model: {
+          type: 'string',
+          title: 'Model',
+          enum: ['gpt-4', 'gpt-3.5-turbo', 'claude-3-opus', 'gemini-pro'],
+          default: 'gpt-3.5-turbo',
+          ui: {
+            widget: 'select',
+          },
+        },
+        temperature: {
+          type: 'number',
+          title: 'Temperature',
+          minimum: 0,
+          maximum: 1,
+          default: 0.7,
+          ui: {
+            widget: 'range',
+            step: 0.1,
+          },
         },
       },
-      model: {
-        type: 'string',
-        title: 'Model',
-        enum: ['gpt-4', 'gpt-3.5-turbo', 'claude-3-opus', 'gemini-pro'],
-        default: 'gpt-3.5-turbo',
-        ui: {
-          widget: 'select',
-        },
-      },
-      temperature: {
-        type: 'number',
-        title: 'Temperature',
-        minimum: 0,
-        maximum: 1,
-        default: 0.7,
-        ui: {
-          widget: 'range',
-          step: 0.1,
-        },
-      },
+      required: ['prompt'],
     },
-    required: ['prompt'],
   },
   switch: {
-    type: 'object',
-    properties: {
-      // Removed global expression, as conditions are per-case
-      cases: {
-        type: 'array',
-        title: 'Conditions',
-        items: {
-          type: 'object',
-          properties: {
-            id: {
-              type: 'string',
-              title: 'Branch ID',
-              ui: { widget: 'hidden', autogenerate: 'uuid' },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        // Removed global expression, as conditions are per-case
+        cases: {
+          type: 'array',
+          title: 'Conditions',
+          items: {
+            type: 'object',
+            properties: {
+              id: {
+                type: 'string',
+                title: 'Branch ID',
+                ui: { hidden: true, autogenerate: 'uuid' },
+              },
+              label: { type: 'string', title: 'Condition Name' },
+              condition: {
+                type: 'string',
+                title: 'Expression',
+                description: 'Expression evaluating to boolean',
+                ui: { widget: 'expression-input' },
+              },
             },
-            label: { type: 'string', title: 'Condition Name' },
-            condition: {
-              type: 'string',
-              title: 'Expression',
-              description: 'Expression evaluating to boolean',
-              ui: { widget: 'expression-input' },
-            },
+            required: ['id', 'label', 'condition'],
           },
-          required: ['id', 'label', 'condition'],
-        },
-        ui: {
-          addButtonText: 'Add Condition',
+          ui: {
+            addButtonText: 'Add Condition',
+          },
         },
       },
     },

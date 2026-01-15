@@ -110,6 +110,7 @@ const DynamicFormInner = React.memo(
         showSubmitButton = true,
         renderAsForm = true,
         validateMode = 'onSubmit',
+        reValidateMode = 'onChange',
         loading = false,
         disabled = false,
         readonly = false,
@@ -126,18 +127,6 @@ const DynamicFormInner = React.memo(
       const parentFormContext = useFormContext();
       const linkageStateContext = useLinkageStateContext();
       const nestedSchemaRegistry = useNestedSchemaRegistryOptional();
-
-      useEffect(() => {
-        console.log('cyril parentFormContext changed');
-      }, [parentFormContext]);
-
-      useEffect(() => {
-        console.log('cyril linkageStateContext changed');
-      }, [linkageStateContext]);
-
-      useEffect(() => {
-        console.log('cyril nestedSchemaRegistry changed');
-      }, [nestedSchemaRegistry]);
 
       // ========== 空对象常量处理（统一管理） ==========
       const stableLinkageFunctions = linkageFunctions || EMPTY_LINKAGE_FUNCTIONS;
@@ -179,6 +168,7 @@ const DynamicFormInner = React.memo(
       const ownMethods = useForm({
         defaultValues: processedDefaultValues,
         mode: validateMode,
+        reValidateMode: reValidateMode,
       });
 
       // 根据模式选择使用哪个 form methods

@@ -220,7 +220,7 @@ export const ArrayFieldWidget = forwardRef<HTMLDivElement, ArrayFieldWidgetProps
 
     // 监听表单错误，自动滚动到第一个错误的数组项
     useEffect(() => {
-      if (!enableVirtualScroll || !virtuosoRef.current || !formState.errors) {
+      if (!formState.errors) {
         return;
       }
 
@@ -231,12 +231,25 @@ export const ArrayFieldWidget = forwardRef<HTMLDivElement, ArrayFieldWidgetProps
       if (arrayErrors && Array.isArray(arrayErrors)) {
         const firstErrorIndex = arrayErrors.findIndex((error: any) => error !== undefined);
         if (firstErrorIndex !== -1) {
-          // 滚动到第一个错误的数组项
-          virtuosoRef.current.scrollToIndex({
-            index: firstErrorIndex,
-            align: 'center',
-            behavior: 'smooth',
-          });
+          if (enableVirtualScroll && virtuosoRef.current) {
+            // 虚拟滚动模式：使用 Virtuoso 的 scrollToIndex
+            virtuosoRef.current.scrollToIndex({
+              index: firstErrorIndex,
+              align: 'center',
+              behavior: 'smooth',
+            });
+          } else {
+            // 普通渲染模式：使用 DOM 元素的 scrollIntoView
+            const errorElement = document.querySelector(
+              `[data-array-item-name="${name}.${firstErrorIndex}"]`
+            );
+            if (errorElement) {
+              errorElement.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center',
+              });
+            }
+          }
         }
       }
     }, [formState.errors, name, enableVirtualScroll]);
@@ -575,6 +588,7 @@ const ArrayItem = React.memo<ArrayItemProps>(
           className="array-item array-item-object"
           elevation={1}
           style={{ marginBottom: '15px', padding: '15px' }}
+          data-array-item-name={name}
         >
           <div
             style={{
@@ -683,6 +697,7 @@ const ArrayItem = React.memo<ArrayItemProps>(
       <div
         className="array-item array-item-simple"
         style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '10px' }}
+        data-array-item-name={name}
       >
         {/* 索引标签 */}
         <div className="array-item-index" style={{ minWidth: '30px', color: '#999' }}>
