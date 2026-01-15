@@ -5,7 +5,7 @@ import type { FieldWidgetProps } from '../types';
 export const NumberWidget = forwardRef<HTMLInputElement, FieldWidgetProps>(
   ({ name, placeholder, disabled, readonly, error, onChange, onBlur, value, ...rest }, ref) => {
     const handleValueChange = useCallback(
-      (valueAsNumber: number, valueAsString: string) => {
+      (valueAsNumber: number, _valueAsString: string) => {
         // 确保输出的是数字类型，而不是字符串
         if (onChange) {
           onChange(isNaN(valueAsNumber) ? undefined : valueAsNumber);

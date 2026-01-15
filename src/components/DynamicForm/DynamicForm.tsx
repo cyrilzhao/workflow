@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useImperativeHandle, forwardRef } from 'react';
+import React, { useCallback, useMemo, useImperativeHandle, forwardRef } from 'react';
 import { useForm, FormProvider, useFormContext } from 'react-hook-form';
 import { Button } from '@blueprintjs/core';
 import { SchemaParser } from './core/SchemaParser';

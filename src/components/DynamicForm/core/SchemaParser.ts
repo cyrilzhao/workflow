@@ -1,7 +1,6 @@
 import type {
   ExtendedJSONSchema,
   FieldConfig,
-  WidgetType,
   ValidationRules,
   FieldOption,
 } from '../types/schema';

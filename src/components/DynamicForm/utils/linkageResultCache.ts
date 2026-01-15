@@ -33,7 +33,9 @@ export class LinkageResultCache {
     // LRU 策略：如果缓存已满，删除最早的条目
     if (this.cache.size >= this.maxSize) {
       const firstKey = this.cache.keys().next().value;
-      this.cache.delete(firstKey);
+      if (firstKey !== undefined) {
+        this.cache.delete(firstKey);
+      }
     }
     this.cache.set(key, result);
   }
@@ -70,7 +72,9 @@ export class LinkageResultCache {
     // 如果当前缓存大小超过新的最大值，删除最早的条目
     while (this.cache.size > this.maxSize) {
       const firstKey = this.cache.keys().next().value;
-      this.cache.delete(firstKey);
+      if (firstKey !== undefined) {
+        this.cache.delete(firstKey);
+      }
     }
   }
 }

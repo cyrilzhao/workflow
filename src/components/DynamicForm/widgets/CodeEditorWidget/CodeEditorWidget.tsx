@@ -1,4 +1,4 @@
-import React, { forwardRef, useState, useCallback, useEffect, useMemo } from 'react';
+import { forwardRef, useState, useCallback, useEffect, useMemo } from 'react';
 import { CodeEditorPreview } from './CodeEditorPreview';
 import { CodeEditorModal } from './CodeEditorModal';
 import type { CodeEditorWidgetProps } from './types';
@@ -33,14 +33,9 @@ export const CodeEditorWidget = forwardRef<HTMLDivElement, CodeEditorWidgetProps
 
     // 根据语言类型自动选择验证器和格式化器
     const actualValidator = useMemo(() => {
-      console.info('cyril language: ', language);
-      console.info('cyril aaa validator: ', validator);
       if (validator !== undefined) return validator;
       return language === 'json' ? jsonValidator : undefined;
     }, [validator, language]);
-
-    console.info('cyril aaa language: ', language);
-    console.info('cyril actualValidator: ', actualValidator);
 
     const actualFormatter = useMemo(() => {
       if (formatter !== undefined) return formatter;

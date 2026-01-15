@@ -169,10 +169,6 @@ export const PropertyEditor: React.FC = () => {
               oneOf: currentNode.oneOf,
             }}
             onChange={validationConfig => {
-              console.info(
-                'cyril PropertyEditor validationConfig: ',
-                JSON.stringify(validationConfig)
-              );
               // 更新条件验证配置
               const updates: any = {};
 
@@ -203,7 +199,6 @@ export const PropertyEditor: React.FC = () => {
                 updates.oneOf = validationConfig.oneOf;
               }
 
-              console.info('cyril PropertyEditor updates: ', JSON.stringify(updates));
               onUpdate(selectedPath, updates);
             }}
             disabled={false}

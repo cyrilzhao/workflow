@@ -1,12 +1,10 @@
-import React, { forwardRef, useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useFormContext } from 'react-hook-form';
+import { forwardRef, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Card } from '@blueprintjs/core';
 import { DynamicForm } from '../DynamicForm';
 import type { FieldWidgetProps } from '../types';
 import type { ExtendedJSONSchema } from '../types/schema';
-import { PathResolver } from '../utils/pathResolver';
 import { useNestedSchemaRegistry } from '../context/NestedSchemaContext';
-import { usePathPrefix, joinPath, removePrefix } from '../context/PathPrefixContext';
+import { usePathPrefix, joinPath } from '../context/PathPrefixContext';
 import { useLinkageStateContext } from '../context/LinkageStateContext';
 
 export interface NestedFormWidgetProps extends FieldWidgetProps {
@@ -30,9 +28,8 @@ export interface NestedFormWidgetProps extends FieldWidgetProps {
 }
 
 export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps>(
-  ({ name, value = {}, schema, disabled, readonly, layout, labelWidth, noCard = false }, ref) => {
+  ({ name, schema, disabled, readonly, layout, labelWidth, noCard = false }, ref) => {
     const [currentSchema, setCurrentSchema] = useState<ExtendedJSONSchema>(schema);
-    const [loading, setLoading] = useState(false);
     // 保存外层表单的 context
     // const parentFormContext = useFormContext();
     // const { watch, getValues } = parentFormContext;
@@ -129,14 +126,6 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
 
     // ✅ 使用 useCallback 缓存 onSubmit 函数，避免每次渲染都创建新函数
     const handleSubmit = useCallback(() => {}, []);
-
-    if (loading) {
-      return (
-        <div ref={ref} className="nested-form-loading">
-          Loading...
-        </div>
-      );
-    }
 
     if (!currentSchema || !currentSchema.properties) {
       return null;

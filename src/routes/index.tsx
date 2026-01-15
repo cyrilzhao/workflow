@@ -8,6 +8,7 @@ import { VirtualScrollExample } from '@/pages/examples/VirtualScrollExample';
 import { MemoPerformanceTest } from '@/pages/examples/PerformanceTest/MemoPerformanceTest';
 import DynamicIconExample from '@/pages/examples/DynamicIconExample';
 import { AsyncSchemaLinkageExample } from '@/pages/examples/NestedForm/AsyncSchemaLinkageExample';
+import { ErrorScrollExample } from '@/pages/examples/ErrorScrollExample';
 
 const AppRouter = () => {
   return (
@@ -22,6 +23,7 @@ const AppRouter = () => {
         <Route path="/memo-performance" element={<MemoPerformanceTest />} />
         <Route path="/dynamic-icon" element={<DynamicIconExample />} />
         <Route path="/async-schema-linkage" element={<AsyncSchemaLinkageExample />} />
+        <Route path="/error-scroll" element={<ErrorScrollExample />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

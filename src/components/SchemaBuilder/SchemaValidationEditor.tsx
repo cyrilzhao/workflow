@@ -71,12 +71,7 @@ export const SchemaValidationEditor: React.FC<SchemaValidationEditorProps> = ({
             <DependenciesEditor
               value={value.dependencies}
               onChange={deps => {
-                console.info('cyril SchemaValidationEditor onChange deps: ', JSON.stringify(deps));
                 const newValue = { ...value, dependencies: deps };
-                console.info(
-                  'cyril SchemaValidationEditor onChange newValue: ',
-                  JSON.stringify(newValue)
-                );
                 onChange(newValue);
               }}
               schema={parentSchema}
@@ -198,13 +193,8 @@ const DependenciesEditor: React.FC<DependenciesEditorProps> = ({
 
   const handleRemoveDependency = (field: string) => {
     const newValue = { ...(value || {}) };
-    console.info('cyril handleRemoveDependency field: ', field);
-    console.info('cyril handleRemoveDependency newValue: ', JSON.stringify(newValue));
     delete newValue[field];
-    console.info(
-      'cyril handleRemoveDependency result: ',
-      Object.keys(newValue).length > 0 ? newValue : undefined
-    );
+
     onChange(Object.keys(newValue).length > 0 ? newValue : undefined);
     if (editingField === field) {
       setEditingField(null);
