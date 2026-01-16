@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useImperativeHandle, forwardRef } from 'react';
+import React, { useCallback, useMemo, useImperativeHandle, forwardRef } from 'react';
 import { useForm, FormProvider, useFormContext } from 'react-hook-form';
 import { Button } from '@blueprintjs/core';
 import { SchemaParser } from './core/SchemaParser';
@@ -110,6 +110,7 @@ const DynamicFormInner = React.memo(
         showSubmitButton = true,
         renderAsForm = true,
         validateMode = 'onSubmit',
+        reValidateMode = 'onChange',
         loading = false,
         disabled = false,
         readonly = false,
@@ -126,18 +127,6 @@ const DynamicFormInner = React.memo(
       const parentFormContext = useFormContext();
       const linkageStateContext = useLinkageStateContext();
       const nestedSchemaRegistry = useNestedSchemaRegistryOptional();
-
-      useEffect(() => {
-        console.log('cyril parentFormContext changed');
-      }, [parentFormContext]);
-
-      useEffect(() => {
-        console.log('cyril linkageStateContext changed');
-      }, [linkageStateContext]);
-
-      useEffect(() => {
-        console.log('cyril nestedSchemaRegistry changed');
-      }, [nestedSchemaRegistry]);
 
       // ========== 空对象常量处理（统一管理） ==========
       const stableLinkageFunctions = linkageFunctions || EMPTY_LINKAGE_FUNCTIONS;
@@ -179,6 +168,7 @@ const DynamicFormInner = React.memo(
       const ownMethods = useForm({
         defaultValues: processedDefaultValues,
         mode: validateMode,
+        reValidateMode: reValidateMode,
       });
 
       // 根据模式选择使用哪个 form methods
@@ -191,46 +181,8 @@ const DynamicFormInner = React.memo(
         methodsRef.current = methods;
       }, [methods]);
 
-      // ========== 暴露外部可访问的 API ==========
-      useImperativeHandle(
-        ref,
-        () => ({
-          setValue: (name, value, options) => {
-            methods.setValue(name, value, options);
-          },
-          getValue: (name: string) => {
-            return methods.getValues(name as any);
-          },
-          getValues: () => {
-            return methods.getValues();
-          },
-          setValues: (values, options) => {
-            Object.entries(values).forEach(([name, value]) => {
-              methods.setValue(name, value, options);
-            });
-          },
-          reset: values => {
-            methods.reset(values);
-          },
-          validate: async name => {
-            return methods.trigger(name);
-          },
-          getErrors: () => {
-            return methods.formState.errors;
-          },
-          clearErrors: name => {
-            methods.clearErrors(name);
-          },
-          setError: (name, error) => {
-            methods.setError(name, error);
-          },
-          getFormState: () => {
-            const { isDirty, isValid, isSubmitting, isSubmitted, submitCount } = methods.formState;
-            return { isDirty, isValid, isSubmitting, isSubmitted, submitCount };
-          },
-        }),
-        [methods]
-      );
+      // ✅ 使用 useRef 保持 refreshLinkage 引用，避免循环依赖
+      // const refreshLinkageRef = React.useRef<() => void>(() => {});
 
       // 解析 schema 中的联动配置
       // 分层计算策略：遇到数组字段时停止递归，数组元素内部由 NestedFormWidget 独立处理
@@ -330,12 +282,17 @@ const DynamicFormInner = React.memo(
       ]);
 
       // 步骤3: 计算自己的联动状态
-      const ownLinkageStates = useArrayLinkageManager({
+      const { linkageStates: ownLinkageStates, refresh: refreshLinkage } = useArrayLinkageManager({
         form: formToUse,
         baseLinkages: processedLinkages,
         linkageFunctions: effectiveLinkageFunctions,
         schema,
       });
+
+      // // 更新 refreshLinkageRef
+      // React.useEffect(() => {
+      //   refreshLinkageRef.current = refreshLinkage;
+      // }, [refreshLinkage]);
 
       // 步骤4: 合并父级和自己的联动状态
       const linkageStates = useMemo(() => {
@@ -362,6 +319,50 @@ const DynamicFormInner = React.memo(
         watch,
         formState: { errors },
       } = methods;
+
+      // ========== 暴露外部可访问的 API ==========
+      useImperativeHandle(
+        ref,
+        () => ({
+          setValue: (name, value, options) => {
+            methods.setValue(name, value, options);
+          },
+          getValue: (name: string) => {
+            return methods.getValues(name as any);
+          },
+          getValues: () => {
+            return methods.getValues();
+          },
+          setValues: (values, options) => {
+            Object.entries(values).forEach(([name, value]) => {
+              methods.setValue(name, value, options);
+            });
+          },
+          reset: values => {
+            methods.reset(values);
+          },
+          validate: async name => {
+            return methods.trigger(name);
+          },
+          getErrors: () => {
+            return methods.formState.errors;
+          },
+          clearErrors: name => {
+            methods.clearErrors(name);
+          },
+          setError: (name, error) => {
+            methods.setError(name, error);
+          },
+          getFormState: () => {
+            const { isDirty, isValid, isSubmitting, isSubmitted, submitCount } = methods.formState;
+            return { isDirty, isValid, isSubmitting, isSubmitted, submitCount };
+          },
+          refreshLinkage: async () => {
+            await refreshLinkage();
+          },
+        }),
+        [methods]
+      );
 
       React.useEffect(() => {
         if (onChange) {
@@ -422,6 +423,11 @@ const DynamicFormInner = React.memo(
               // 如果联动状态指定不可见，则不渲染该字段
               if (isFieldHiddenByLinkage(field.name, linkageStates)) {
                 return null;
+              }
+
+              // 合并联动状态中的 options 到 field 中
+              if (linkageState?.options) {
+                field.options = linkageState.options;
               }
 
               return (

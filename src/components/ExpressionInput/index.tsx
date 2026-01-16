@@ -12,7 +12,7 @@ export interface Variable {
 
 interface ExpressionInputProps {
   value?: string;
-  onChange: (value: string) => void;
+  onChange?: (value: string) => void;
   variables?: Variable[];
   placeholder?: string;
 }
@@ -45,6 +45,7 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const variableListRef = useRef<HTMLDivElement>(null);
 
   // --- Syntax Highlighting Logic ---
   const highlights = useMemo(() => {
@@ -95,7 +96,6 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
 
       // Calculate scrollbar width
       const scrollbarWidth = textareaRef.current.offsetWidth - textareaRef.current.clientWidth;
-      console.info('cyril scrollbarWidth: ', scrollbarWidth);
 
       // Use transform to move the backdrop content
       const highlightsDiv = backdropRef.current.querySelector('.highlights') as HTMLElement;
@@ -104,10 +104,8 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
 
         // Adjust padding to keep visual consistency when scrollbar appears
         // Reduce padding-right to compensate for scrollbar width
-        console.info('cyril scrollbarWidth: ', scrollbarWidth);
         if (scrollbarWidth > 0) {
           const adjustedPadding = Math.max(8, 30 - scrollbarWidth);
-          console.info('cyril adjustedPadding: ', adjustedPadding);
           textareaRef.current.style.paddingRight = `${adjustedPadding}px`;
           // highlightsDiv.style.paddingRight = `${adjustedPadding + 10}px`;
           highlightsDiv.style.paddingRight = '30px';
@@ -195,44 +193,8 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
           // Let's just keep suggesting it.
         }
 
-        const suffix = rawPath.slice(searchText.length);
-        // Find next dot
-        const firstDot = suffix.indexOf('.');
-
-        let labelToShow = '';
-        let valueToInsert = '';
-        let typeToShow = v.type;
-
-        if (firstDot === -1) {
-          // No more dots, this is the leaf or full match
-          labelToShow = rawPath;
-          valueToInsert = rawPath;
-        } else {
-          // There are more segments
-          // Segment is the part of rawPath up to the dot
-          // e.g. searchText="Start.", rawPath="Start.data.id"
-          // suffix="data.id"
-          // firstDot=4
-          // segment="data"
-          // fullSegment = "Start.data"
-
-          const segment = suffix.slice(0, firstDot);
-          // Only show the segment name in the list? Or full path?
-          // Usually list shows "data", but insertion needs to append "data".
-
-          // Let's simplify: Display the full path option that matches,
-          // but maybe grouped or filtered?
-          // N8n style: Show cascading.
-
-          // Simple Cascade Implementation:
-          // We suggest the *full path* of the variable, but filtered.
-          // User selects "Start.data.id".
-          labelToShow = v.label; // Use original label
-          valueToInsert = rawPath;
-        }
-
-        // If we want true cascading (showing only "data" when "Start." is typed), logic is complex.
-        // For this demo, let's just filter the flat list of variables by prefix.
+        // For this demo, we just filter the flat list of variables by prefix.
+        // True cascading (showing only "data" when "Start." is typed) would require more complex logic.
         suggestions.set(v.value, v);
       }
     });
@@ -284,6 +246,19 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
     };
   }, [isOpen]);
 
+  // Scroll active variable item into view
+  const scrollActiveItemIntoView = useCallback((index: number) => {
+    if (!variableListRef.current) return;
+
+    const listEl = variableListRef.current;
+    const items = listEl.querySelectorAll('.variable-item');
+    const activeItem = items[index] as HTMLElement;
+
+    if (!activeItem) return;
+
+    activeItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, []);
+
   // Monitor textarea resize to handle scrollbar changes
   useEffect(() => {
     if (!textareaRef.current) return;
@@ -303,7 +278,7 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
     const newPos = e.target.selectionStart;
-    onChange(newValue);
+    onChange?.(newValue);
     setCursorPos(newPos);
 
     // Auto-open triggers
@@ -337,25 +312,16 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
     // If context was "Start.", we replace "Start." with "Start.data"?
     // Wait, if I select "Start.data", I want the full thing.
 
-    const newText = prefix + rawVar + '}' + textAfter;
-    // Note: we close the braces automatically if we are inserting a full variable
-    // But if we were already editing inside braces "}", we might duplicate }
-    // Let's check textAfter.
-
+    // Handle duplicate closing braces
     let finalAfter = textAfter;
     if (textAfter.trim().startsWith('}')) {
-      // Remove existing closing braces if we added them
+      // Remove existing closing brace to avoid duplication
       finalAfter = textAfter.trim().replace(/^\}/, '');
-    } else {
-      // If we created the ${ via button, maybe we don't have } yet.
-      // The regex split logic suggests we just insert the var inside ${ }
     }
 
-    // Simplest logic:
-    // If we are inside ${ }, replace everything inside with the variable.
-    // Actually standard behavior: Autocomplete replaces the *current token*.
+    const newText = prefix + rawVar + '}' + finalAfter;
 
-    onChange(newText);
+    onChange?.(newText);
     setIsOpen(false);
 
     // Restore focus
@@ -394,11 +360,15 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
     if (isOpen) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setActiveVarIndex(prev => (prev + 1) % filteredVars.length);
+        const newIndex = (activeVarIndex + 1) % filteredVars.length;
+        setActiveVarIndex(newIndex);
+        scrollActiveItemIntoView(newIndex);
         return;
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setActiveVarIndex(prev => (prev - 1 + filteredVars.length) % filteredVars.length);
+        const newIndex = (activeVarIndex - 1 + filteredVars.length) % filteredVars.length;
+        setActiveVarIndex(newIndex);
+        scrollActiveItemIntoView(newIndex);
         return;
       } else if (e.key === 'Enter') {
         e.preventDefault();
@@ -440,7 +410,7 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
       if (e.key === 'Backspace' && currentPos === variable.end) {
         e.preventDefault();
         const newValue = value.slice(0, variable.start) + value.slice(variable.end);
-        onChange(newValue);
+        onChange?.(newValue);
         setTimeout(() => {
           textarea.setSelectionRange(variable.start, variable.start);
           setCursorPos(variable.start);
@@ -452,7 +422,7 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
       if (e.key === 'Delete' && currentPos === variable.start) {
         e.preventDefault();
         const newValue = value.slice(0, variable.start) + value.slice(variable.end);
-        onChange(newValue);
+        onChange?.(newValue);
         setTimeout(() => {
           textarea.setSelectionRange(variable.start, variable.start);
           setCursorPos(variable.start);
@@ -491,7 +461,7 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
             // Insert ${ at cursor and open
             const textBefore = value.slice(0, cursorPos);
             const textAfter = value.slice(cursorPos);
-            onChange(textBefore + '${' + textAfter);
+            onChange?.(textBefore + '${' + textAfter);
             setTimeout(() => {
               textareaRef.current?.focus();
               setCursorPos(cursorPos + 2);
@@ -518,7 +488,7 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
               left: `${popoverPosition.left}px`,
             }}
           >
-            <div className="variable-group">
+            <div className="variable-group" ref={variableListRef}>
               {/* Grouping logic simplified for demo: just show filtered list */}
               {filteredVars.map((v, idx) => (
                 <div

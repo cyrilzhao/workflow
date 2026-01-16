@@ -92,7 +92,7 @@ interface PathRelationship {
 function analyzePathRelationship(
   depLogicalPath: string,
   currentPath: string,
-  schema: ExtendedJSONSchema
+  _schema: ExtendedJSONSchema
 ): PathRelationship {
   const depSegments = splitPath(depLogicalPath);
   const currentSegments = splitPath(currentPath);
@@ -133,7 +133,7 @@ function analyzePathRelationship(
 function resolveChildToParent(
   depLogicalPath: string,
   currentPath: string,
-  relationship: PathRelationship
+  _relationship: PathRelationship
 ): string {
   const depSegments = splitPath(depLogicalPath);
   const currentSegments = splitPath(currentPath);
@@ -168,7 +168,7 @@ function resolveChildToParent(
 function resolveParentToChild(
   depLogicalPath: string,
   currentPath: string,
-  relationship: PathRelationship
+  _relationship: PathRelationship
 ): string {
   const depSegments = splitPath(depLogicalPath);
   const currentSegments = splitPath(currentPath);

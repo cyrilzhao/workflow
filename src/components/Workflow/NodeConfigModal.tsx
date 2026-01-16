@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { WorkflowNode, NodeConfigSchema, NodeExecutionRecord } from './types';
 import { DynamicForm } from '@/components/DynamicForm';
+import type { DynamicFormRef } from '@/components/DynamicForm/types';
+import { SchemaValidator } from '@/components/DynamicForm/core/SchemaValidator';
 import {
   X,
   Settings,
@@ -66,23 +68,40 @@ export const NodeConfigModal: React.FC<NodeConfigModalProps> = ({
   const [testResult, setTestResult] = useState<NodeExecutionRecord | null>(null);
   const [isTesting, setIsTesting] = useState(false);
   const [testError, setTestError] = useState<string | null>(null);
+  const [pendingValidation, setPendingValidation] = useState(false);
+  const formRef = useRef<DynamicFormRef>(null);
 
   useEffect(() => {
     if (node) {
       setFormData({ ...node.data });
-      // Reset tab when node changes
       setActiveTab('params');
       setTestResult(null);
       setTestError(null);
+      setPendingValidation(false);
+
+      formRef.current?.setValues({ ...node.data });
     }
   }, [node]);
 
-  if (!isOpen || !node) return null;
+  // 当切换到 params tab 且需要触发校验时，调用 DynamicForm 的 validate 方法
+  useEffect(() => {
+    if (activeTab === 'params' && pendingValidation && formRef.current) {
+      // 触发校验
+      formRef.current.validate().then(isValid => {
+        if (isValid && node) {
+          // 校验通过，执行保存
+          onSave(node.id, formData);
+          onClose();
+        }
+        // 校验失败时，错误会自动显示在 DynamicForm 中
+        setPendingValidation(false);
+      });
+    }
+  }, [activeTab, pendingValidation, node, formData, onSave, onClose]);
 
-  const handleTest = async () => {
-    if (!onNodeTest) return;
+  const handleTest = useCallback(async () => {
+    if (!onNodeTest || !node) return;
 
-    // Use formData as inputs for the test
     const inputs = { ...formData };
 
     setIsTesting(true);
@@ -97,12 +116,66 @@ export const NodeConfigModal: React.FC<NodeConfigModalProps> = ({
     } finally {
       setIsTesting(false);
     }
-  };
+  }, [onNodeTest, node, formData]);
 
-  const handleSave = () => {
+  const handleSave = useCallback(async () => {
+    if (!node) return;
+
+    // 如果有 inputSchema，需要进行校验
+    if (schema?.inputSchema) {
+      // 第一步：使用 SchemaValidator 快速检查是否有错误
+      const validator = new SchemaValidator(schema.inputSchema);
+      const validationErrors = validator.validate(formData, true);
+      const hasValidationErrors = Object.keys(validationErrors).length > 0;
+
+      // 如果快速检查发现有错误
+      if (hasValidationErrors) {
+        // 如果当前在 params tab 且 formRef 可用，直接触发 DynamicForm 的完整校验
+        if (activeTab === 'params' && formRef.current) {
+          const isValid = await formRef.current.validate();
+          if (!isValid) {
+            // 校验失败，手动滚动到第一个错误字段
+            setTimeout(() => {
+              // 从 validationErrors 中找到第一个数组错误的索引
+              // 例如 "cases[3].label" -> 提取出字段名 "cases" 和索引 3
+              const firstArrayError = Object.keys(validationErrors).find(key => key.includes('['));
+              if (firstArrayError) {
+                const match = firstArrayError.match(/^(\w+)\[(\d+)\]/);
+                if (match) {
+                  const fieldName = match[1]; // "cases"
+                  const errorIndex = match[2]; // "3"
+
+                  // 查找对应的数组项元素
+                  const errorElement = document.querySelector(
+                    `[data-array-item-name="${fieldName}.${errorIndex}"]`
+                  );
+
+                  if (errorElement) {
+                    errorElement.scrollIntoView({
+                      behavior: 'smooth',
+                      block: 'center',
+                    });
+                  }
+                }
+              }
+            }, 150);
+            return;
+          }
+        } else {
+          // 不在 params tab，切换过去并标记需要校验
+          setPendingValidation(true);
+          setActiveTab('params');
+          return;
+        }
+      }
+    }
+
+    // 校验通过或无需校验，执行保存
     onSave(node.id, formData);
     onClose();
-  };
+  }, [schema?.inputSchema, formData, node, onSave, onClose, activeTab]);
+
+  if (!isOpen || !node) return null;
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev: any) => ({
@@ -167,7 +240,7 @@ export const NodeConfigModal: React.FC<NodeConfigModalProps> = ({
             <Settings size={14} />
             Configuration
           </button>
-          {onNodeTest && (
+          {onNodeTest && schema?.testable && (
             <button
               className={`tab-btn ${activeTab === 'test' ? 'active' : ''}`}
               onClick={() => setActiveTab('test')}
@@ -181,9 +254,10 @@ export const NodeConfigModal: React.FC<NodeConfigModalProps> = ({
         <div className="node-config-modal-body">
           {activeTab === 'params' && (
             <div className="params-config">
-              {schema ? (
+              {schema?.inputSchema ? (
                 <DynamicForm
-                  schema={schema}
+                  ref={formRef}
+                  schema={schema.inputSchema}
                   defaultValues={formData}
                   onChange={setFormData}
                   widgets={formComponents}

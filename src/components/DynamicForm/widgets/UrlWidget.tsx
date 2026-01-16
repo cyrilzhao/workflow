@@ -1,4 +1,4 @@
-import React, { forwardRef } from 'react';
+import { forwardRef } from 'react';
 import { InputGroup } from '@blueprintjs/core';
 import type { FieldWidgetProps } from '../types';
 

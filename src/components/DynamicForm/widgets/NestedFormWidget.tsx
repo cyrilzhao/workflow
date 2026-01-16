@@ -1,12 +1,10 @@
-import React, { forwardRef, useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useFormContext } from 'react-hook-form';
+import { forwardRef, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Card } from '@blueprintjs/core';
 import { DynamicForm } from '../DynamicForm';
 import type { FieldWidgetProps } from '../types';
 import type { ExtendedJSONSchema } from '../types/schema';
-import { PathResolver } from '../utils/pathResolver';
 import { useNestedSchemaRegistry } from '../context/NestedSchemaContext';
-import { usePathPrefix, joinPath, removePrefix } from '../context/PathPrefixContext';
+import { usePathPrefix, joinPath } from '../context/PathPrefixContext';
 import { useLinkageStateContext } from '../context/LinkageStateContext';
 
 export interface NestedFormWidgetProps extends FieldWidgetProps {
@@ -30,9 +28,8 @@ export interface NestedFormWidgetProps extends FieldWidgetProps {
 }
 
 export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps>(
-  ({ name, value = {}, schema, disabled, readonly, layout, labelWidth, noCard = false }, ref) => {
+  ({ name, schema, disabled, readonly, layout, labelWidth, noCard = false }, ref) => {
     const [currentSchema, setCurrentSchema] = useState<ExtendedJSONSchema>(schema);
-    const [loading, setLoading] = useState(false);
     // 保存外层表单的 context
     // const parentFormContext = useFormContext();
     // const { watch, getValues } = parentFormContext;
@@ -65,54 +62,70 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
       };
     }, [fullPath, currentSchema, nestedSchemaRegistry]);
 
+    // 获取当前字段的联动 schema（用于依赖追踪）
+    const linkageSchema = linkageStateContext?.parentLinkageStates[fullPath]?.schema;
+
+    // 保存上一次的 schema prop 引用，用于检测变化
+    const prevSchemaRef = useRef<ExtendedJSONSchema>(schema);
+
+    // 同步 schema prop 到 currentSchema 状态
+    // 当父组件传入新的 schema prop 时（例如父级 schema 联动导致子级 schema 变化），
+    // 需要更新 currentSchema 状态以触发重新渲染
+    useEffect(() => {
+      // 如果有联动 schema，优先使用联动 schema（由下面的 useEffect 处理）
+      if (linkageSchema) {
+        prevSchemaRef.current = schema;
+        return;
+      }
+
+      // 比较 schema 引用是否变化
+      if (schema !== prevSchemaRef.current) {
+        console.log('[NestedFormWidget] 检测到 schema prop 变化，同步更新:', {
+          fullPath,
+          prevSchema: prevSchemaRef.current,
+          newSchema: schema,
+        });
+        prevSchemaRef.current = schema;
+        setCurrentSchema(schema);
+      }
+    }, [schema, linkageSchema, fullPath]);
+
     // 处理 schema 联动（新的联动系统）
     useEffect(() => {
-      // 如果没有联动状态 Context，说明不在联动环境中
-      if (!linkageStateContext) return;
+      // 如果没有联动 schema，不需要更新
+      if (!linkageSchema) return;
 
-      const { parentLinkageStates } = linkageStateContext;
+      console.log('[NestedFormWidget] 检测到 schema 联动，更新 schema:', {
+        fullPath,
+        linkageSchema,
+        currentSchemaProperties: Object.keys(linkageSchema.properties || {}),
+      });
 
-      // 获取当前字段的联动状态
-      const linkageState = parentLinkageStates[fullPath];
-
-      // 如果有 schema 联动结果，更新 currentSchema
-      if (linkageState?.schema) {
-        console.log('[NestedFormWidget] 检测到 schema 联动，更新 schema:', linkageState.schema);
-
-        // 选择性合并 schema，只更新 properties 和校验相关字段
-        // 保留原有的 ui 配置（包括 ui.linkage）
-        setCurrentSchema(prevSchema => ({
-          ...prevSchema,
-          // 更新 properties
-          properties: linkageState.schema.properties || prevSchema.properties,
-          // 更新校验相关字段
-          required: linkageState.schema.required,
-          minProperties: linkageState.schema.minProperties,
-          maxProperties: linkageState.schema.maxProperties,
-          dependencies: linkageState.schema.dependencies,
-          if: linkageState.schema.if,
-          then: linkageState.schema.then,
-          else: linkageState.schema.else,
-          allOf: linkageState.schema.allOf,
-          anyOf: linkageState.schema.anyOf,
-          oneOf: linkageState.schema.oneOf,
-          not: linkageState.schema.not,
-          // 保留原有的 ui 配置
-          ui: prevSchema.ui,
-        }));
-      }
-    }, [linkageStateContext, fullPath]);
+      // 选择性合并 schema，只更新 properties 和校验相关字段
+      // 保留原有的 ui 配置（包括 ui.linkage）
+      setCurrentSchema(prevSchema => ({
+        ...prevSchema,
+        // 更新 properties
+        properties: linkageSchema.properties || prevSchema.properties,
+        // 更新校验相关字段
+        required: linkageSchema.required,
+        minProperties: linkageSchema.minProperties,
+        maxProperties: linkageSchema.maxProperties,
+        dependencies: linkageSchema.dependencies,
+        if: linkageSchema.if,
+        then: linkageSchema.then,
+        else: linkageSchema.else,
+        allOf: linkageSchema.allOf,
+        anyOf: linkageSchema.anyOf,
+        oneOf: linkageSchema.oneOf,
+        not: linkageSchema.not,
+        // 保留原有的 ui 配置
+        ui: prevSchema.ui,
+      }));
+    }, [linkageSchema]);
 
     // ✅ 使用 useCallback 缓存 onSubmit 函数，避免每次渲染都创建新函数
     const handleSubmit = useCallback(() => {}, []);
-
-    if (loading) {
-      return (
-        <div ref={ref} className="nested-form-loading">
-          Loading...
-        </div>
-      );
-    }
 
     if (!currentSchema || !currentSchema.properties) {
       return null;

@@ -1,7 +1,6 @@
 import type {
   ExtendedJSONSchema,
   FieldConfig,
-  WidgetType,
   ValidationRules,
   FieldOption,
 } from '../types/schema';
@@ -223,12 +222,13 @@ export class SchemaParser {
     }
 
     if (schema.minLength) {
-      // react-hook-form 的 minLength 规则默认不会对空值进行校验，
-      // 这里使用自定义 validate 规则，确保空值也会触发 minLength 校验
+      // react-hook-form 的 minLength 规则默认不会对空值进行校验
+      // 空值应该由 required 规则处理，这里只验证非空值的长度
       rules.validate = rules.validate || {};
       rules.validate.minLength = (value: any) => {
-        if (value === null || value === undefined) {
-          return errorMessages.minLength || `Minimum length is ${schema.minLength} characters`;
+        // 空值不进行 minLength 校验，由 required 规则处理
+        if (value === null || value === undefined || value === '') {
+          return true;
         }
         const strValue = String(value);
         if (strValue.length < schema.minLength!) {

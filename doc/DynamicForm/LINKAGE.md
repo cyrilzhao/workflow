@@ -298,6 +298,21 @@ const linkageFunctions = {
 };
 ```
 
+**Options 联动的实现机制**：
+
+1. **联动计算**：当依赖字段变化时，`useArrayLinkageManager` 调用 `getProvinceOptions` 函数计算新的选项列表
+2. **状态存储**：计算结果存储在 `linkageStates[fieldName].options` 中
+3. **选项合并**：在 `DynamicForm.tsx` 渲染字段时，将 `linkageState.options` 合并到 `field.options`：
+   ```typescript
+   // 合并联动状态中的 options 到 field 中
+   if (linkageState?.options) {
+     field.options = linkageState.options;
+   }
+   ```
+4. **传递给 Widget**：`FormField` 组件将 `field.options` 传递给具体的 Widget（如 SelectWidget）进行渲染
+
+这种机制确保了动态选项能够正确显示在 UI 中。
+
 ### 3.5 启用缓存（异步联动）
 
 默认情况下联动结果缓存是禁用的。对于异步联动（如 API 调用），建议启用缓存以避免重复的网络请求：
@@ -1665,6 +1680,61 @@ dependencyGraph.getAffectedFields('items.0.quantity')
 
 值联动（`type: 'value'`）在某些场景下可能需要特别注意，特别是当异步联动函数执行时间较长且用户快速连续输入时。详见 [异步联动实现方案](./ASYNC_LINKAGE.md) 第 4 章和第 5 章的完整分析和解决方案。
 
+### Q8: 如何在异步数据加载后手动触发联动初始化？
+
+当联动函数依赖于异步加载的数据时（如从 API 加载的选项列表），可以使用 `refreshLinkage()` 方法手动重新触发联动计算。
+
+**使用方法**：
+
+```typescript
+const formRef = useRef<DynamicFormRef>(null);
+
+// 在数据加载完成后调用
+useEffect(() => {
+  async function loadData() {
+    const data = await fetchData();
+    setData(data);
+
+    // 重新触发联动初始化
+    await formRef.current?.refreshLinkage();
+  }
+  loadData();
+}, []);
+```
+
+**注意事项**：
+
+1. `refreshLinkage()` 是异步方法，返回 Promise
+2. 应该在数据状态更新完成后调用（在 useEffect 中）
+3. 它会重新计算所有字段的联动状态
+4. 详细示例请参考 [RefreshLinkage Example](/src/pages/examples/RefreshLinkageExample.tsx)
+
+**常见的闭包陷阱**：
+
+如果直接在数据加载后立即调用 `refreshLinkage()`，联动函数可能仍然捕获旧的空数据。正确的做法是使用状态标志：
+
+```typescript
+const [shouldRefreshLinkage, setShouldRefreshLinkage] = useState(false);
+
+// 数据加载
+useEffect(() => {
+  async function loadData() {
+    const data = await fetchData();
+    setData(data);
+    setShouldRefreshLinkage(true); // 设置标志
+  }
+  loadData();
+}, []);
+
+// 在数据状态更新后触发刷新
+useEffect(() => {
+  if (shouldRefreshLinkage && data.length > 0) {
+    formRef.current?.refreshLinkage();
+    setShouldRefreshLinkage(false);
+  }
+}, [shouldRefreshLinkage, data]);
+```
+
 ---
 
 ## 相关文档
@@ -1677,12 +1747,36 @@ dependencyGraph.getAffectedFields('items.0.quantity')
 
 ---
 
-**文档版本**: 2.4
+**文档版本**: 2.5
 **创建日期**: 2025-12-26
-**最后更新**: 2026-01-10
+**最后更新**: 2026-01-16
 **文档状态**: 已更新
 
 ## 变更历史
+
+### v2.5 (2026-01-16)
+
+**新增内容**：Options 联动实现机制说明和 refreshLinkage 使用指南
+
+**主要变更**：
+
+1. **Options 联动实现机制**
+   - ✅ 在第 3.4 节添加 Options 联动的实现机制说明
+   - ✅ 详细说明从联动计算到 UI 渲染的完整流程
+   - ✅ 解释 `linkageState.options` 如何合并到 `field.options`
+
+2. **新增常见问题 Q8**
+   - ✅ 如何在异步数据加载后手动触发联动初始化
+   - ✅ 提供 `refreshLinkage()` 的使用方法和注意事项
+   - ✅ 说明常见的闭包陷阱及解决方案
+   - ✅ 提供完整的代码示例
+
+3. **文档交叉引用**
+   - ✅ 添加到 RefreshLinkageExample 的引用链接
+   - ✅ 与 USAGE.md 的 API Reference 部分保持一致
+
+**相关示例**：
+- [RefreshLinkage Example](/src/pages/examples/RefreshLinkageExample.tsx)
 
 ### v2.4 (2026-01-10)
 

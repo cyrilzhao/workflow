@@ -92,6 +92,30 @@ export interface DynamicFormRef {
     isSubmitted: boolean;
     submitCount: number;
   };
+
+  /**
+   * 重新触发联动初始化
+   * 用于在异步数据加载完成后，手动触发表单的联动计算
+   *
+   * 使用场景：
+   * - 联动函数依赖异步加载的数据（如员工列表、部门列表等）
+   * - 需要在数据加载完成后重新计算联动状态
+   *
+   * @example
+   * ```tsx
+   * const formRef = useRef<DynamicFormRef>(null);
+   *
+   * useEffect(() => {
+   *   // 加载员工列表
+   *   fetchEmployees().then(employees => {
+   *     setEmployees(employees);
+   *     // 数据加载完成后，重新触发联动
+   *     formRef.current?.refreshLinkage();
+   *   });
+   * }, []);
+   * ```
+   */
+  refreshLinkage: () => Promise<void>;
 }
 
 /**

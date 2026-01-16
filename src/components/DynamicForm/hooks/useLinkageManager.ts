@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useState, useRef } from 'react';
+import { useMemo, useEffect, useState, useRef, useCallback } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
 import type {
   LinkageConfig,
@@ -165,6 +165,9 @@ export function useLinkageManager({
   // 联动状态缓存（使用 useState 而不是 useMemo，以便在 useEffect 中更新）
   const [linkageStates, setLinkageStates] = useState<Record<string, LinkageResult>>({});
 
+  // 强制刷新计数器，用于触发联动重新初始化
+  const [refreshCounter, setRefreshCounter] = useState(0);
+
   /**
    * 队列处理器：使用拓扑层级并行执行联动任务
    */
@@ -286,7 +289,7 @@ export function useLinkageManager({
       taskQueue.setUpdatingForm(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [linkages, linkageFunctions, dependencyGraph]);
+  }, [linkages, linkageFunctions, dependencyGraph, refreshCounter]);
 
   // 统一的字段变化监听和联动处理（使用任务队列）
   useEffect(() => {
@@ -325,7 +328,12 @@ export function useLinkageManager({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watch, linkages, linkageFunctions, dependencyGraph]);
 
-  return linkageStates;
+  // 暴露刷新方法
+  const refresh = useCallback(() => {
+    setRefreshCounter(prev => prev + 1);
+  }, []);
+
+  return { linkageStates, refresh };
 }
 
 /**

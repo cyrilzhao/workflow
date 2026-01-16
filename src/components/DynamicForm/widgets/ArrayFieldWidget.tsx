@@ -218,28 +218,53 @@ export const ArrayFieldWidget = forwardRef<HTMLDivElement, ArrayFieldWidgetProps
       return null;
     }
 
+    // 显式订阅 formState 的属性，确保能追踪到变化
+    const { errors, isValidating, isValid } = formState;
+
     // 监听表单错误，自动滚动到第一个错误的数组项
+    // 使用 isValidating 和 isValid 作为触发器，确保在验证完成后触发滚动
     useEffect(() => {
-      if (!enableVirtualScroll || !virtuosoRef.current || !formState.errors) {
+      // 只在验证完成后（isValidating 为 false）且验证失败（isValid 为 false）时触发
+      if (isValidating || isValid) {
+        return;
+      }
+
+      if (!errors) {
         return;
       }
 
       // 查找第一个有错误的数组项索引
-      const errors = formState.errors;
       const arrayErrors = errors[name] as any;
 
       if (arrayErrors && Array.isArray(arrayErrors)) {
         const firstErrorIndex = arrayErrors.findIndex((error: any) => error !== undefined);
+
         if (firstErrorIndex !== -1) {
-          // 滚动到第一个错误的数组项
-          virtuosoRef.current.scrollToIndex({
-            index: firstErrorIndex,
-            align: 'center',
-            behavior: 'smooth',
-          });
+          // 使用 setTimeout 确保 DOM 已更新
+          setTimeout(() => {
+            if (enableVirtualScroll && virtuosoRef.current) {
+              // 虚拟滚动模式：使用 Virtuoso 的 scrollToIndex
+              virtuosoRef.current.scrollToIndex({
+                index: firstErrorIndex,
+                align: 'center',
+                behavior: 'smooth',
+              });
+            } else {
+              // 普通渲染模式：使用 DOM 元素的 scrollIntoView
+              const errorElement = document.querySelector(
+                `[data-array-item-name="${name}.${firstErrorIndex}"]`
+              );
+              if (errorElement) {
+                errorElement.scrollIntoView({
+                  behavior: 'smooth',
+                  block: 'center',
+                });
+              }
+            }
+          }, 100);
         }
       }
-    }, [formState.errors, name, enableVirtualScroll]);
+    }, [isValidating, isValid, errors, name, enableVirtualScroll]);
 
     // 判断渲染模式
     const arrayMode = useMemo(() => determineArrayMode(schema), [schema]);
@@ -575,6 +600,7 @@ const ArrayItem = React.memo<ArrayItemProps>(
           className="array-item array-item-object"
           elevation={1}
           style={{ marginBottom: '15px', padding: '15px' }}
+          data-array-item-name={name}
         >
           <div
             style={{
@@ -676,13 +702,19 @@ const ArrayItem = React.memo<ArrayItemProps>(
     }
 
     // 基本类型：渲染为简单的输入框 + 操作按钮
+
     // 为基础类型生成校验规则
-    const validationRules = useMemo(() => SchemaParser.getValidationRules(schema, false), [schema]);
+    const validationRules = useMemo(() => {
+      const rules = SchemaParser.getValidationRules(schema, false);
+
+      return rules;
+    }, [schema, name]);
 
     return (
       <div
         className="array-item array-item-simple"
         style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '10px' }}
+        data-array-item-name={name}
       >
         {/* 索引标签 */}
         <div className="array-item-index" style={{ minWidth: '30px', color: '#999' }}>
@@ -694,25 +726,48 @@ const ArrayItem = React.memo<ArrayItemProps>(
           <Controller
             name={`${name}.value`}
             control={control}
-            rules={validationRules}
-            render={({ field: controllerField, fieldState }) => (
-              <>
-                <WidgetComponent
-                  name={`${name}.value`}
-                  schema={schema}
-                  value={controllerField.value}
-                  onChange={controllerField.onChange}
-                  disabled={disabled}
-                  readonly={readonly}
-                  {...(schema.ui?.widgetProps || {})}
-                />
-                {fieldState.error && (
-                  <div style={{ color: '#DB3737', fontSize: '12px', marginTop: '5px' }}>
-                    {fieldState.error.message}
-                  </div>
-                )}
-              </>
-            )}
+            rules={{
+              ...validationRules,
+              // ✅ 添加 onChange 验证，确保用户输入时实时验证
+              onChange: validationRules.validate
+                ? (value: any) => {
+                    // 执行所有自定义验证规则
+                    if (validationRules.validate) {
+                      // validate 是对象形式的验证规则，执行所有验证
+                      for (const key in validationRules.validate) {
+                        const validateFn = validationRules.validate[key];
+                        const result = validateFn(value);
+                        if (result !== true) {
+                          return result;
+                        }
+                      }
+                    }
+                    return true;
+                  }
+                : undefined,
+            }}
+            render={({ field: controllerField, fieldState }) => {
+              return (
+                <>
+                  <WidgetComponent
+                    name={`${name}.value`}
+                    schema={schema}
+                    value={controllerField.value}
+                    onChange={(newValue: any) => {
+                      controllerField.onChange(newValue);
+                    }}
+                    disabled={disabled}
+                    readonly={readonly}
+                    {...(schema.ui?.widgetProps || {})}
+                  />
+                  {fieldState.error && (
+                    <div style={{ color: '#DB3737', fontSize: '12px', marginTop: '5px' }}>
+                      {fieldState.error.message}
+                    </div>
+                  )}
+                </>
+              );
+            }}
           />
         </div>
 

@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useState } from 'react';
+import { useMemo, useEffect, useState, useCallback } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
 import type { LinkageConfig, LinkageFunction } from '../types/linkage';
 import type { ExtendedJSONSchema } from '../types/schema';
@@ -40,6 +40,59 @@ export function useArrayLinkageManager({
   // 动态联动配置（包含运行时生成的数组元素联动）
   const [dynamicLinkages, setDynamicLinkages] = useState<Record<string, LinkageConfig>>({});
 
+  // 强制刷新计数器，用于触发联动重新初始化
+  const [refreshCounter, setRefreshCounter] = useState(0);
+
+  /**
+   * 根据当前表单数据生成动态联动配置
+   * 这个函数会被 watch 回调和 refresh 函数调用
+   */
+  const generateDynamicLinkages = useCallback((): Record<string, LinkageConfig> => {
+    if (!schema || Object.keys(baseLinkages).length === 0) {
+      return {};
+    }
+
+    const formData = getValues();
+    const newDynamicLinkages: Record<string, LinkageConfig> = {};
+
+    // 遍历基础联动配置，找出数组相关的联动
+    Object.entries(baseLinkages).forEach(([fieldPath, linkage]) => {
+      // 如果路径已经包含数字索引（已实例化的联动），需要解析内部的 JSON Pointer 路径
+      if (isArrayElementPath(fieldPath)) {
+        const resolvedLinkage = resolveArrayElementLinkage(linkage, fieldPath, schema);
+        newDynamicLinkages[fieldPath] = resolvedLinkage;
+        return;
+      }
+
+      // 使用 schema 查找路径中的数组字段
+      const arrayInfo = findArrayInPath(fieldPath, schema);
+
+      if (!arrayInfo) {
+        // 非数组字段的联动直接添加到 newDynamicLinkages
+        newDynamicLinkages[fieldPath] = linkage;
+        return;
+      }
+
+      const { arrayPath, fieldPathInArray } = arrayInfo;
+
+      // 从 formData 中获取数组值
+      const arrayValue = formData[arrayPath];
+
+      if (!Array.isArray(arrayValue)) {
+        return;
+      }
+
+      // 为每个数组元素生成联动配置
+      arrayValue.forEach((_, index) => {
+        const elementFieldPath = `${arrayPath}.${index}.${fieldPathInArray}`;
+        const resolvedLinkage = resolveArrayElementLinkage(linkage, elementFieldPath, schema);
+        newDynamicLinkages[elementFieldPath] = resolvedLinkage;
+      });
+    });
+
+    return newDynamicLinkages;
+  }, [baseLinkages, schema, getValues]);
+
   // 合并基础联动和动态联动，并进行循环依赖检测
   const allLinkages = useMemo(() => {
     const merged = { ...baseLinkages, ...dynamicLinkages };
@@ -68,10 +121,10 @@ export function useArrayLinkageManager({
     }
 
     return merged;
-  }, [baseLinkages, dynamicLinkages, onCycleDetected, throwOnCycle]);
+  }, [baseLinkages, dynamicLinkages, onCycleDetected, throwOnCycle, refreshCounter]);
 
   // 使用基础联动管理器
-  const linkageStates = useBaseLinkageManager({
+  const { linkageStates, refresh: baseLinkageRefresh } = useBaseLinkageManager({
     form,
     linkages: allLinkages,
     linkageFunctions,
@@ -85,53 +138,33 @@ export function useArrayLinkageManager({
     }
 
     const subscription = watch(() => {
-      if (!schema) return;
-
-      const formData = getValues();
-      const newDynamicLinkages: Record<string, LinkageConfig> = {};
-
-      // 遍历基础联动配置，找出数组相关的联动
-      Object.entries(baseLinkages).forEach(([fieldPath, linkage]) => {
-        // 如果路径已经包含数字索引（已实例化的联动），需要解析内部的 JSON Pointer 路径
-        if (isArrayElementPath(fieldPath)) {
-          // 调用 resolveArrayElementLinkage 来解析 when.field 等内部的 JSON Pointer 路径
-          const resolvedLinkage = resolveArrayElementLinkage(linkage, fieldPath, schema);
-          newDynamicLinkages[fieldPath] = resolvedLinkage;
-          return;
-        }
-
-        // 使用 schema 查找路径中的数组字段
-        const arrayInfo = findArrayInPath(fieldPath, schema);
-
-        if (!arrayInfo) {
-          // 关键修改：非数组字段的联动直接添加到 newDynamicLinkages
-          // 这样 useArrayLinkageManager 可以同时处理数组和非数组字段的联动
-          newDynamicLinkages[fieldPath] = linkage;
-          return;
-        }
-
-        const { arrayPath, fieldPathInArray } = arrayInfo;
-
-        // 从 formData 中获取数组值
-        const arrayValue = formData[arrayPath];
-
-        if (!Array.isArray(arrayValue)) {
-          return;
-        }
-
-        // 为每个数组元素生成联动配置
-        arrayValue.forEach((_, index) => {
-          const elementFieldPath = `${arrayPath}.${index}.${fieldPathInArray}`;
-          const resolvedLinkage = resolveArrayElementLinkage(linkage, elementFieldPath, schema);
-          newDynamicLinkages[elementFieldPath] = resolvedLinkage;
-        });
-      });
-
+      const newDynamicLinkages = generateDynamicLinkages();
       setDynamicLinkages(newDynamicLinkages);
     });
 
     return () => subscription.unsubscribe();
-  }, [watch, getValues, baseLinkages, schema]);
+  }, [watch, baseLinkages, generateDynamicLinkages]);
 
-  return linkageStates;
+  /**
+   * 刷新联动状态
+   * 1. 重新生成动态联动配置（基于当前表单数据和最新的异步数据）
+   * 2. 更新 refreshCounter 触发 allLinkages 重新计算
+   * 3. 调用基础联动管理器的 refresh 触发联动重新初始化
+   */
+  const refresh = useCallback(() => {
+    // 步骤1: 重新生成动态联动配置
+    const newDynamicLinkages = generateDynamicLinkages();
+    setDynamicLinkages(newDynamicLinkages);
+
+    // 步骤2: 更新计数器，触发 allLinkages 重新计算
+    setRefreshCounter(prev => prev + 1);
+
+    // 步骤3: 调用基础联动管理器的 refresh
+    // 注意：需要在下一个 tick 执行，确保 allLinkages 已经重新计算
+    setTimeout(() => {
+      baseLinkageRefresh();
+    }, 0);
+  }, [generateDynamicLinkages, baseLinkageRefresh]);
+
+  return { linkageStates, refresh };
 }

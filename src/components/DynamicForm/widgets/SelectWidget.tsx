@@ -1,6 +1,7 @@
-import React, { forwardRef } from 'react';
+import { forwardRef } from 'react';
 import { HTMLSelect } from '@blueprintjs/core';
 import type { FieldWidgetProps } from '../types';
+import type { FieldOption } from '../types/schema';
 
 export const SelectWidget = forwardRef<HTMLSelectElement, FieldWidgetProps>(
   (
@@ -18,7 +19,7 @@ export const SelectWidget = forwardRef<HTMLSelectElement, FieldWidgetProps>(
         {...rest}
       >
         {placeholder && <option value="">{placeholder}</option>}
-        {options.map(option => (
+        {options.map((option: FieldOption) => (
           <option key={option.value} value={option.value} disabled={option.disabled}>
             {option.label}
           </option>
