@@ -9,6 +9,7 @@ import { MemoPerformanceTest } from '@/pages/examples/PerformanceTest/MemoPerfor
 import DynamicIconExample from '@/pages/examples/DynamicIconExample';
 import { AsyncSchemaLinkageExample } from '@/pages/examples/NestedForm/AsyncSchemaLinkageExample';
 import { ErrorScrollExample } from '@/pages/examples/ErrorScrollExample';
+import { RefreshLinkageExample } from '@/pages/examples/RefreshLinkageExample';
 
 const AppRouter = () => {
   return (
@@ -24,6 +25,7 @@ const AppRouter = () => {
         <Route path="/dynamic-icon" element={<DynamicIconExample />} />
         <Route path="/async-schema-linkage" element={<AsyncSchemaLinkageExample />} />
         <Route path="/error-scroll" element={<ErrorScrollExample />} />
+        <Route path="/refresh-linkage" element={<RefreshLinkageExample />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
