@@ -704,6 +704,409 @@ const schema = {
 | `className`        | `string`                                        | No       | -            | CSS class name                  |
 | `style`            | `React.CSSProperties`                           | No       | -            | Inline styles                   |
 
+### DynamicFormRef Methods
+
+DynamicForm exposes several methods via ref that allow you to programmatically control the form:
+
+#### Basic Methods
+
+| Method | Signature | Description |
+| ------ | --------- | ----------- |
+| `setValue` | `(name: string, value: any, options?: SetValueOptions) => void` | Set a single field value |
+| `getValue` | `(name: string) => any` | Get a single field value by name |
+| `getValues` | `() => Record<string, any>` | Get all form values as an object |
+| `setValues` | `(values: Record<string, any>, options?: SetValueOptions) => void` | Set multiple field values at once |
+| `reset` | `(values?: Record<string, any>) => void` | Reset form to default or provided values |
+
+**`setValue(name, value, options?)` - Set Field Value**
+
+Set a single field value programmatically.
+
+```typescript
+const formRef = useRef<DynamicFormRef>(null);
+
+// Set a simple field
+formRef.current?.setValue('username', 'john_doe');
+
+// Set with validation
+formRef.current?.setValue('email', 'john@example.com', {
+  shouldValidate: true,  // Trigger validation
+  shouldDirty: true,     // Mark field as dirty
+  shouldTouch: true      // Mark field as touched
+});
+
+// Set nested field
+formRef.current?.setValue('address.city', 'Beijing');
+
+// Set array element
+formRef.current?.setValue('contacts.0.name', 'Alice');
+```
+
+**`getValue(name)` - Get Field Value**
+
+Get a single field value by name.
+
+```typescript
+const username = formRef.current?.getValue('username');
+const city = formRef.current?.getValue('address.city');
+const firstContact = formRef.current?.getValue('contacts.0');
+```
+
+**`getValues()` - Get All Values**
+
+Get all form values as an object.
+
+```typescript
+const allValues = formRef.current?.getValues();
+console.log(allValues);
+// { username: 'john_doe', email: 'john@example.com', address: { city: 'Beijing' } }
+```
+
+**`setValues(values, options?)` - Set Multiple Values**
+
+Set multiple field values at once.
+
+```typescript
+formRef.current?.setValues({
+  username: 'jane_doe',
+  email: 'jane@example.com',
+  'address.city': 'Shanghai'
+}, {
+  shouldValidate: true
+});
+```
+
+**`reset(values?)` - Reset Form**
+
+Reset form to default values or provided values.
+
+```typescript
+// Reset to default values
+formRef.current?.reset();
+
+// Reset to specific values
+formRef.current?.reset({
+  username: '',
+  email: ''
+});
+```
+
+#### Validation Methods
+
+| Method | Signature | Description |
+| ------ | --------- | ----------- |
+| `validate` | `(name?: string) => Promise<boolean>` | Trigger validation for a field or entire form |
+| `getErrors` | `() => Record<string, any>` | Get all validation errors |
+| `clearErrors` | `(name?: string) => void` | Clear validation errors for a field or entire form |
+| `setError` | `(name: string, error: ErrorOption) => void` | Set a validation error manually |
+| `getFormState` | `() => FormState` | Get form state (isDirty, isValid, etc.) |
+
+**`validate(name?)` - Trigger Validation**
+
+Trigger validation for a specific field or the entire form.
+
+```typescript
+// Validate entire form
+const isValid = await formRef.current?.validate();
+if (isValid) {
+  console.log('Form is valid');
+}
+
+// Validate specific field
+const isEmailValid = await formRef.current?.validate('email');
+```
+
+**`getErrors()` - Get Validation Errors**
+
+Get all current validation errors.
+
+```typescript
+const errors = formRef.current?.getErrors();
+console.log(errors);
+// { email: { type: 'pattern', message: 'Invalid email format' } }
+```
+
+**`clearErrors(name?)` - Clear Errors**
+
+Clear validation errors for a specific field or entire form.
+
+```typescript
+// Clear specific field error
+formRef.current?.clearErrors('email');
+
+// Clear all errors
+formRef.current?.clearErrors();
+```
+
+**`setError(name, error)` - Set Error**
+
+Manually set a validation error for a field.
+
+```typescript
+formRef.current?.setError('username', {
+  type: 'manual',
+  message: 'This username is already taken'
+});
+```
+
+**`getFormState()` - Get Form State**
+
+Get current form state information.
+
+```typescript
+const formState = formRef.current?.getFormState();
+console.log(formState);
+// {
+//   isDirty: true,      // Has any field been modified
+//   isValid: false,     // Are all fields valid
+//   isSubmitting: false, // Is form currently submitting
+//   isSubmitted: false,  // Has form been submitted
+//   submitCount: 0       // Number of submit attempts
+// }
+```
+
+#### Linkage Methods
+
+| Method | Signature | Description |
+| ------ | --------- | ----------- |
+| `refreshLinkage` | `() => Promise<void>` | Manually re-trigger linkage initialization |
+
+**`refreshLinkage()` - Manual Linkage Refresh**
+
+This method allows you to manually re-trigger all linkage calculations. This is particularly useful when:
+
+1. **Async Data Loading**: Linkage functions depend on data loaded asynchronously (e.g., from APIs)
+2. **External State Changes**: Data used by linkage functions is updated outside the form
+3. **Dynamic Function Updates**: Linkage functions themselves are updated dynamically
+
+**Usage Example with Async Data:**
+
+```typescript
+import React, { useRef, useState, useEffect } from 'react';
+import { DynamicForm } from '@/components/DynamicForm';
+import type { DynamicFormRef } from '@/components/DynamicForm';
+
+function EmployeeForm() {
+  const formRef = useRef<DynamicFormRef>(null);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Load async data
+  useEffect(() => {
+    async function loadData() {
+      setLoading(true);
+      try {
+        const [deptData, empData] = await Promise.all([
+          fetchDepartments(),
+          fetchEmployees(),
+        ]);
+
+        setDepartments(deptData);
+        setEmployees(empData);
+
+        // Refresh linkage after data is loaded
+        await formRef.current?.refreshLinkage();
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadData();
+  }, []);
+
+  const schema = {
+    type: 'object',
+    properties: {
+      department: {
+        type: 'string',
+        title: 'Department',
+        ui: {
+          linkage: {
+            type: 'options',
+            dependencies: [],
+            fulfill: { function: 'getDepartmentOptions' }
+          }
+        }
+      },
+      employee: {
+        type: 'string',
+        title: 'Employee',
+        ui: {
+          linkage: {
+            type: 'options',
+            dependencies: ['department'],
+            fulfill: { function: 'getEmployeeOptions' }
+          }
+        }
+      }
+    }
+  };
+
+  const linkageFunctions = {
+    getDepartmentOptions: () => {
+      return departments.map(dept => ({
+        label: dept.name,
+        value: dept.id
+      }));
+    },
+    getEmployeeOptions: (formData: any) => {
+      const selectedDept = formData.department;
+      if (!selectedDept) return [];
+
+      return employees
+        .filter(emp => emp.departmentId === selectedDept)
+        .map(emp => ({
+          label: emp.name,
+          value: emp.id
+        }));
+    }
+  };
+
+  return (
+    <DynamicForm
+      ref={formRef}
+      schema={schema}
+      linkageFunctions={linkageFunctions}
+      loading={loading}
+      onSubmit={handleSubmit}
+    />
+  );
+}
+```
+
+**Important Notes:**
+
+- `refreshLinkage()` is asynchronous and returns a Promise
+- It re-calculates all linkage states based on current form values
+- Best practice: Call it after async data has been loaded and state updated
+- For better UX, use a loading state while data is being fetched
+
+**See Also:**
+- [UI Linkage Design (Chinese)](./LINKAGE.md) - Complete linkage system documentation
+- [RefreshLinkage Example](/src/pages/examples/RefreshLinkageExample.tsx) - Full working example
+
+#### Complete Example: Using All DynamicFormRef Methods
+
+Here's a comprehensive example demonstrating all available methods:
+
+```typescript
+import React, { useRef } from 'react';
+import { DynamicForm } from '@/components/DynamicForm';
+import type { DynamicFormRef } from '@/components/DynamicForm';
+
+function UserManagementForm() {
+  const formRef = useRef<DynamicFormRef>(null);
+
+  const schema = {
+    type: 'object',
+    properties: {
+      username: {
+        type: 'string',
+        title: 'Username',
+        minLength: 3,
+        maxLength: 20
+      },
+      email: {
+        type: 'string',
+        title: 'Email',
+        format: 'email'
+      },
+      role: {
+        type: 'string',
+        title: 'Role',
+        enum: ['user', 'admin'],
+        enumNames: ['User', 'Administrator']
+      }
+    },
+    required: ['username', 'email']
+  };
+
+  // Example: Programmatically set values
+  const handleLoadUserData = () => {
+    formRef.current?.setValues({
+      username: 'john_doe',
+      email: 'john@example.com',
+      role: 'admin'
+    }, { shouldValidate: true });
+  };
+
+  // Example: Get and display current values
+  const handleShowValues = () => {
+    const values = formRef.current?.getValues();
+    console.log('Current form values:', values);
+    alert(JSON.stringify(values, null, 2));
+  };
+
+  // Example: Validate before custom action
+  const handleCustomAction = async () => {
+    const isValid = await formRef.current?.validate();
+    if (!isValid) {
+      const errors = formRef.current?.getErrors();
+      console.log('Validation errors:', errors);
+      alert('Please fix validation errors');
+      return;
+    }
+
+    const values = formRef.current?.getValues();
+    console.log('Performing action with:', values);
+  };
+
+  // Example: Check username availability
+  const handleCheckUsername = async () => {
+    const username = formRef.current?.getValue('username');
+
+    // Simulate API call
+    const isAvailable = await checkUsernameAvailability(username);
+
+    if (!isAvailable) {
+      formRef.current?.setError('username', {
+        type: 'manual',
+        message: 'This username is already taken'
+      });
+    } else {
+      formRef.current?.clearErrors('username');
+      alert('Username is available!');
+    }
+  };
+
+  // Example: Reset form
+  const handleReset = () => {
+    formRef.current?.reset();
+  };
+
+  // Example: Check form state
+  const handleCheckState = () => {
+    const state = formRef.current?.getFormState();
+    console.log('Form state:', state);
+    alert(`
+      Dirty: ${state?.isDirty}
+      Valid: ${state?.isValid}
+      Submitted: ${state?.isSubmitted}
+    `);
+  };
+
+  return (
+    <div>
+      <DynamicForm
+        ref={formRef}
+        schema={schema}
+        onSubmit={(data) => console.log('Submitted:', data)}
+      />
+
+      <div style={{ marginTop: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+        <button onClick={handleLoadUserData}>Load User Data</button>
+        <button onClick={handleShowValues}>Show Values</button>
+        <button onClick={handleCustomAction}>Validate & Act</button>
+        <button onClick={handleCheckUsername}>Check Username</button>
+        <button onClick={handleCheckState}>Check State</button>
+        <button onClick={handleReset}>Reset Form</button>
+      </div>
+    </div>
+  );
+}
+```
+
 ---
 
 ## Examples
