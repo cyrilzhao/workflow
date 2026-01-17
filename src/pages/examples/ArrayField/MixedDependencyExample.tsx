@@ -40,7 +40,7 @@ export const MixedDependencyExample: React.FC = () => {
               type: 'string',
               title: '高级工作信息',
               ui: {
-                linkage: {
+                linkages: [{
                   type: 'visibility',
                   dependencies: [
                     '#/properties/enableAdvanced', // JSON Pointer：外部字段
@@ -58,7 +58,7 @@ export const MixedDependencyExample: React.FC = () => {
                   otherwise: {
                     state: { visible: false },
                   },
-                },
+                }],
               },
             },
           },

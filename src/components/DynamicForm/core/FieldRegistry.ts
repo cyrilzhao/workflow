@@ -10,6 +10,8 @@ import {
   NestedFormWidget,
   UrlWidget,
   ArrayFieldWidget,
+  KeyValueArrayWidget,
+  TableArrayWidget,
 } from '../widgets';
 
 export class FieldRegistry {
@@ -29,6 +31,8 @@ export class FieldRegistry {
     ['switch', SwitchWidget],
     ['nested-form', NestedFormWidget],
     ['array', ArrayFieldWidget],
+    ['key-value-array', KeyValueArrayWidget],
+    ['table-array', TableArrayWidget],
   ]);
 
   static register(type: string, component: React.ComponentType<any>) {

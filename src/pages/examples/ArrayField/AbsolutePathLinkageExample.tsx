@@ -39,7 +39,7 @@ export const AbsolutePathLinkageExample: React.FC = () => {
               enumNames: ['青铜', '白银', '黄金', '铂金'],
               ui: {
                 placeholder: '请选择 VIP 等级',
-                linkage: {
+                linkages: [{
                   type: 'visibility',
                   dependencies: ['#/properties/enableVip'], // JSON Pointer 绝对路径
                   when: {
@@ -54,7 +54,7 @@ export const AbsolutePathLinkageExample: React.FC = () => {
                     state: { visible: false },
                     value: '',
                   },
-                },
+                }],
               },
             },
           },

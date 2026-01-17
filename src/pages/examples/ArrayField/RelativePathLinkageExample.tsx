@@ -35,7 +35,7 @@ export const RelativePathLinkageExample: React.FC = () => {
               type: 'string',
               title: '公司名称',
               ui: {
-                linkage: {
+                linkages: [{
                   type: 'visibility',
                   dependencies: ['./type'], // 相对路径：引用同级字段
                   when: {
@@ -49,7 +49,7 @@ export const RelativePathLinkageExample: React.FC = () => {
                   otherwise: {
                     state: { visible: false },
                   },
-                },
+                }],
               },
             },
             phone: {

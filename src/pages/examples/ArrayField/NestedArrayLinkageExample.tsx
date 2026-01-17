@@ -46,7 +46,7 @@ export const NestedArrayLinkageExample: React.FC = () => {
                     type: 'string',
                     title: '技术栈',
                     ui: {
-                      linkage: {
+                      linkages: [{
                         type: 'visibility',
                         dependencies: ['#/properties/departments/items/properties/type'],
                         when: {
@@ -60,7 +60,7 @@ export const NestedArrayLinkageExample: React.FC = () => {
                         otherwise: {
                           state: { visible: false },
                         },
-                      },
+                      }],
                     },
                   },
                 },

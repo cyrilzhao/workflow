@@ -53,13 +53,13 @@ export const CrossArrayDependencyExample: React.FC = () => {
               title: '是否启用',
               ui: {
                 readonly: true,
-                linkage: {
+                linkages: [{
                   type: 'value',
                   dependencies: ['#/properties/permissions'],
                   fulfill: {
                     function: 'checkAdminPermission',
                   },
-                },
+                }],
               },
             },
           },

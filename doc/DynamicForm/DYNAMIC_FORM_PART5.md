@@ -234,15 +234,17 @@ const schema = {
       type: 'string',
       title: '详细地址',
       ui: {
-        linkage: {
-          type: 'visibility',
-          dependencies: ['#/properties/hasAddress'],
-          when: {
-            field: '#/properties/hasAddress',
-            operator: '==',
-            value: true
+        linkages: [
+          {
+            type: 'visibility',
+            dependencies: ['#/properties/hasAddress'],
+            when: {
+              field: '#/properties/hasAddress',
+              operator: '==',
+              value: true
+            }
           }
-        }
+        ]
       }
     },
   },
@@ -259,13 +261,15 @@ const calcSchema = {
       title: '总价',
       ui: {
         readonly: true,
-        linkage: {
-          type: 'value',
-          dependencies: ['#/properties/price', '#/properties/quantity'],
-          fulfill: {
-            function: 'calculateTotal'
+        linkages: [
+          {
+            type: 'value',
+            dependencies: ['#/properties/price', '#/properties/quantity'],
+            fulfill: {
+              function: 'calculateTotal'
+            }
           }
-        }
+        ]
       }
     }
   }

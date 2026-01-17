@@ -55,7 +55,7 @@ export interface UIConfig {
   style?: React.CSSProperties;
   order?: string[];
   errorMessages?: ErrorMessages;
-  linkage?: LinkageConfig;
+  linkages?: LinkageConfig[]; // 联动配置（支持多个联动规则）
   labelWidth?: number | string; // 标签宽度（仅在 horizontal layout 下生效）
   layout?: 'vertical' | 'horizontal' | 'inline'; // 布局方式（优先级高于全局配置）
 

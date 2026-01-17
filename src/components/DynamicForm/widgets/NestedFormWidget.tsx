@@ -54,11 +54,9 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
     // 注册当前 schema 到 Context（当 currentSchema 变化时更新）
     useEffect(() => {
       nestedSchemaRegistry.register(fullPath, currentSchema);
-      console.info(`[NestedFormWidget] 注册字段 "${fullPath}" 的 schema 到 Context`);
 
       return () => {
         nestedSchemaRegistry.unregister(fullPath);
-        console.info(`[NestedFormWidget] 注销字段 "${fullPath}" 的 schema`);
       };
     }, [fullPath, currentSchema, nestedSchemaRegistry]);
 
@@ -80,11 +78,6 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
 
       // 比较 schema 引用是否变化
       if (schema !== prevSchemaRef.current) {
-        console.log('[NestedFormWidget] 检测到 schema prop 变化，同步更新:', {
-          fullPath,
-          prevSchema: prevSchemaRef.current,
-          newSchema: schema,
-        });
         prevSchemaRef.current = schema;
         setCurrentSchema(schema);
       }
@@ -94,12 +87,6 @@ export const NestedFormWidget = forwardRef<HTMLDivElement, NestedFormWidgetProps
     useEffect(() => {
       // 如果没有联动 schema，不需要更新
       if (!linkageSchema) return;
-
-      console.log('[NestedFormWidget] 检测到 schema 联动，更新 schema:', {
-        fullPath,
-        linkageSchema,
-        currentSchemaProperties: Object.keys(linkageSchema.properties || {}),
-      });
 
       // 选择性合并 schema，只更新 properties 和校验相关字段
       // 保留原有的 ui 配置（包括 ui.linkage）

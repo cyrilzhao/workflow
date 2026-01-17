@@ -151,15 +151,17 @@ function extractArrayInfo(path: string) {
         companyName: {
           type: 'string',
           ui: {
-            linkage: {
-              type: 'visibility',
-              dependencies: ['./type'],  // ✅ 相对路径：引用同级的 type 字段
-              when: {
-                field: './type',
-                operator: '==',
-                value: 'work'
+            linkages: [
+              {
+                type: 'visibility',
+                dependencies: ['./type'],  // ✅ 相对路径：引用同级的 type 字段
+                when: {
+                  field: './type',
+                  operator: '==',
+                  value: 'work'
+                }
               }
-            }
+            ]
           }
         }
       }
@@ -212,14 +214,16 @@ function extractArrayInfo(path: string) {
         vipLevel: {
           type: 'string',
           ui: {
-            linkage: {
-              dependencies: ['#/properties/enableVip'],  // ✅ 引用顶层字段
-              when: {
-                field: '#/properties/enableVip',
-                operator: '==',
-                value: true
+            linkages: [
+              {
+                dependencies: ['#/properties/enableVip'],  // ✅ 引用顶层字段
+                when: {
+                  field: '#/properties/enableVip',
+                  operator: '==',
+                  value: true
+                }
               }
-            }
+            ]
           }
         }
       }
@@ -241,15 +245,17 @@ function extractArrayInfo(path: string) {
               techStack: {
                 type: 'string',
                 ui: {
-                  linkage: {
-                    // 引用父数组元素的 type 字段
-                    dependencies: ['#/properties/departments/items/properties/type'],
-                    when: {
-                      field: '#/properties/departments/items/properties/type',
-                      operator: '==',
-                      value: 'tech'
+                  linkages: [
+                    {
+                      // 引用父数组元素的 type 字段
+                      dependencies: ['#/properties/departments/items/properties/type'],
+                      when: {
+                        field: '#/properties/departments/items/properties/type',
+                        operator: '==',
+                        value: 'tech'
+                      }
                     }
-                  }
+                  ]
                 }
               }
             }
@@ -462,10 +468,12 @@ region (flattenPath: true)
         type: { type: 'string' },
         companyName: {
           ui: {
-            linkage: {
-              dependencies: ['./type'],  // 模板：相对路径
-              when: { field: './type', operator: '==', value: 'work' }
-            }
+            linkages: [
+              {
+                dependencies: ['./type'],  // 模板：相对路径
+                when: { field: './type', operator: '==', value: 'work' }
+              }
+            ]
           }
         }
       }
@@ -663,11 +671,13 @@ const schema = {
           type: 'boolean',
           title: '是否成年',
           ui: {
-            linkage: {
-              type: 'value',
-              dependencies: ['./age'], // 相对路径
-              fulfill: { function: 'checkAdult' },
-            },
+            linkages: [
+              {
+                type: 'value',
+                dependencies: ['./age'], // 相对路径
+                fulfill: { function: 'checkAdult' },
+              }
+            ],
           },
         },
       },
@@ -708,22 +718,26 @@ const schema = {
             type: 'string',
             title: '公司名称',
             ui: {
-              linkage: {
-                type: 'visibility',
-                dependencies: ['./type'], // 相对路径：同级字段
-                when: { field: './type', operator: '==', value: 'work' },
-              },
+              linkages: [
+                {
+                  type: 'visibility',
+                  dependencies: ['./type'], // 相对路径：同级字段
+                  when: { field: './type', operator: '==', value: 'work' },
+                }
+              ],
             },
           },
           vipLevel: {
             type: 'string',
             title: 'VIP 等级',
             ui: {
-              linkage: {
-                type: 'visibility',
-                dependencies: ['#/properties/enableVip'], // JSON Pointer：顶层字段
-                when: { field: '#/properties/enableVip', operator: '==', value: true },
-              },
+              linkages: [
+                {
+                  type: 'visibility',
+                  dependencies: ['#/properties/enableVip'], // JSON Pointer：顶层字段
+                  when: { field: '#/properties/enableVip', operator: '==', value: true },
+                }
+              ],
             },
           },
         },
@@ -815,11 +829,13 @@ const schema = {
                             type: 'string',
                             title: 'VIP等级',
                             ui: {
-                              linkage: {
-                                type: 'visibility',
-                                dependencies: ['./type'],
-                                when: { field: './type', operator: '==', value: 'vip' },
-                              },
+                              linkages: [
+                                {
+                                  type: 'visibility',
+                                  dependencies: ['./type'],
+                                  when: { field: './type', operator: '==', value: 'vip' },
+                                }
+                              ],
                             },
                           },
                         },

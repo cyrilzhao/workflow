@@ -64,13 +64,13 @@ export const ComplexFormPanel: React.FC = () => {
             format: 'uri',
             ui: {
               placeholder: 'https://example.com/prototype',
-              linkage: {
+              linkages: [{
                 type: 'visibility',
                 dependencies: ['./hasPrototype'],
                 when: { field: './hasPrototype', operator: '==', value: true },
                 fulfill: { state: { visible: true } },
                 otherwise: { state: { visible: false } },
-              },
+              }],
             },
           },
         },
@@ -167,7 +167,7 @@ export const ComplexFormPanel: React.FC = () => {
         title: '是否需要高层审批',
         ui: {
           widget: 'switch',
-          linkage: {
+          linkages: [{
             type: 'value',
             dependencies: ['budget'],
             when: {
@@ -181,7 +181,7 @@ export const ComplexFormPanel: React.FC = () => {
             otherwise: {
               value: false,
             },
-          },
+          }],
         },
       },
       approver: {
@@ -192,7 +192,7 @@ export const ComplexFormPanel: React.FC = () => {
         ui: {
           widget: 'select',
           placeholder: '请选择审批人',
-          linkage: {
+          linkages: [{
             type: 'visibility',
             dependencies: ['needsApproval'],
             when: {
@@ -206,7 +206,7 @@ export const ComplexFormPanel: React.FC = () => {
             otherwise: {
               state: { visible: false },
             },
-          },
+          }],
         },
       },
       projectDetails: {
@@ -214,7 +214,7 @@ export const ComplexFormPanel: React.FC = () => {
         title: '项目详情',
         properties: {},
         ui: {
-          linkage: {
+          linkages: [{
             type: 'schema',
             dependencies: ['projectType'],
             when: {
@@ -224,7 +224,7 @@ export const ComplexFormPanel: React.FC = () => {
             fulfill: {
               function: 'loadProjectSchema',
             },
-          },
+          }],
         },
       },
       risks: {

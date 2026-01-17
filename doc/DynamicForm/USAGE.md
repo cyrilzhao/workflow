@@ -265,7 +265,15 @@ DynamicForm supports three layout modes:
 
 #### Array Fields
 
-Arrays can be rendered in different ways depending on the `items` configuration:
+DynamicForm 提供了三种不同的 Array Widget 来满足不同的使用场景：
+
+| Widget | 适用场景 | 布局方式 | 虚拟滚动 | 详细文档 |
+|--------|---------|---------|---------|---------|
+| **ArrayFieldWidget** | 通用数组（支持任意类型） | 卡片式/列表式 | ✅ | [查看文档](./ARRAY_FIELD_WIDGET.md) |
+| **KeyValueArrayWidget** | 键值对数组（如环境变量、映射） | 表格式（固定两列） | ❌ | [查看文档](./KEY_VALUE_ARRAY_WIDGET.md) |
+| **TableArrayWidget** | 对象数组（表格展示） | 表格式（自动生成列） | ✅ | [查看文档](./TABLE_ARRAY_WIDGET.md) |
+
+##### 1. ArrayFieldWidget（通用数组）
 
 **Simple Array (Checkboxes)**:
 
@@ -302,7 +310,99 @@ Arrays can be rendered in different ways depending on the `items` configuration:
   },
   minItems: 1,
   ui: {
+    widget: 'array',  // 默认使用 ArrayFieldWidget
     addButtonText: 'Add Contact'
+  }
+}
+```
+
+**Object Array with Virtual Scroll (Large Dataset)**:
+
+For arrays with many items (50+), enable virtual scrolling for better performance:
+
+```typescript
+{
+  type: 'array',
+  title: 'Large Contact List',
+  items: {
+    type: 'object',
+    properties: {
+      name: { type: 'string', title: 'Name' },
+      phone: { type: 'string', title: 'Phone' },
+      email: { type: 'string', title: 'Email', format: 'email' },
+      company: { type: 'string', title: 'Company' }
+    },
+    required: ['name', 'phone']
+  },
+  ui: {
+    widget: 'array',
+    widgetProps: {
+      enableVirtualScroll: true,      // Enable virtual scrolling
+      virtualScrollHeight: 500,       // Scroll container height in pixels
+      addButtonText: 'Add Contact'
+    }
+  }
+}
+```
+
+##### 2. KeyValueArrayWidget（键值对数组）
+
+适用于环境变量、HTTP 头、输出映射等键值对场景：
+
+```typescript
+{
+  type: 'array',
+  title: 'Environment Variables',
+  items: {
+    type: 'object',
+    properties: {
+      key: { type: 'string', title: 'Key' },
+      value: { type: 'string', title: 'Value' }
+    }
+  },
+  ui: {
+    widget: 'key-value-array',
+    widgetProps: {
+      keyField: 'key',
+      valueField: 'value',
+      keyLabel: 'Variable Name',
+      valueLabel: 'Variable Value',
+      keyPlaceholder: 'e.g., API_KEY',
+      valuePlaceholder: 'e.g., your-api-key'
+    }
+  }
+}
+```
+
+##### 3. TableArrayWidget（表格数组）
+
+适用于需要表格形式展示的对象数组，支持虚拟滚动：
+
+```typescript
+{
+  type: 'array',
+  title: 'User List',
+  items: {
+    type: 'object',
+    properties: {
+      name: { type: 'string', title: 'Name' },
+      age: { type: 'number', title: 'Age' },
+      email: { type: 'string', title: 'Email', format: 'email' },
+      role: {
+        type: 'string',
+        title: 'Role',
+        enum: ['admin', 'user', 'guest'],
+        enumNames: ['Admin', 'User', 'Guest']
+      }
+    }
+  },
+  ui: {
+    widget: 'table-array',
+    widgetProps: {
+      enableVirtualScroll: true,
+      virtualScrollHeight: 400,
+      columns: ['name', 'email', 'role', 'age']  // 自定义列顺序
+    }
   }
 }
 ```
@@ -441,21 +541,23 @@ UI linkage allows fields to dynamically change based on other field values.
       type: 'string',
       title: 'Address',
       ui: {
-        linkage: {
-          type: 'visibility',
-          dependencies: ['#/properties/hasAddress'],
-          when: {
-            field: '#/properties/hasAddress',
-            operator: '==',
-            value: true
-          },
-          fulfill: {
-            state: { visible: true }
-          },
-          otherwise: {
-            state: { visible: false }
+        linkages: [
+          {
+            type: 'visibility',
+            dependencies: ['#/properties/hasAddress'],
+            when: {
+              field: '#/properties/hasAddress',
+              operator: '==',
+              value: true
+            },
+            fulfill: {
+              state: { visible: true }
+            },
+            otherwise: {
+              state: { visible: false }
+            }
           }
-        }
+        ]
       }
     }
   }
@@ -481,13 +583,15 @@ const schema = {
       title: 'Total',
       ui: {
         readonly: true,
-        linkage: {
-          type: 'value',
-          dependencies: ['#/properties/price', '#/properties/quantity'],
-          fulfill: {
-            function: 'calculateTotal'
+        linkages: [
+          {
+            type: 'value',
+            dependencies: ['#/properties/price', '#/properties/quantity'],
+            fulfill: {
+              function: 'calculateTotal'
+            }
           }
-        }
+        ]
       }
     }
   }
@@ -522,13 +626,15 @@ const schema = {
       type: 'string',
       title: 'Province/State',
       ui: {
-        linkage: {
-          type: 'options',
-          dependencies: ['#/properties/country'],
-          fulfill: {
-            function: 'getProvinceOptions',
-          },
-        },
+        linkages: [
+          {
+            type: 'options',
+            dependencies: ['#/properties/country'],
+            fulfill: {
+              function: 'getProvinceOptions',
+            },
+          }
+        ],
       },
     },
   },
@@ -580,7 +686,7 @@ const schema = {
 
 #### Dynamic Nested Forms
 
-Switch between different schemas based on field values using linkage:
+Switch between different schemas based on field values using linkages:
 
 ```typescript
 // Define schemas for different user types
@@ -623,12 +729,14 @@ const schema = {
       title: 'Details',
       ui: {
         widget: 'nested-form',
-        linkage: {
-          type: 'schema',
-          dependencies: ['userType'],
-          when: { field: 'userType', operator: 'isNotEmpty' },
-          fulfill: { function: 'loadUserSchema' },
-        },
+        linkages: [
+          {
+            type: 'schema',
+            dependencies: ['userType'],
+            when: { field: 'userType', operator: 'isNotEmpty' },
+            fulfill: { function: 'loadUserSchema' },
+          }
+        ],
       },
     },
   },
@@ -803,7 +911,7 @@ formRef.current?.reset({
 
 **`validate(name?)` - Trigger Validation**
 
-Trigger validation for a specific field or the entire form.
+Trigger validation for a specific field, multiple fields, or the entire form.
 
 ```typescript
 // Validate entire form
@@ -814,6 +922,12 @@ if (isValid) {
 
 // Validate specific field
 const isEmailValid = await formRef.current?.validate('email');
+
+// Validate multiple fields
+const areFieldsValid = await formRef.current?.validate(['email', 'username', 'password']);
+if (areFieldsValid) {
+  console.log('All specified fields are valid');
+}
 ```
 
 **`getErrors()` - Get Validation Errors**
@@ -828,11 +942,14 @@ console.log(errors);
 
 **`clearErrors(name?)` - Clear Errors**
 
-Clear validation errors for a specific field or entire form.
+Clear validation errors for a specific field, multiple fields, or entire form.
 
 ```typescript
 // Clear specific field error
 formRef.current?.clearErrors('email');
+
+// Clear multiple fields' errors
+formRef.current?.clearErrors(['email', 'username', 'password']);
 
 // Clear all errors
 formRef.current?.clearErrors();
@@ -840,13 +957,68 @@ formRef.current?.clearErrors();
 
 **`setError(name, error)` - Set Error**
 
-Manually set a validation error for a field.
+Manually set a validation error for a field. Useful for async validation, server-side validation, or custom business logic validation.
 
 ```typescript
+// Basic usage: Set a manual error
 formRef.current?.setError('username', {
   type: 'manual',
   message: 'This username is already taken'
 });
+
+// Async validation example: Check username availability
+const handleCheckUsername = async () => {
+  const username = formRef.current?.getValue('username');
+
+  try {
+    const response = await fetch(`/api/check-username?username=${username}`);
+    const { available } = await response.json();
+
+    if (!available) {
+      formRef.current?.setError('username', {
+        type: 'manual',
+        message: 'This username is already taken'
+      });
+    } else {
+      formRef.current?.clearErrors('username');
+    }
+  } catch (error) {
+    formRef.current?.setError('username', {
+      type: 'manual',
+      message: 'Failed to check username availability'
+    });
+  }
+};
+
+// Server-side validation example: Handle API errors
+const handleSubmit = async (data: any) => {
+  try {
+    await api.createUser(data);
+  } catch (error: any) {
+    // Set errors from server response
+    if (error.response?.data?.errors) {
+      Object.entries(error.response.data.errors).forEach(([field, message]) => {
+        formRef.current?.setError(field, {
+          type: 'server',
+          message: message as string
+        });
+      });
+    }
+  }
+};
+
+// Custom business logic validation
+const handleValidatePassword = () => {
+  const password = formRef.current?.getValue('password');
+  const confirmPassword = formRef.current?.getValue('confirmPassword');
+
+  if (password !== confirmPassword) {
+    formRef.current?.setError('confirmPassword', {
+      type: 'manual',
+      message: 'Passwords do not match'
+    });
+  }
+};
 ```
 
 **`getFormState()` - Get Form State**
@@ -922,22 +1094,26 @@ function EmployeeForm() {
         type: 'string',
         title: 'Department',
         ui: {
-          linkage: {
-            type: 'options',
-            dependencies: [],
-            fulfill: { function: 'getDepartmentOptions' }
-          }
+          linkages: [
+            {
+              type: 'options',
+              dependencies: [],
+              fulfill: { function: 'getDepartmentOptions' }
+            }
+          ]
         }
       },
       employee: {
         type: 'string',
         title: 'Employee',
         ui: {
-          linkage: {
-            type: 'options',
-            dependencies: ['department'],
-            fulfill: { function: 'getEmployeeOptions' }
-          }
+          linkages: [
+            {
+              type: 'options',
+              dependencies: ['department'],
+              fulfill: { function: 'getEmployeeOptions' }
+            }
+          ]
         }
       }
     }

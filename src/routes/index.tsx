@@ -10,6 +10,10 @@ import DynamicIconExample from '@/pages/examples/DynamicIconExample';
 import { AsyncSchemaLinkageExample } from '@/pages/examples/NestedForm/AsyncSchemaLinkageExample';
 import { ErrorScrollExample } from '@/pages/examples/ErrorScrollExample';
 import { RefreshLinkageExample } from '@/pages/examples/RefreshLinkageExample';
+import { KeyValueArrayExample } from '@/pages/examples/KeyValueArrayExample';
+import { TableArrayExample } from '@/pages/examples/TableArrayExample';
+import { CategoryActionExample } from '@/pages/examples/CategoryActionExample';
+import { MultipleLinkagesExample } from '@/pages/examples/MultipleLinkagesExample';
 
 const AppRouter = () => {
   return (
@@ -26,6 +30,10 @@ const AppRouter = () => {
         <Route path="/async-schema-linkage" element={<AsyncSchemaLinkageExample />} />
         <Route path="/error-scroll" element={<ErrorScrollExample />} />
         <Route path="/refresh-linkage" element={<RefreshLinkageExample />} />
+        <Route path="/key-value-array" element={<KeyValueArrayExample />} />
+        <Route path="/table-array" element={<TableArrayExample />} />
+        <Route path="/category-action" element={<CategoryActionExample />} />
+        <Route path="/multiple-linkages" element={<MultipleLinkagesExample />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

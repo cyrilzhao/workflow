@@ -810,10 +810,12 @@ const schema = {
       type: 'string',
       title: '城市',
       ui: {
-        linkage: {
-          source: ['country'],
-          target: 'city',
-        },
+        linkages: [
+          {
+            source: ['country'],
+            target: 'city',
+          }
+        ],
       },
     },
   },

@@ -150,7 +150,7 @@ export const SchemaLoaderExample: React.FC = () => {
           properties: {},
           ui: {
             flattenPath: true,
-            linkage: {
+            linkages: [{
               type: 'schema',
               dependencies: ['productType'],
               when: {
@@ -160,7 +160,7 @@ export const SchemaLoaderExample: React.FC = () => {
               fulfill: {
                 function: 'loadProductSchema',
               },
-            },
+            }],
           },
         },
       },

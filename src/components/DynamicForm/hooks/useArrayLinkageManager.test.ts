@@ -50,8 +50,8 @@ describe('useArrayLinkageManager - 场景 1: 相对路径依赖', () => {
       // 模拟真实场景：传入已实例化的路径（由 transformToAbsolutePaths 生成）
       // 在实际使用中，NestedFormWidget 会为每个数组元素创建子 DynamicForm，
       // 子 DynamicForm 通过 transformToAbsolutePaths 将模板路径转换为实例化路径
-      const baseLinkages: Record<string, LinkageConfig> = {
-        'contacts.0.companyName': {
+      const baseLinkages: Record<string, LinkageConfig[]> = {
+        'contacts.0.companyName': [{
           type: 'visibility',
           dependencies: ['contacts.0.type'],
           when: {
@@ -65,8 +65,8 @@ describe('useArrayLinkageManager - 场景 1: 相对路径依赖', () => {
           otherwise: {
             state: { visible: false },
           },
-        },
-        'contacts.1.companyName': {
+        }],
+        'contacts.1.companyName': [{
           type: 'visibility',
           dependencies: ['contacts.1.type'],
           when: {
@@ -80,10 +80,10 @@ describe('useArrayLinkageManager - 场景 1: 相对路径依赖', () => {
           otherwise: {
             state: { visible: false },
           },
-        },
+        }],
       };
 
-      const linkageStates = useArrayLinkageManager({
+      const { linkageStates } = useArrayLinkageManager({
         form,
         baseLinkages,
         schema,
@@ -131,8 +131,8 @@ describe('useArrayLinkageManager - 场景 1: 相对路径依赖', () => {
       });
 
       // 模拟真实场景：传入已实例化的路径
-      const baseLinkages: Record<string, LinkageConfig> = {
-        'contacts.0.department': {
+      const baseLinkages: Record<string, LinkageConfig[]> = {
+        'contacts.0.department': [{
           type: 'visibility',
           dependencies: ['contacts.0.type', 'contacts.0.companyName'],
           when: {
@@ -147,10 +147,10 @@ describe('useArrayLinkageManager - 场景 1: 相对路径依赖', () => {
           otherwise: {
             state: { visible: false },
           },
-        },
+        }],
       };
 
-      const linkageStates = useArrayLinkageManager({
+      const { linkageStates } = useArrayLinkageManager({
         form,
         baseLinkages,
         schema,
@@ -201,8 +201,8 @@ describe('useArrayLinkageManager - 场景 2: 绝对路径依赖（数组内依�
       });
 
       // 模拟真实场景：传入已实例化的路径
-      const baseLinkages: Record<string, LinkageConfig> = {
-        'contacts.0.vipLevel': {
+      const baseLinkages: Record<string, LinkageConfig[]> = {
+        'contacts.0.vipLevel': [{
           type: 'visibility',
           dependencies: ['enableVip'],
           when: {
@@ -216,8 +216,8 @@ describe('useArrayLinkageManager - 场景 2: 绝对路径依赖（数组内依�
           otherwise: {
             state: { visible: false },
           },
-        },
-        'contacts.1.vipLevel': {
+        }],
+        'contacts.1.vipLevel': [{
           type: 'visibility',
           dependencies: ['enableVip'],
           when: {
@@ -231,10 +231,10 @@ describe('useArrayLinkageManager - 场景 2: 绝对路径依赖（数组内依�
           otherwise: {
             state: { visible: false },
           },
-        },
+        }],
       };
 
-      const linkageStates = useArrayLinkageManager({
+      const { linkageStates } = useArrayLinkageManager({
         form,
         baseLinkages,
         schema,
@@ -286,8 +286,8 @@ describe('useArrayLinkageManager - 场景 2: 绝对路径依赖（数组内依�
       });
 
       // 模拟真实场景：传入已实例化的路径
-      const baseLinkages: Record<string, LinkageConfig> = {
-        'items.0.advancedSettings': {
+      const baseLinkages: Record<string, LinkageConfig[]> = {
+        'items.0.advancedSettings': [{
           type: 'visibility',
           dependencies: ['showAdvanced'],
           when: {
@@ -301,8 +301,8 @@ describe('useArrayLinkageManager - 场景 2: 绝对路径依赖（数组内依�
           otherwise: {
             state: { visible: false },
           },
-        },
-        'items.1.advancedSettings': {
+        }],
+        'items.1.advancedSettings': [{
           type: 'visibility',
           dependencies: ['showAdvanced'],
           when: {
@@ -316,8 +316,8 @@ describe('useArrayLinkageManager - 场景 2: 绝对路径依赖（数组内依�
           otherwise: {
             state: { visible: false },
           },
-        },
-        'items.2.advancedSettings': {
+        }],
+        'items.2.advancedSettings': [{
           type: 'visibility',
           dependencies: ['showAdvanced'],
           when: {
@@ -331,10 +331,10 @@ describe('useArrayLinkageManager - 场景 2: 绝对路径依赖（数组内依�
           otherwise: {
             state: { visible: false },
           },
-        },
+        }],
       };
 
-      const linkageStates = useArrayLinkageManager({
+      const { linkageStates } = useArrayLinkageManager({
         form,
         baseLinkages,
         schema,
@@ -393,22 +393,22 @@ describe('useArrayLinkageManager - 场景 3: 菱形依赖', () => {
       });
 
       // 模拟真实场景：传入已实例化的路径
-      const baseLinkages: Record<string, LinkageConfig> = {
-        'contacts.0.showCompany': {
+      const baseLinkages: Record<string, LinkageConfig[]> = {
+        'contacts.0.showCompany': [{
           type: 'value',
           dependencies: ['contacts.0.type'],
           fulfill: {
             function: 'calcShowCompany',
           },
-        },
-        'contacts.0.showDepartment': {
+        }],
+        'contacts.0.showDepartment': [{
           type: 'value',
           dependencies: ['contacts.0.type'],
           fulfill: {
             function: 'calcShowDepartment',
           },
-        },
-        'contacts.0.workInfo': {
+        }],
+        'contacts.0.workInfo': [{
           type: 'visibility',
           dependencies: ['contacts.0.showCompany', 'contacts.0.showDepartment'],
           when: {
@@ -423,7 +423,7 @@ describe('useArrayLinkageManager - 场景 3: 菱形依赖', () => {
           otherwise: {
             state: { visible: false },
           },
-        },
+        }],
       };
 
       const linkageFunctions: Record<string, LinkageFunction> = {
@@ -435,7 +435,7 @@ describe('useArrayLinkageManager - 场景 3: 菱形依赖', () => {
         },
       };
 
-      const linkageStates = useArrayLinkageManager({
+      const { linkageStates } = useArrayLinkageManager({
         form,
         baseLinkages,
         linkageFunctions,
@@ -491,8 +491,8 @@ describe('useArrayLinkageManager - 场景 4: 混合依赖（外部 + 内部相�
       });
 
       // 模拟真实场景：传入已实例化的路径
-      const baseLinkages: Record<string, LinkageConfig> = {
-        'contacts.0.advancedWorkInfo': {
+      const baseLinkages: Record<string, LinkageConfig[]> = {
+        'contacts.0.advancedWorkInfo': [{
           type: 'visibility',
           dependencies: ['enableAdvanced', 'contacts.0.type'],
           when: {
@@ -507,8 +507,8 @@ describe('useArrayLinkageManager - 场景 4: 混合依赖（外部 + 内部相�
           otherwise: {
             state: { visible: false },
           },
-        },
-        'contacts.1.advancedWorkInfo': {
+        }],
+        'contacts.1.advancedWorkInfo': [{
           type: 'visibility',
           dependencies: ['enableAdvanced', 'contacts.1.type'],
           when: {
@@ -523,10 +523,10 @@ describe('useArrayLinkageManager - 场景 4: 混合依赖（外部 + 内部相�
           otherwise: {
             state: { visible: false },
           },
-        },
+        }],
       };
 
-      const linkageStates = useArrayLinkageManager({
+      const { linkageStates } = useArrayLinkageManager({
         form,
         baseLinkages,
         schema,
@@ -598,21 +598,21 @@ describe('useArrayLinkageManager - 场景 5: 跨数组联动', () => {
       });
 
       // 模拟真实场景：传入已实例化的路径
-      const baseLinkages: Record<string, LinkageConfig> = {
-        'features.0.enabled': {
+      const baseLinkages: Record<string, LinkageConfig[]> = {
+        'features.0.enabled': [{
           type: 'value',
           dependencies: ['permissions'],
           fulfill: {
             function: 'checkAdminPermission',
           },
-        },
-        'features.1.enabled': {
+        }],
+        'features.1.enabled': [{
           type: 'value',
           dependencies: ['permissions'],
           fulfill: {
             function: 'checkAdminPermission',
           },
-        },
+        }],
       };
 
       const linkageFunctions: Record<string, LinkageFunction> = {
@@ -622,7 +622,7 @@ describe('useArrayLinkageManager - 场景 5: 跨数组联动', () => {
         },
       };
 
-      const linkageStates = useArrayLinkageManager({
+      const { linkageStates } = useArrayLinkageManager({
         form,
         baseLinkages,
         linkageFunctions,
@@ -686,21 +686,21 @@ describe('useArrayLinkageManager - 场景 5: 跨数组联动', () => {
       });
 
       // 模拟真实场景：传入已实例化的路径
-      const baseLinkages: Record<string, LinkageConfig> = {
-        'reminders.0.notifyImmediately': {
+      const baseLinkages: Record<string, LinkageConfig[]> = {
+        'reminders.0.notifyImmediately': [{
           type: 'value',
           dependencies: ['tasks'],
           fulfill: {
             function: 'checkUrgentTasks',
           },
-        },
-        'reminders.1.notifyImmediately': {
+        }],
+        'reminders.1.notifyImmediately': [{
           type: 'value',
           dependencies: ['tasks'],
           fulfill: {
             function: 'checkUrgentTasks',
           },
-        },
+        }],
       };
 
       const linkageFunctions: Record<string, LinkageFunction> = {
@@ -710,7 +710,7 @@ describe('useArrayLinkageManager - 场景 5: 跨数组联动', () => {
         },
       };
 
-      const linkageStates = useArrayLinkageManager({
+      const { linkageStates } = useArrayLinkageManager({
         form,
         baseLinkages,
         linkageFunctions,
@@ -783,8 +783,8 @@ describe('useArrayLinkageManager - 场景 6: 嵌套数组联动', () => {
       });
 
       // 模拟真实场景：传入已实例化的路径（嵌套数组）
-      const baseLinkages: Record<string, LinkageConfig> = {
-        'departments.0.employees.0.techStack': {
+      const baseLinkages: Record<string, LinkageConfig[]> = {
+        'departments.0.employees.0.techStack': [{
           type: 'visibility',
           dependencies: ['departments.0.type'],
           when: {
@@ -798,8 +798,8 @@ describe('useArrayLinkageManager - 场景 6: 嵌套数组联动', () => {
           otherwise: {
             state: { visible: false },
           },
-        },
-        'departments.0.employees.1.techStack': {
+        }],
+        'departments.0.employees.1.techStack': [{
           type: 'visibility',
           dependencies: ['departments.0.type'],
           when: {
@@ -813,8 +813,8 @@ describe('useArrayLinkageManager - 场景 6: 嵌套数组联动', () => {
           otherwise: {
             state: { visible: false },
           },
-        },
-        'departments.1.employees.0.techStack': {
+        }],
+        'departments.1.employees.0.techStack': [{
           type: 'visibility',
           dependencies: ['departments.1.type'],
           when: {
@@ -828,10 +828,10 @@ describe('useArrayLinkageManager - 场景 6: 嵌套数组联动', () => {
           otherwise: {
             state: { visible: false },
           },
-        },
+        }],
       };
 
-      const linkageStates = useArrayLinkageManager({
+      const { linkageStates } = useArrayLinkageManager({
         form,
         baseLinkages,
         schema,
@@ -910,21 +910,21 @@ describe('useArrayLinkageManager - 场景 6: 嵌套数组联动', () => {
       });
 
       // 模拟真实场景：传入已实例化的路径
-      const baseLinkages: Record<string, LinkageConfig> = {
-        'departments.0.employeeCount': {
+      const baseLinkages: Record<string, LinkageConfig[]> = {
+        'departments.0.employeeCount': [{
           type: 'value',
           dependencies: ['departments.0.employees'],
           fulfill: {
             function: 'countEmployees',
           },
-        },
-        'departments.0.totalSalary': {
+        }],
+        'departments.0.totalSalary': [{
           type: 'value',
           dependencies: ['departments.0.employees'],
           fulfill: {
             function: 'sumSalaries',
           },
-        },
+        }],
       };
 
       const linkageFunctions: Record<string, LinkageFunction> = {
@@ -937,7 +937,7 @@ describe('useArrayLinkageManager - 场景 6: 嵌套数组联动', () => {
         },
       };
 
-      const linkageStates = useArrayLinkageManager({
+      const { linkageStates } = useArrayLinkageManager({
         form,
         baseLinkages,
         linkageFunctions,
@@ -990,14 +990,14 @@ describe('useArrayLinkageManager - 场景 7: 数组聚合计算（外部字段�
         totalPrice: { type: 'number' },
       });
 
-      const baseLinkages: Record<string, LinkageConfig> = {
-        totalPrice: {
+      const baseLinkages: Record<string, LinkageConfig[]> = {
+        totalPrice: [{
           type: 'value',
           dependencies: ['#/properties/items'],
           fulfill: {
             function: 'calculateTotal',
           },
-        },
+        }],
       };
 
       const linkageFunctions: Record<string, LinkageFunction> = {
@@ -1010,7 +1010,7 @@ describe('useArrayLinkageManager - 场景 7: 数组聚合计算（外部字段�
         },
       };
 
-      const linkageStates = useArrayLinkageManager({
+      const { linkageStates } = useArrayLinkageManager({
         form,
         baseLinkages,
         linkageFunctions,
@@ -1022,14 +1022,14 @@ describe('useArrayLinkageManager - 场景 7: 数组聚合计算（外部字段�
 
     // 初始状态：总价 = 100*2 + 50*3 = 350
     await waitFor(() => {
-      expect(result.current.linkageStates.totalPrice?.value).toBe(350);
+      expect(result.current.linkageStates['totalPrice']?.value).toBe(350);
     });
 
     // 修改第一个商品的数量
     result.current.form.setValue('items.0.quantity', 5);
 
     await waitFor(() => {
-      expect(result.current.linkageStates.totalPrice?.value).toBe(650); // 100*5 + 50*3
+      expect(result.current.linkageStates['totalPrice']?.value).toBe(650); // 100*5 + 50*3
     });
   });
 
@@ -1060,14 +1060,14 @@ describe('useArrayLinkageManager - 场景 7: 数组聚合计算（外部字段�
         vipCount: { type: 'number' },
       });
 
-      const baseLinkages: Record<string, LinkageConfig> = {
-        vipCount: {
+      const baseLinkages: Record<string, LinkageConfig[]> = {
+        vipCount: [{
           type: 'value',
           dependencies: ['#/properties/contacts'],
           fulfill: {
             function: 'countVip',
           },
-        },
+        }],
       };
 
       const linkageFunctions: Record<string, LinkageFunction> = {
@@ -1077,7 +1077,7 @@ describe('useArrayLinkageManager - 场景 7: 数组聚合计算（外部字段�
         },
       };
 
-      const linkageStates = useArrayLinkageManager({
+      const { linkageStates } = useArrayLinkageManager({
         form,
         baseLinkages,
         linkageFunctions,
@@ -1127,29 +1127,29 @@ describe('useArrayLinkageManager - 循环依赖检测', () => {
       });
 
       // 创建循环依赖：a -> b -> c -> a（使用实例化路径）
-      const baseLinkages: Record<string, LinkageConfig> = {
-        'contacts.0.a': {
+      const baseLinkages: Record<string, LinkageConfig[]> = {
+        'contacts.0.a': [{
           type: 'value',
           dependencies: ['contacts.0.c'],
           fulfill: { function: 'calc' },
-        },
-        'contacts.0.b': {
+        }],
+        'contacts.0.b': [{
           type: 'value',
           dependencies: ['contacts.0.a'],
           fulfill: { function: 'calc' },
-        },
-        'contacts.0.c': {
+        }],
+        'contacts.0.c': [{
           type: 'value',
           dependencies: ['contacts.0.b'],
           fulfill: { function: 'calc' },
-        },
+        }],
       };
 
       const linkageFunctions: Record<string, LinkageFunction> = {
         calc: (formData: any) => 0,
       };
 
-      const linkageStates = useArrayLinkageManager({
+      const { linkageStates } = useArrayLinkageManager({
         form,
         baseLinkages,
         linkageFunctions,
@@ -1193,17 +1193,17 @@ describe('useArrayLinkageManager - 循环依赖检测', () => {
         });
 
         // 创建循环依赖：a -> b -> a（使用实例化路径）
-        const baseLinkages: Record<string, LinkageConfig> = {
-          'contacts.0.a': {
+        const baseLinkages: Record<string, LinkageConfig[]> = {
+          'contacts.0.a': [{
             type: 'value',
             dependencies: ['contacts.0.b'],
             fulfill: { function: 'calc' },
-          },
-          'contacts.0.b': {
+          }],
+          'contacts.0.b': [{
             type: 'value',
             dependencies: ['contacts.0.a'],
             fulfill: { function: 'calc' },
-          },
+          }],
         };
 
         const linkageFunctions: Record<string, LinkageFunction> = {
@@ -1249,8 +1249,8 @@ describe('useArrayLinkageManager - 边界情况和错误处理', () => {
         },
       });
 
-      const baseLinkages: Record<string, LinkageConfig> = {
-        'contacts.companyName': {
+      const baseLinkages: Record<string, LinkageConfig[]> = {
+        'contacts.companyName': [{
           type: 'visibility',
           dependencies: ['./type'],
           when: {
@@ -1264,10 +1264,10 @@ describe('useArrayLinkageManager - 边界情况和错误处理', () => {
           otherwise: {
             state: { visible: false },
           },
-        },
+        }],
       };
 
-      const linkageStates = useArrayLinkageManager({
+      const { linkageStates } = useArrayLinkageManager({
         form,
         baseLinkages,
         schema,
@@ -1290,8 +1290,8 @@ describe('useArrayLinkageManager - 边界情况和错误处理', () => {
         },
       });
 
-      const baseLinkages: Record<string, LinkageConfig> = {
-        'contacts.0.companyName': {
+      const baseLinkages: Record<string, LinkageConfig[]> = {
+        'contacts.0.companyName': [{
           type: 'visibility',
           dependencies: ['contacts.0.type'],
           when: {
@@ -1305,10 +1305,10 @@ describe('useArrayLinkageManager - 边界情况和错误处理', () => {
           otherwise: {
             state: { visible: false },
           },
-        },
+        }],
       };
 
-      const linkageStates = useArrayLinkageManager({
+      const { linkageStates } = useArrayLinkageManager({
         form,
         baseLinkages,
         // 不传递 schema
@@ -1337,8 +1337,8 @@ describe('useArrayLinkageManager - 边界情况和错误处理', () => {
         featureName: { type: 'string' },
       });
 
-      const baseLinkages: Record<string, LinkageConfig> = {
-        featureName: {
+      const baseLinkages: Record<string, LinkageConfig[]> = {
+        featureName: [{
           type: 'visibility',
           dependencies: ['#/properties/enableFeature'],
           when: {
@@ -1352,10 +1352,10 @@ describe('useArrayLinkageManager - 边界情况和错误处理', () => {
           otherwise: {
             state: { visible: false },
           },
-        },
+        }],
       };
 
-      const linkageStates = useArrayLinkageManager({
+      const { linkageStates } = useArrayLinkageManager({
         form,
         baseLinkages,
         schema,

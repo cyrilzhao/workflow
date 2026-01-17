@@ -37,13 +37,13 @@ export const DiamondDependencyExample: React.FC = () => {
               title: '显示公司信息',
               ui: {
                 readonly: true,
-                linkage: {
+                linkages: [{
                   type: 'value',
                   dependencies: ['./type'],
                   fulfill: {
                     function: 'calcShowCompany',
                   },
-                },
+                }],
               },
             },
             showDepartment: {
@@ -51,20 +51,20 @@ export const DiamondDependencyExample: React.FC = () => {
               title: '显示部门信息',
               ui: {
                 readonly: true,
-                linkage: {
+                linkages: [{
                   type: 'value',
                   dependencies: ['./type'],
                   fulfill: {
                     function: 'calcShowDepartment',
                   },
-                },
+                }],
               },
             },
             workInfo: {
               type: 'string',
               title: '工作信息',
               ui: {
-                linkage: {
+                linkages: [{
                   type: 'visibility',
                   dependencies: ['./showCompany', './showDepartment'],
                   when: {
@@ -79,7 +79,7 @@ export const DiamondDependencyExample: React.FC = () => {
                   otherwise: {
                     state: { visible: false },
                   },
-                },
+                }],
               },
             },
           },

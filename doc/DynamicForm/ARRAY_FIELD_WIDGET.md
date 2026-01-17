@@ -373,6 +373,124 @@ const { fields, append, remove, move } = useFieldArray({
 
 ---
 
+### 3.6 虚拟滚动优化
+
+**适用场景**：当数组包含大量元素（建议 50+ 项）时，启用虚拟滚动可以显著提升性能。
+
+**核心特性**：
+- ✅ 只渲染可见区域的元素
+- ✅ 支持动态高度
+- ✅ 流畅的滚动体验
+- ✅ 基于 `react-virtuoso` 实现
+
+#### 配置方式
+
+通过 `ui.widgetProps` 配置虚拟滚动：
+
+```typescript
+{
+  type: 'array',
+  title: 'Large Dataset',
+  items: {
+    type: 'object',
+    properties: {
+      name: { type: 'string', title: 'Name' },
+      email: { type: 'string', title: 'Email' }
+    }
+  },
+  ui: {
+    widget: 'array',
+    widgetProps: {
+      enableVirtualScroll: true,      // 启用虚拟滚动
+      virtualScrollHeight: 400,       // 滚动容器高度（像素）
+      addButtonText: 'Add Item'       // 可选：自定义添加按钮文本
+    }
+  }
+}
+```
+
+#### 配置参数说明
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `enableVirtualScroll` | boolean | false | 是否启用虚拟滚动 |
+| `virtualScrollHeight` | number | 400 | 滚动容器高度（像素） |
+| `addButtonText` | string | 'Add' | 添加按钮文本 |
+
+#### 性能对比
+
+| 数组大小 | 不使用虚拟滚动 | 使用虚拟滚动 |
+|---------|---------------|-------------|
+| 50 项   | 流畅          | 流畅        |
+| 100 项  | 轻微卡顿      | 流畅        |
+| 500 项  | 明显卡顿      | 流畅        |
+| 1000+ 项 | 严重卡顿     | 流畅        |
+
+#### 使用建议
+
+1. **何时启用**：
+   - 数组元素超过 50 项
+   - 每个元素包含复杂的表单字段
+   - 用户需要频繁滚动查看数据
+
+2. **何时不启用**：
+   - 数组元素少于 30 项
+   - 需要同时看到所有元素（如打印预览）
+   - 元素高度变化非常频繁
+
+3. **最佳实践**：
+   - 根据实际数据量调整 `virtualScrollHeight`
+   - 对于复杂表单，建议设置较大的高度（500-600px）
+   - 简单列表可以使用较小的高度（300-400px）
+
+#### 完整示例
+
+```typescript
+const schema = {
+  type: 'object',
+  properties: {
+    users: {
+      type: 'array',
+      title: 'User List (1000+ items)',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', title: 'ID' },
+          name: { type: 'string', title: 'Name' },
+          email: { type: 'string', title: 'Email', format: 'email' },
+          role: {
+            type: 'string',
+            title: 'Role',
+            enum: ['admin', 'user', 'guest'],
+            enumNames: ['Admin', 'User', 'Guest']
+          }
+        },
+        required: ['name', 'email']
+      },
+      ui: {
+        widget: 'array',
+        widgetProps: {
+          enableVirtualScroll: true,
+          virtualScrollHeight: 500,
+          addButtonText: 'Add User'
+        }
+      }
+    }
+  }
+};
+
+// 使用
+<DynamicForm
+  schema={schema}
+  defaultValues={{
+    users: generateLargeDataset(1000) // 1000 条数据
+  }}
+  onSubmit={handleSubmit}
+/>
+```
+
+---
+
 ## 4. 类型定义和接口设计
 
 ### 4.1 组件 Props 定义
@@ -1907,7 +2025,7 @@ const handleSubmit = (data: any) => {
       type: 'array',
       items: { type: 'string' },
       ui: {
-        linkage: {
+        linkages: [{
           type: 'visibility',
           dependencies: ['enableTags'],
           condition: {
@@ -1915,7 +2033,7 @@ const handleSubmit = (data: any) => {
             operator: '==',
             value: true
           }
-        }
+        }]
       }
     }
   }
@@ -1949,11 +2067,11 @@ const handleSubmit = (data: any) => {
         companyName: {
           type: 'string',
           ui: {
-            linkage: {
+            linkages: [{
               type: 'visibility',
               dependencies: ['./type'],  // 相对路径
               when: { field: './type', operator: '==', value: 'work' }
-            }
+            }]
           }
         }
       }
@@ -1982,11 +2100,11 @@ const handleSubmit = (data: any) => {
         vipLevel: {
           type: 'string',
           ui: {
-            linkage: {
+            linkages: [{
               type: 'visibility',
               dependencies: ['enableVip'],  // 绝对路径，指向外部
               when: { field: 'enableVip', operator: '==', value: true }
-            }
+            }]
           }
         }
       }
@@ -2015,27 +2133,27 @@ const handleSubmit = (data: any) => {
         showCompany: {
           type: 'boolean',
           ui: {
-            linkage: {
+            linkages: [{
               type: 'value',
               dependencies: ['./type'],
               fulfill: { function: 'calcShowCompany' }
-            }
+            }]
           }
         },
         showDepartment: {
           type: 'boolean',
           ui: {
-            linkage: {
+            linkages: [{
               type: 'value',
               dependencies: ['./type'],
               fulfill: { function: 'calcShowDepartment' }
-            }
+            }]
           }
         },
         workInfo: {
           type: 'string',
           ui: {
-            linkage: {
+            linkages: [{
               type: 'visibility',
               dependencies: ['./showCompany', './showDepartment'],
               when: {
@@ -2044,7 +2162,7 @@ const handleSubmit = (data: any) => {
                   { field: './showDepartment', operator: '==', value: true }
                 ]
               }
-            }
+            }]
           }
         }
       }

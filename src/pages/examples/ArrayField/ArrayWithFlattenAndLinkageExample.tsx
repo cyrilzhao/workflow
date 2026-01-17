@@ -23,7 +23,7 @@ export const ArrayWithFlattenAndLinkageExample: React.FC = () => {
         ui: {
           flattenPath: true,
           flattenPrefix: true,
-          linkage: {
+          linkages: [{
             type: 'visibility',
             dependencies: ['#/properties/enableRegion'],
             when: {
@@ -37,7 +37,7 @@ export const ArrayWithFlattenAndLinkageExample: React.FC = () => {
             otherwise: {
               state: { visible: false },
             },
-          },
+          }],
         },
         properties: {
           market: {
@@ -66,7 +66,7 @@ export const ArrayWithFlattenAndLinkageExample: React.FC = () => {
                           title: 'apiKey',
                           type: 'string',
                           ui: {
-                            linkage: {
+                            linkages: [{
                               type: 'visibility',
                               dependencies: ['./enableAuth'],
                               when: {
@@ -80,14 +80,14 @@ export const ArrayWithFlattenAndLinkageExample: React.FC = () => {
                               otherwise: {
                                 state: { visible: false },
                               },
-                            },
+                            }],
                           },
                         },
                         apiSecret: {
                           title: 'apiSecret',
                           type: 'string',
                           ui: {
-                            linkage: {
+                            linkages: [{
                               type: 'visibility',
                               dependencies: ['./enableAuth'],
                               when: {
@@ -101,7 +101,7 @@ export const ArrayWithFlattenAndLinkageExample: React.FC = () => {
                               otherwise: {
                                 state: { visible: false },
                               },
-                            },
+                            }],
                           },
                         },
                       },
@@ -150,7 +150,7 @@ export const ArrayWithFlattenAndLinkageExample: React.FC = () => {
                               enumNames: ['金卡', '银卡', '铜卡'],
                               ui: {
                                 placeholder: '请选择VIP等级',
-                                linkage: {
+                                linkages: [{
                                   type: 'visibility',
                                   dependencies: ['./type'],
                                   when: {
@@ -164,7 +164,7 @@ export const ArrayWithFlattenAndLinkageExample: React.FC = () => {
                                   otherwise: {
                                     state: { visible: false },
                                   },
-                                },
+                                }],
                               },
                             },
                           },

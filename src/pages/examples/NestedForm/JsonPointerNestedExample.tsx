@@ -110,7 +110,7 @@ export const JsonPointerNestedExample: React.FC = () => {
             properties: {},
             ui: {
               widget: 'nested-form',
-              linkage: {
+              linkages: [{
                 type: 'schema',
                 dependencies: ['#/properties/company/properties/type'],
                 when: {
@@ -120,7 +120,7 @@ export const JsonPointerNestedExample: React.FC = () => {
                 fulfill: {
                   function: 'loadCompanySchema',
                 },
-              },
+              }],
             },
           },
         },

@@ -13,7 +13,7 @@ import { PathResolver } from '../utils/pathResolver';
 
 interface ArrayLinkageManagerOptions {
   form: UseFormReturn<any>;
-  baseLinkages: Record<string, LinkageConfig>;
+  baseLinkages: Record<string, LinkageConfig[]>; // v3.1: 支持多联动类型
   linkageFunctions?: Record<string, LinkageFunction>;
   schema?: ExtendedJSONSchema; // 用于完整的路径解析
   /** 检测到循环依赖时的回调 */
@@ -38,7 +38,8 @@ export function useArrayLinkageManager({
   const { watch, getValues } = form;
 
   // 动态联动配置（包含运行时生成的数组元素联动）
-  const [dynamicLinkages, setDynamicLinkages] = useState<Record<string, LinkageConfig>>({});
+  // v3.1: 支持多联动类型，值为数组格式
+  const [dynamicLinkages, setDynamicLinkages] = useState<Record<string, LinkageConfig[]>>({});
 
   // 强制刷新计数器，用于触发联动重新初始化
   const [refreshCounter, setRefreshCounter] = useState(0);
@@ -46,21 +47,25 @@ export function useArrayLinkageManager({
   /**
    * 根据当前表单数据生成动态联动配置
    * 这个函数会被 watch 回调和 refresh 函数调用
+   *
+   * v3.1 更新：支持多联动类型，处理数组格式的联动配置
    */
-  const generateDynamicLinkages = useCallback((): Record<string, LinkageConfig> => {
+  const generateDynamicLinkages = useCallback((): Record<string, LinkageConfig[]> => {
     if (!schema || Object.keys(baseLinkages).length === 0) {
       return {};
     }
 
     const formData = getValues();
-    const newDynamicLinkages: Record<string, LinkageConfig> = {};
+    const newDynamicLinkages: Record<string, LinkageConfig[]> = {};
 
     // 遍历基础联动配置，找出数组相关的联动
-    Object.entries(baseLinkages).forEach(([fieldPath, linkage]) => {
+    Object.entries(baseLinkages).forEach(([fieldPath, linkageArray]) => {
       // 如果路径已经包含数字索引（已实例化的联动），需要解析内部的 JSON Pointer 路径
       if (isArrayElementPath(fieldPath)) {
-        const resolvedLinkage = resolveArrayElementLinkage(linkage, fieldPath, schema);
-        newDynamicLinkages[fieldPath] = resolvedLinkage;
+        const resolvedLinkages = linkageArray.map(linkage =>
+          resolveArrayElementLinkage(linkage, fieldPath, schema)
+        );
+        newDynamicLinkages[fieldPath] = resolvedLinkages;
         return;
       }
 
@@ -69,7 +74,7 @@ export function useArrayLinkageManager({
 
       if (!arrayInfo) {
         // 非数组字段的联动直接添加到 newDynamicLinkages
-        newDynamicLinkages[fieldPath] = linkage;
+        newDynamicLinkages[fieldPath] = linkageArray;
         return;
       }
 
@@ -85,8 +90,10 @@ export function useArrayLinkageManager({
       // 为每个数组元素生成联动配置
       arrayValue.forEach((_, index) => {
         const elementFieldPath = `${arrayPath}.${index}.${fieldPathInArray}`;
-        const resolvedLinkage = resolveArrayElementLinkage(linkage, elementFieldPath, schema);
-        newDynamicLinkages[elementFieldPath] = resolvedLinkage;
+        const resolvedLinkages = linkageArray.map(linkage =>
+          resolveArrayElementLinkage(linkage, elementFieldPath, schema)
+        );
+        newDynamicLinkages[elementFieldPath] = resolvedLinkages;
       });
     });
 
@@ -94,15 +101,19 @@ export function useArrayLinkageManager({
   }, [baseLinkages, schema, getValues]);
 
   // 合并基础联动和动态联动，并进行循环依赖检测
+  // v3.1 更新：支持数组格式的联动配置
   const allLinkages = useMemo(() => {
     const merged = { ...baseLinkages, ...dynamicLinkages };
 
     // 构建临时依赖图进行循环依赖检测
     const tempGraph = new DependencyGraph();
-    Object.entries(merged).forEach(([fieldName, linkage]) => {
-      linkage.dependencies.forEach(dep => {
-        const normalizedDep = PathResolver.toFieldPath(dep);
-        tempGraph.addDependency(fieldName, normalizedDep);
+    Object.entries(merged).forEach(([fieldName, linkageArray]) => {
+      // 遍历数组中的每个联动配置
+      linkageArray.forEach(linkage => {
+        linkage.dependencies.forEach(dep => {
+          const normalizedDep = PathResolver.toFieldPath(dep);
+          tempGraph.addDependency(fieldName, normalizedDep);
+        });
       });
     });
 

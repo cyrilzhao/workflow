@@ -282,7 +282,7 @@ export const AsyncSchemaLinkageExample: React.FC = () => {
           properties: {},
           ui: {
             // 使用 schema 类型联动，根据 actionId 动态加载 schema
-            linkage: {
+            linkages: [{
               type: 'schema',
               dependencies: ['#/properties/actionId'],
               // 启用缓存，避免重复的 API 调用
@@ -294,7 +294,7 @@ export const AsyncSchemaLinkageExample: React.FC = () => {
               fulfill: {
                 function: 'loadActionContentSchema',
               },
-            },
+            }],
           },
         },
         // 其他配置

@@ -45,7 +45,7 @@ export const ArrayWithLinkageExample: React.FC = () => {
               type: 'string',
               title: '公司名称',
               ui: {
-                linkage: {
+                linkages: [{
                   type: 'visibility',
                   dependencies: ['./type'],
                   when: {
@@ -59,14 +59,14 @@ export const ArrayWithLinkageExample: React.FC = () => {
                   otherwise: {
                     state: { visible: false },
                   },
-                },
+                }],
               },
             },
             department: {
               type: 'string',
               title: '部门',
               ui: {
-                linkage: {
+                linkages: [{
                   type: 'visibility',
                   dependencies: ['./type'],
                   when: {
@@ -80,7 +80,7 @@ export const ArrayWithLinkageExample: React.FC = () => {
                   otherwise: {
                     state: { visible: false },
                   },
-                },
+                }],
               },
             },
           },
@@ -90,7 +90,7 @@ export const ArrayWithLinkageExample: React.FC = () => {
         ui: {
           arrayMode: 'dynamic',
           addButtonText: '添加联系人',
-          linkage: {
+          linkages: [{
             type: 'visibility',
             dependencies: ['showContacts'],
             when: {
@@ -104,7 +104,7 @@ export const ArrayWithLinkageExample: React.FC = () => {
             otherwise: {
               state: { visible: false },
             },
-          },
+          }],
         },
       },
     },

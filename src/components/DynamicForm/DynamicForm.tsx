@@ -211,7 +211,7 @@ const DynamicFormInner = React.memo(
 
           // 如果有父级联动状态，过滤掉已经在父级计算过的联动
           if (linkageStateContext?.parentLinkageStates) {
-            const filtered: Record<string, LinkageConfig> = {};
+            const filtered: Record<string, LinkageConfig[]> = {};
             Object.entries(transformed).forEach(([key, value]) => {
               if (!(key in linkageStateContext.parentLinkageStates)) {
                 filtered[key] = value;

@@ -58,9 +58,11 @@
         companyName: {
           type: 'string',
           ui: {
-            linkage: {
-              dependencies: ['./type']  // 相对路径
-            }
+            linkages: [
+              {
+                dependencies: ['./type']  // 相对路径
+              }
+            ]
           }
         }
       }
@@ -273,11 +275,13 @@ Schema 解析阶段
           type: 'string',
           title: '公司名称',
           ui: {
-            linkage: {
-              type: 'visibility',
-              dependencies: ['./type'],  // 相对路径
-              when: { field: './type', operator: '==', value: 'work' }
-            }
+            linkages: [
+              {
+                type: 'visibility',
+                dependencies: ['./type'],  // 相对路径
+                when: { field: './type', operator: '==', value: 'work' }
+              }
+            ]
           }
         }
       }
@@ -333,11 +337,11 @@ Schema 解析阶段
           type: 'string',
           title: 'VIP 等级',
           ui: {
-            linkage: {
+            linkages: [{
               type: 'visibility',
               dependencies: ['#/properties/enableVip'],  // JSON Pointer 绝对路径
               when: { field: '#/properties/enableVip', operator: '==', value: true }
-            }
+            }]
           }
         }
       }
@@ -380,27 +384,27 @@ Schema 解析阶段
         showCompany: {
           type: 'boolean',
           ui: {
-            linkage: {
+            linkages: [{
               type: 'value',
               dependencies: ['./type'],
               fulfill: { function: 'calcShowCompany' }
-            }
+            }]
           }
         },
         showDepartment: {
           type: 'boolean',
           ui: {
-            linkage: {
+            linkages: [{
               type: 'value',
               dependencies: ['./type'],
               fulfill: { function: 'calcShowDepartment' }
-            }
+            }]
           }
         },
         workInfo: {
           type: 'string',
           ui: {
-            linkage: {
+            linkages: [{
               type: 'visibility',
               dependencies: ['./showCompany', './showDepartment'],
               when: {
@@ -409,7 +413,7 @@ Schema 解析阶段
                   { field: './showDepartment', operator: '==', value: true }
                 ]
               }
-            }
+            }]
           }
         }
       }
@@ -469,7 +473,7 @@ showCompany showDepartment
           type: 'string',
           title: '高级工作信息',
           ui: {
-            linkage: {
+            linkages: [{
               type: 'visibility',
               dependencies: ['#/properties/enableAdvanced', './type'],  // 混合：JSON Pointer + 相对路径
               when: {
@@ -478,7 +482,7 @@ showCompany showDepartment
                   { field: './type', operator: '==', value: 'work' }
                 ]
               }
-            }
+            }]
           }
         }
       }
@@ -549,13 +553,13 @@ enableAdvanced (外部)
           type: 'boolean',
           title: '是否启用',
           ui: {
-            linkage: {
+            linkages: [{
               type: 'value',
               dependencies: ['#/properties/permissions'],
               fulfill: {
                 function: 'checkAdminPermission'
               }
-            }
+            }]
           }
         }
       }
@@ -631,13 +635,13 @@ export const checkAdminPermission: LinkageFunction = (
           type: 'boolean',
           title: '立即通知',
           ui: {
-            linkage: {
+            linkages: [{
               type: 'value',
               dependencies: ['#/properties/tasks'],
               fulfill: {
                 function: 'checkUrgentTasks'
               }
-            }
+            }]
           }
         }
       }
@@ -699,7 +703,7 @@ export const checkUrgentTasks: LinkageFunction = (
                 type: 'string',
                 title: '技术栈',
                 ui: {
-                  linkage: {
+                  linkages: [{
                     type: 'visibility',
                     dependencies: ['#/properties/departments/items/properties/type'],  // JSON Pointer
                     when: {
@@ -707,7 +711,7 @@ export const checkUrgentTasks: LinkageFunction = (
                       operator: '==',
                       value: 'tech'
                     }
-                  }
+                  }]
                 }
               }
             }
@@ -769,7 +773,7 @@ export const checkUrgentTasks: LinkageFunction = (
                 type: 'string',
                 title: '高级技术工具',
                 ui: {
-                  linkage: {
+                  linkages: [{
                     type: 'visibility',
                     dependencies: [
                       '#/properties/enableAdvanced',  // 外部字段
@@ -781,7 +785,7 @@ export const checkUrgentTasks: LinkageFunction = (
                         { field: '#/properties/departments/items/properties/type', operator: '==', value: 'tech' }
                       ]
                     }
-                  }
+                  }]
                 }
               }
             }
@@ -838,13 +842,13 @@ export const checkUrgentTasks: LinkageFunction = (
           title: '员工数量',
           ui: {
             readonly: true,
-            linkage: {
+            linkages: [{
               type: 'value',
               dependencies: ['#/properties/departments/items/properties/employees'],
               fulfill: {
                 function: 'countEmployees'
               }
-            }
+            }]
           }
         },
         totalSalary: {
@@ -852,13 +856,13 @@ export const checkUrgentTasks: LinkageFunction = (
           title: '部门总薪资',
           ui: {
             readonly: true,
-            linkage: {
+            linkages: [{
               type: 'value',
               dependencies: ['#/properties/departments/items/properties/employees'],
               fulfill: {
                 function: 'sumSalaries'
               }
-            }
+            }]
           }
         }
       }
@@ -953,13 +957,13 @@ export const sumSalaries: LinkageFunction = (formData: any, context?: LinkageFun
     title: '总价',
     ui: {
       readonly: true,
-      linkage: {
+      linkages: [{
         type: 'value',
         dependencies: ['#/properties/items'],  // JSON Pointer 依赖整个数组
         fulfill: {
           function: 'calculateTotal'
         }
-      }
+      }]
     }
   }
 }
@@ -1014,13 +1018,13 @@ export const calculateTotal: LinkageFunction = (formData: any) => {
     title: 'VIP 客户数量',
     ui: {
       readonly: true,
-      linkage: {
+      linkages: [{
         type: 'value',
         dependencies: ['#/properties/contacts'],  // JSON Pointer
         fulfill: {
           function: 'countVip'
         }
-      }
+      }]
     }
   }
 }
@@ -1055,7 +1059,7 @@ export const countVip: LinkageFunction = (formData: any) => {
           title: '占比 (%)',
           ui: {
             readonly: true,
-            linkage: {
+            linkages: [{
               type: 'value',
               dependencies: [
                 './price',
@@ -1065,7 +1069,7 @@ export const countVip: LinkageFunction = (formData: any) => {
               fulfill: {
                 function: 'calculatePercentage'
               }
-            }
+            }]
           }
         }
       }
@@ -1813,10 +1817,10 @@ const linkageStates = useArrayLinkageManager({
 {
   companyName: {
     ui: {
-      linkage: {
+      linkages: [{
         dependencies: ['./type'],  // 相对路径
         // ...
-      }
+      }]
     }
   }
 }
@@ -1839,10 +1843,10 @@ const linkageStates = useArrayLinkageManager({
 {
   vipLevel: {
     ui: {
-      linkage: {
+      linkages: [{
         dependencies: ['#/properties/enableVip'],  // 外部字段
         // ...
-      }
+      }]
     }
   }
 }
@@ -1865,13 +1869,13 @@ const linkageStates = useArrayLinkageManager({
 {
   advancedWorkInfo: {
     ui: {
-      linkage: {
+      linkages: [{
         dependencies: [
           '#/properties/enableAdvanced',  // 外部字段
           './type'                        // 同级字段
         ],
         // ...
-      }
+      }]
     }
   }
 }
@@ -1894,10 +1898,10 @@ const linkageStates = useArrayLinkageManager({
 {
   techStack: {
     ui: {
-      linkage: {
+      linkages: [{
         dependencies: ['#/properties/departments/items/properties/type'],  // 父数组字段
         // ...
-      }
+      }]
     }
   }
 }
@@ -1922,10 +1926,10 @@ const linkageStates = useArrayLinkageManager({
 {
   enabled: {
     ui: {
-      linkage: {
+      linkages: [{
         dependencies: ['#/properties/permissions'],  // 整个数组
         // ...
-      }
+      }]
     }
   }
 }
@@ -2124,22 +2128,22 @@ function toTemplatePathForCache(depPath: string, currentFieldPath: string): stri
 ```typescript
 // ✅ 推荐：为异步联动启用缓存
 {
-  linkage: {
+  linkages: [{
     type: 'options',
     dependencies: ['./country'],
     fulfill: { function: 'loadProvinceOptions' }, // 异步API调用
     enableCache: true, // ✅ 异步联动建议启用缓存
-  }
+  }]
 }
 
 // ❌ 不推荐：为简单联动启用缓存
 {
-  linkage: {
+  linkages: [{
     type: 'visibility',
     dependencies: ['./type'],
     when: { field: './type', operator: '==', value: 'work' },
     // enableCache: false (默认禁用，简单联动不需要缓存)
-  }
+  }]
 }
 ```
 

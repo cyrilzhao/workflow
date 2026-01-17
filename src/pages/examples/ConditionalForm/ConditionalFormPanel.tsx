@@ -17,7 +17,7 @@ export const ConditionalFormPanel: React.FC = () => {
         minLength: 5,
         ui: {
           placeholder: '请输入详细地址',
-          linkage: {
+          linkages: [{
             type: 'visibility',
             dependencies: ['hasAddress'],
             when: {
@@ -31,7 +31,7 @@ export const ConditionalFormPanel: React.FC = () => {
             otherwise: {
               state: { visible: false },
             },
-          },
+          }],
         },
       },
     },

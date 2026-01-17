@@ -8,8 +8,6 @@ import {
   Settings,
   Sliders,
   ArrowRightLeft,
-  Plus,
-  Trash2,
   Play,
   AlertCircle,
   Loader2,
@@ -70,6 +68,7 @@ export const NodeConfigModal: React.FC<NodeConfigModalProps> = ({
   const [testError, setTestError] = useState<string | null>(null);
   const [pendingValidation, setPendingValidation] = useState(false);
   const formRef = useRef<DynamicFormRef>(null);
+  const outputFormRef = useRef<DynamicFormRef>(null);
 
   useEffect(() => {
     if (node) {
@@ -80,6 +79,7 @@ export const NodeConfigModal: React.FC<NodeConfigModalProps> = ({
       setPendingValidation(false);
 
       formRef.current?.setValues({ ...node.data });
+      outputFormRef.current?.setValues({ outputMappings: node.data.outputMappings || [] });
     }
   }, [node]);
 
@@ -184,29 +184,44 @@ export const NodeConfigModal: React.FC<NodeConfigModalProps> = ({
     }));
   };
 
-  const addOutputMapping = () => {
-    const newMapping = { source: '', target: '' };
+  // Output tab schema 定义
+  const outputSchema = {
+    type: 'object',
+    properties: {
+      outputMappings: {
+        type: 'array',
+        title: 'Output Variable Mapping',
+        items: {
+          type: 'object',
+          properties: {
+            target: { type: 'string', title: 'Variable Name' },
+            source: { type: 'string', title: 'Expression' },
+          },
+        },
+        ui: {
+          widget: 'key-value-array',
+          widgetProps: {
+            keyField: 'target',
+            valueField: 'source',
+            keyLabel: 'Variable Name',
+            valueLabel: 'Expression',
+            keyPlaceholder: 'Variable Name',
+            valuePlaceholder: 'Expression',
+            addButtonText: 'Add',
+            emptyText: 'No output mappings configured',
+          },
+        },
+      },
+    },
+  };
+
+  // 处理 output form 的变化
+  const handleOutputChange = useCallback((data: any) => {
     setFormData((prev: any) => ({
       ...prev,
-      outputMappings: [...(prev.outputMappings || []), newMapping],
+      outputMappings: data.outputMappings || [],
     }));
-  };
-
-  const updateOutputMapping = (index: number, field: 'source' | 'target', value: string) => {
-    setFormData((prev: any) => {
-      const newMappings = [...(prev.outputMappings || [])];
-      newMappings[index] = { ...newMappings[index], [field]: value };
-      return { ...prev, outputMappings: newMappings };
-    });
-  };
-
-  const removeOutputMapping = (index: number) => {
-    setFormData((prev: any) => {
-      const newMappings = [...(prev.outputMappings || [])];
-      newMappings.splice(index, 1);
-      return { ...prev, outputMappings: newMappings };
-    });
-  };
+  }, []);
 
   return (
     <div className="node-config-modal-overlay">
@@ -271,57 +286,15 @@ export const NodeConfigModal: React.FC<NodeConfigModalProps> = ({
           )}
 
           {activeTab === 'output' && (
-            <div className="mapping-section">
-              <div className="section-title">
-                Output Variable Mapping
-                <button className="add-btn" onClick={addOutputMapping}>
-                  <Plus size={14} /> Add
-                </button>
-              </div>
-
-              {(formData.outputMappings || []).length > 0 && (
-                <div className="mapping-header">
-                  <div className="col-variable">Variable Name</div>
-                  <div className="col-arrow"></div>
-                  <div className="col-expression">Expression</div>
-                  <div className="col-action"></div>
-                </div>
-              )}
-
-              <div className="mapping-list">
-                {(formData.outputMappings || []).length === 0 ? (
-                  <div className="mapping-empty">No output mappings configured</div>
-                ) : (
-                  (formData.outputMappings || []).map((mapping: any, index: number) => (
-                    <div key={index} className="mapping-item">
-                      <div className="field-group">
-                        <input
-                          type="text"
-                          value={mapping.target}
-                          onChange={e => updateOutputMapping(index, 'target', e.target.value)}
-                          placeholder="Variable Name"
-                        />
-                      </div>
-                      <div className="arrow">=</div>
-                      <div className="field-group">
-                        <input
-                          type="text"
-                          value={mapping.source}
-                          onChange={e => updateOutputMapping(index, 'source', e.target.value)}
-                          placeholder="Expression"
-                        />
-                      </div>
-                      <button
-                        className="delete-btn"
-                        onClick={() => removeOutputMapping(index)}
-                        title="Remove Mapping"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
+            <div className="output-config">
+              <DynamicForm
+                ref={outputFormRef}
+                schema={outputSchema}
+                defaultValues={{ outputMappings: formData.outputMappings || [] }}
+                onChange={handleOutputChange}
+                showSubmitButton={false}
+                renderAsForm={false}
+              />
             </div>
           )}
 

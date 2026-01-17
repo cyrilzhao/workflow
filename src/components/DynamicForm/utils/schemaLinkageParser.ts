@@ -7,10 +7,14 @@ import { resolveRelativePath } from './pathTransformer';
  * 新方案（v3.0）：
  * - 移除 PathMapping，不再需要路径映射
  * - 移除 hasFlattenPath，不再需要检测
+ *
+ * v3.1 更新：
+ * - 支持多联动类型：linkages 的值类型为 LinkageConfig[]
+ * - 移除单个 linkage 配置的支持
  */
 export interface ParsedLinkages {
-  /** 联动配置（使用标准路径作为 key） */
-  linkages: Record<string, LinkageConfig>;
+  /** 联动配置（使用标准路径作为 key，值为联动配置数组） */
+  linkages: Record<string, LinkageConfig[]>;
 }
 
 /**
@@ -19,6 +23,10 @@ export interface ParsedLinkages {
  * 新方案（v3.0）：
  * - 使用标准的 . 分隔符
  * - 移除 PathMapping 逻辑
+ *
+ * v3.1 更新：
+ * - 支持多联动类型：只解析 linkages 数组配置
+ * - 移除单个 linkage 配置的支持
  *
  * 分层计算策略：
  * - 解析所有字段的联动配置，但在遇到数组字段时停止递归
@@ -29,7 +37,7 @@ export interface ParsedLinkages {
  * @param schema - JSON Schema
  */
 export function parseSchemaLinkages(schema: ExtendedJSONSchema): ParsedLinkages {
-  const linkages: Record<string, LinkageConfig> = {};
+  const linkages: Record<string, LinkageConfig[]> = {};
 
   // 递归解析 schema，收集所有联动配置
   parseSchemaRecursive(schema, '', linkages);
@@ -53,14 +61,17 @@ export function parseSchemaLinkages(schema: ExtendedJSONSchema): ParsedLinkages 
  * - 使用标准的 . 分隔符
  * - 移除路径映射逻辑
  *
+ * v3.1 更新：
+ * - 支持多联动类型：只解析 linkages 数组配置
+ *
  * @param schema - 当前 schema
  * @param parentPath - 父路径
- * @param linkages - 收集的联动配置
+ * @param linkages - 收集的联动配置（数组格式）
  */
 function parseSchemaRecursive(
   schema: ExtendedJSONSchema,
   parentPath: string,
-  linkages: Record<string, LinkageConfig>
+  linkages: Record<string, LinkageConfig[]>
 ): void {
   if (!schema.properties) {
     return;
@@ -92,23 +103,25 @@ function parseSchemaRecursive(
           fieldName,
           type: typedSchema.type,
           currentPath,
-          hasLinkage: !!typedSchema.ui?.linkage,
+          hasLinkages: !!typedSchema.ui?.linkages,
         })
       );
     }
 
-    // 收集当前字段的联动配置
-    if (typedSchema.ui?.linkage) {
+    // 收集当前字段的联动配置（只支持 linkages 数组）
+    const linkagesArray = typedSchema.ui?.linkages;
+
+    if (linkagesArray && Array.isArray(linkagesArray) && linkagesArray.length > 0) {
       if (process.env.NODE_ENV !== 'production') {
         console.log(
           '[parseSchemaRecursive] 找到联动配置:',
           JSON.stringify({
             currentPath,
-            linkage: typedSchema.ui.linkage,
+            linkagesCount: linkagesArray.length,
           })
         );
       }
-      linkages[currentPath] = typedSchema.ui.linkage;
+      linkages[currentPath] = linkagesArray;
     }
 
     // 递归处理嵌套对象
@@ -137,33 +150,37 @@ function parseSchemaRecursive(
  *
  * 新方案（v3.0）：使用标准的 . 分隔符
  *
- * @param linkages - 原始联动配置（相对路径）
+ * v3.1 更新：支持数组格式的联动配置
+ *
+ * @param linkages - 原始联动配置（相对路径，数组格式）
  * @param pathPrefix - 路径前缀（如 'contacts.0'）
- * @returns 转换后的联动配置（绝对路径）
+ * @returns 转换后的联动配置（绝对路径，数组格式）
  *
  * @example
- * // 输入：{ 'companyName': {...}, 'department': {...} }
+ * // 输入：{ 'companyName': [{...}], 'department': [{...}] }
  * // pathPrefix: 'contacts.0'
- * // 输出：{ 'contacts.0.companyName': {...}, 'contacts.0.department': {...} }
+ * // 输出：{ 'contacts.0.companyName': [{...}], 'contacts.0.department': [{...}] }
  */
 export function transformToAbsolutePaths(
-  linkages: Record<string, LinkageConfig>,
+  linkages: Record<string, LinkageConfig[]>,
   pathPrefix: string
-): Record<string, LinkageConfig> {
+): Record<string, LinkageConfig[]> {
   if (!pathPrefix) {
     return linkages;
   }
 
-  const result: Record<string, LinkageConfig> = {};
+  const result: Record<string, LinkageConfig[]> = {};
 
-  Object.entries(linkages).forEach(([fieldPath, linkage]) => {
+  Object.entries(linkages).forEach(([fieldPath, linkageArray]) => {
     // 使用标准的 . 分隔符构建绝对路径
     const absolutePath = fieldPath ? `${pathPrefix}.${fieldPath}` : pathPrefix;
 
-    // 转换联动配置内部的路径引用
-    const transformedLinkage = transformLinkageConfigPaths(linkage, pathPrefix, absolutePath);
+    // 转换数组中每个联动配置内部的路径引用
+    const transformedLinkages = linkageArray.map(linkage =>
+      transformLinkageConfigPaths(linkage, pathPrefix, absolutePath)
+    );
 
-    result[absolutePath] = transformedLinkage;
+    result[absolutePath] = transformedLinkages;
   });
 
   return result;

@@ -47,13 +47,13 @@ export const ArrayAggregationExample: React.FC = () => {
         title: '总价',
         ui: {
           readonly: true,
-          linkage: {
+          linkages: [{
             type: 'value',
             dependencies: ['#/properties/items'],
             fulfill: {
               function: 'calculateTotal',
             },
-          },
+          }],
         },
       },
     },

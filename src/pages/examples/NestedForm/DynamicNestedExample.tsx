@@ -85,7 +85,7 @@ export const DynamicNestedExample: React.FC = () => {
         properties: {},
         ui: {
           widget: 'nested-form',
-          linkage: {
+          linkages: [{
             type: 'schema',
             dependencies: ['userType'],
             when: {
@@ -95,7 +95,7 @@ export const DynamicNestedExample: React.FC = () => {
             fulfill: {
               function: 'loadUserSchema',
             },
-          },
+          }],
         },
       },
     },

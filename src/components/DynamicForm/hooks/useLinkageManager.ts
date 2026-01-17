@@ -116,7 +116,7 @@ function extractArrayContext(fieldPath: string): { arrayPath?: string; arrayInde
 
 interface LinkageManagerOptions {
   form: UseFormReturn<any>;
-  linkages: Record<string, LinkageConfig>;
+  linkages: Record<string, LinkageConfig[]>; // v3.1: 支持多联动类型
   linkageFunctions?: Record<string, LinkageFunction>;
 }
 
@@ -142,14 +142,18 @@ export function useLinkageManager({
   const cache = useRef(new LinkageResultCache()).current;
 
   // 构建依赖图
+  // v3.1 更新：支持数组格式的联动配置
   const dependencyGraph = useMemo(() => {
     const graph = new DependencyGraph();
 
-    Object.entries(linkages).forEach(([fieldName, linkage]) => {
-      linkage.dependencies.forEach(dep => {
-        // 标准化路径并添加依赖关系
-        const normalizedDep = PathResolver.toFieldPath(dep);
-        graph.addDependency(fieldName, normalizedDep);
+    Object.entries(linkages).forEach(([fieldName, linkageArray]) => {
+      // 遍历数组中的每个联动配置
+      linkageArray.forEach(linkage => {
+        linkage.dependencies.forEach(dep => {
+          // 标准化路径并添加依赖关系
+          const normalizedDep = PathResolver.toFieldPath(dep);
+          graph.addDependency(fieldName, normalizedDep);
+        });
       });
     });
 
@@ -219,8 +223,10 @@ export function useLinkageManager({
 
         // 批量更新表单
         affectedFields.forEach(fieldName => {
-          const linkage = linkages[fieldName];
-          if (linkage?.type === 'value' && updatedFormData[fieldName] !== undefined) {
+          const linkageArray = linkages[fieldName];
+          // 检查是否有 value 类型的联动
+          const hasValueLinkage = linkageArray?.some(linkage => linkage.type === 'value');
+          if (hasValueLinkage && updatedFormData[fieldName] !== undefined) {
             const currentValue = getValues(fieldName);
             if (currentValue !== updatedFormData[fieldName]) {
               taskQueue.markFieldUpdating(fieldName);
@@ -255,6 +261,7 @@ export function useLinkageManager({
       const formData = { ...getValues() };
 
       // 使用拓扑层级并行计算所有联动
+      // 注意：初始化阶段跳过序列号检查，因为不存在竞态条件
       const { states, updatedFormData } = await evaluateLinkagesByLayers({
         fields: Object.keys(linkages),
         linkages,
@@ -263,6 +270,7 @@ export function useLinkageManager({
         asyncSequenceManager,
         dependencyGraph,
         cache,
+        skipSequenceCheck: true,
       });
 
       setLinkageStates(states);
@@ -270,8 +278,10 @@ export function useLinkageManager({
       // 批量更新表单（将计算出的值联动结果写入表单）
       taskQueue.setUpdatingForm(true);
       Object.keys(linkages).forEach(fieldName => {
-        const linkage = linkages[fieldName];
-        if (linkage?.type === 'value' && updatedFormData[fieldName] !== undefined) {
+        const linkageArray = linkages[fieldName];
+        // 检查是否有 value 类型的联动
+        const hasValueLinkage = linkageArray?.some(linkage => linkage.type === 'value');
+        if (hasValueLinkage && updatedFormData[fieldName] !== undefined) {
           const currentValue = getValues(fieldName);
           if (currentValue !== updatedFormData[fieldName]) {
             // ✅ 标记字段正在被联动更新，防止 watch 误判为用户修改
@@ -289,7 +299,7 @@ export function useLinkageManager({
       taskQueue.setUpdatingForm(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [linkages, linkageFunctions, dependencyGraph, refreshCounter]);
+  }, [linkages, dependencyGraph, refreshCounter]);
 
   // 统一的字段变化监听和联动处理（使用任务队列）
   useEffect(() => {
@@ -326,7 +336,7 @@ export function useLinkageManager({
 
     return () => subscription.unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watch, linkages, linkageFunctions, dependencyGraph]);
+  }, [watch, linkages, dependencyGraph]);
 
   // 暴露刷新方法
   const refresh = useCallback(() => {
@@ -355,14 +365,16 @@ async function evaluateLinkagesByLayers({
   asyncSequenceManager,
   dependencyGraph,
   cache,
+  skipSequenceCheck = false,
 }: {
   fields: string[];
-  linkages: Record<string, LinkageConfig>;
+  linkages: Record<string, LinkageConfig[]>; // v3.1: 支持多联动类型
   formData: Record<string, any>;
   linkageFunctions: Record<string, LinkageFunction>;
   asyncSequenceManager: AsyncSequenceManager;
   dependencyGraph: DependencyGraph;
   cache?: LinkageResultCache;
+  skipSequenceCheck?: boolean;
 }): Promise<{
   states: Record<string, LinkageResult>;
   updatedFormData: Record<string, any>;
@@ -374,23 +386,87 @@ async function evaluateLinkagesByLayers({
   const layers = dependencyGraph.getTopologicalLayers(fields);
 
   // 按层级串行执行，层内并行计算
+  // v3.1 更新：支持多联动类型，并行计算并合并结果
   for (const layer of layers) {
     // 并行计算当前层的所有字段
     const layerResults = await Promise.allSettled(
       layer.map(async fieldName => {
-        const linkage = linkages[fieldName];
-        if (!linkage) return { fieldName, result: null };
+        const linkageArray = linkages[fieldName];
+
+        if (!linkageArray || linkageArray.length === 0) return { fieldName, result: null };
 
         try {
-          const result = await evaluateLinkage({
-            linkage,
-            formData: updatedFormData,
-            linkageFunctions,
-            fieldPath: fieldName,
-            asyncSequenceManager,
-            cache,
+          // 并行计算该字段的所有联动配置
+          const linkageResults = await Promise.allSettled(
+            linkageArray.map(linkage =>
+              evaluateLinkage({
+                linkage,
+                formData: updatedFormData,
+                linkageFunctions,
+                fieldPath: fieldName,
+                asyncSequenceManager,
+                cache,
+                skipSequenceCheck,
+              })
+            )
+          );
+
+          // 合并多个联动结果
+          // v3.1: 支持多联动配置，使用正确的合并策略
+          const mergedResult: LinkageResult = {};
+
+          linkageResults.forEach((settledResult, index) => {
+            if (settledResult.status === 'fulfilled') {
+              const linkageResult = settledResult.value;
+              const linkageType = linkageArray[index].type;
+
+              // 根据联动类型使用不同的合并策略
+              if (linkageType === 'visibility') {
+                // visibility: 使用 AND 逻辑（所有联动都为 true 才显示）
+                if (linkageResult.visible !== undefined) {
+                  mergedResult.visible = mergedResult.visible === undefined
+                    ? linkageResult.visible
+                    : mergedResult.visible && linkageResult.visible;
+                }
+              } else if (linkageType === 'disabled') {
+                // disabled: 使用 OR 逻辑（任何一个联动禁用就禁用）
+                if (linkageResult.disabled !== undefined) {
+                  mergedResult.disabled = mergedResult.disabled === undefined
+                    ? linkageResult.disabled
+                    : mergedResult.disabled || linkageResult.disabled;
+                }
+              } else if (linkageType === 'readonly') {
+                // readonly: 使用 OR 逻辑（任何一个联动只读就只读）
+                if (linkageResult.readonly !== undefined) {
+                  mergedResult.readonly = mergedResult.readonly === undefined
+                    ? linkageResult.readonly
+                    : mergedResult.readonly || linkageResult.readonly;
+                }
+              } else if (linkageType === 'value') {
+                // value: 后者覆盖前者（按配置顺序）
+                if (linkageResult.value !== undefined) {
+                  mergedResult.value = linkageResult.value;
+                }
+              } else if (linkageType === 'options') {
+                // options: 后者覆盖前者（按配置顺序）
+                if (linkageResult.options !== undefined) {
+                  mergedResult.options = linkageResult.options;
+                }
+              } else if (linkageType === 'schema') {
+                // schema: 深度合并（后者覆盖前者的属性）
+                if (linkageResult.schema !== undefined) {
+                  mergedResult.schema = mergedResult.schema
+                    ? { ...mergedResult.schema, ...linkageResult.schema }
+                    : linkageResult.schema;
+                }
+              }
+            } else if (settledResult.status === 'rejected') {
+              // 记录联动函数执行失败的错误
+              console.error('[evaluateLinkagesByLayers] 联动函数执行失败:', fieldName, settledResult.reason);
+            }
           });
-          return { fieldName, result };
+
+          return { fieldName, result: mergedResult };
         } catch (error) {
           // 如果是过期的异步结果，返回 null
           if (error instanceof StaleResultError) {
@@ -413,8 +489,7 @@ async function evaluateLinkagesByLayers({
           states[fieldName] = result;
 
           // 如果是值联动，更新 formData 以供后续层使用
-          const linkage = linkages[fieldName];
-          if (linkage?.type === 'value' && result.value !== undefined) {
+          if (result.value !== undefined) {
             updatedFormData[fieldName] = result.value;
           }
         }
@@ -435,6 +510,7 @@ async function evaluateLinkage({
   fieldPath,
   asyncSequenceManager,
   cache,
+  skipSequenceCheck = false,
 }: {
   linkage: LinkageConfig;
   formData: Record<string, any>;
@@ -442,6 +518,7 @@ async function evaluateLinkage({
   fieldPath: string;
   asyncSequenceManager: AsyncSequenceManager;
   cache?: LinkageResultCache;
+  skipSequenceCheck?: boolean;
 }): Promise<LinkageResult> {
   // ✅ 缓存优化：检查是否启用缓存（默认禁用）
   const isCacheEnabled = linkage.enableCache === true;
@@ -475,7 +552,9 @@ async function evaluateLinkage({
 
   const effect = shouldFulfill ? linkage.fulfill : linkage.otherwise;
 
-  if (!effect) return result;
+  if (!effect) {
+    return result;
+  }
 
   // 1. 应用状态变更
   if (effect.state) {
@@ -493,9 +572,13 @@ async function evaluateLinkage({
       const fnResult = await fn(formData, context);
 
       // 检查序列号是否仍然是最新的（防止竞态条件）
-      if (!asyncSequenceManager.isLatest(fieldPath, sequence)) {
-        // 抛出过期错误，让调用方决定如何处理
-        throw new StaleResultError(fieldPath, sequence);
+      // 注意：初始化阶段跳过序列号检查，因为不存在竞态条件
+      if (!skipSequenceCheck) {
+        const isLatest = asyncSequenceManager.isLatest(fieldPath, sequence);
+        if (!isLatest) {
+          // 抛出过期错误，让调用方决定如何处理
+          throw new StaleResultError(fieldPath, sequence);
+        }
       }
 
       // 根据 linkage.type 决定将结果赋值给哪个字段

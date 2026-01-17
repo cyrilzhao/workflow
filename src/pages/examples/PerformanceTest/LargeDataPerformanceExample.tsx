@@ -179,7 +179,7 @@ function generateComplexSchema(arrayItemCount: number, nestedLevel: number): Ext
         type: 'object',
         title: 'Type A Configuration',
         ui: {
-          linkage: {
+          linkages: [{
             type: 'visibility',
             dependencies: ['formType'],
             when: {
@@ -189,7 +189,7 @@ function generateComplexSchema(arrayItemCount: number, nestedLevel: number): Ext
             },
             fulfill: { state: { visible: true } },
             otherwise: { state: { visible: false } },
-          },
+          }],
         },
         properties: generateTypeSpecificFields('A', 10),
       },
@@ -198,7 +198,7 @@ function generateComplexSchema(arrayItemCount: number, nestedLevel: number): Ext
         type: 'object',
         title: 'Type B Configuration',
         ui: {
-          linkage: {
+          linkages: [{
             type: 'visibility',
             dependencies: ['formType'],
             when: {
@@ -208,7 +208,7 @@ function generateComplexSchema(arrayItemCount: number, nestedLevel: number): Ext
             },
             fulfill: { state: { visible: true } },
             otherwise: { state: { visible: false } },
-          },
+          }],
         },
         properties: generateTypeSpecificFields('B', 15),
       },
@@ -217,7 +217,7 @@ function generateComplexSchema(arrayItemCount: number, nestedLevel: number): Ext
         type: 'object',
         title: 'Type C Configuration',
         ui: {
-          linkage: {
+          linkages: [{
             type: 'visibility',
             dependencies: ['formType'],
             when: {
@@ -227,7 +227,7 @@ function generateComplexSchema(arrayItemCount: number, nestedLevel: number): Ext
             },
             fulfill: { state: { visible: true } },
             otherwise: { state: { visible: false } },
-          },
+          }],
         },
         properties: generateTypeSpecificFields('C', 20),
       },
@@ -294,7 +294,7 @@ function generateConfigurationArray(itemCount: number): ExtendedJSONSchema {
           title: 'Database Config',
           ui: {
             flatten: true,
-            linkage: {
+            linkages: [{
               type: 'visibility',
               dependencies: ['./configType'],
               when: {
@@ -304,7 +304,7 @@ function generateConfigurationArray(itemCount: number): ExtendedJSONSchema {
               },
               fulfill: { state: { visible: true } },
               otherwise: { state: { visible: false } },
-            },
+            }],
           },
           properties: {
             host: { type: 'string', title: 'Host' },
@@ -320,7 +320,7 @@ function generateConfigurationArray(itemCount: number): ExtendedJSONSchema {
           title: 'API Config',
           ui: {
             flatten: true,
-            linkage: {
+            linkages: [{
               type: 'visibility',
               dependencies: ['./configType'],
               when: {
@@ -330,7 +330,7 @@ function generateConfigurationArray(itemCount: number): ExtendedJSONSchema {
               },
               fulfill: { state: { visible: true } },
               otherwise: { state: { visible: false } },
-            },
+            }],
           },
           properties: {
             endpoint: { type: 'string', title: 'Endpoint' },
@@ -349,7 +349,7 @@ function generateConfigurationArray(itemCount: number): ExtendedJSONSchema {
           title: 'Cache Config',
           ui: {
             flatten: true,
-            linkage: {
+            linkages: [{
               type: 'visibility',
               dependencies: ['./configType'],
               when: {
@@ -359,7 +359,7 @@ function generateConfigurationArray(itemCount: number): ExtendedJSONSchema {
               },
               fulfill: { state: { visible: true } },
               otherwise: { state: { visible: false } },
-            },
+            }],
           },
           properties: {
             ttl: { type: 'number', title: 'TTL (seconds)', default: 3600 },
@@ -378,7 +378,7 @@ function generateConfigurationArray(itemCount: number): ExtendedJSONSchema {
           title: 'Queue Config',
           ui: {
             flatten: true,
-            linkage: {
+            linkages: [{
               type: 'visibility',
               dependencies: ['./configType'],
               when: {
@@ -388,7 +388,7 @@ function generateConfigurationArray(itemCount: number): ExtendedJSONSchema {
               },
               fulfill: { state: { visible: true } },
               otherwise: { state: { visible: false } },
-            },
+            }],
           },
           properties: {
             queueName: { type: 'string', title: 'Queue Name' },

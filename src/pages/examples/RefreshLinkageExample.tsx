@@ -230,13 +230,13 @@ export const RefreshLinkageExample: React.FC = () => {
         ui: {
           widget: 'select',
           placeholder: 'Select a department',
-          linkage: {
+          linkages: [{
             type: 'options' as const,
             dependencies: [],
             fulfill: {
               function: 'getDepartmentOptions',
             },
-          },
+          }],
         },
       },
       employee: {
@@ -246,13 +246,13 @@ export const RefreshLinkageExample: React.FC = () => {
           widget: 'select',
           placeholder: 'Select an employee',
           help: 'Employee list is filtered by selected department',
-          linkage: {
+          linkages: [{
             type: 'options' as const,
             dependencies: ['department'],
             fulfill: {
               function: 'getEmployeeOptions',
             },
-          },
+          }],
         },
       },
 
@@ -280,13 +280,13 @@ export const RefreshLinkageExample: React.FC = () => {
               widget: 'select',
               placeholder: 'Select a configuration',
               help: 'Configuration list is filtered by authentication type',
-              linkage: {
+              linkages: [{
                 type: 'options' as const,
                 dependencies: ['authentication.authType'],
                 fulfill: {
                   function: 'getAuthConfigOptions',
                 },
-              },
+              }],
             },
           },
         },
@@ -324,13 +324,13 @@ export const RefreshLinkageExample: React.FC = () => {
               ui: {
                 widget: 'select',
                 help: 'Permission list is filtered by role',
-                linkage: {
+                linkages: [{
                   type: 'options' as const,
                   dependencies: ['#/role'],
                   fulfill: {
                     function: 'getPermissionOptions',
                   },
-                },
+                }],
               },
               items: {
                 type: 'string',

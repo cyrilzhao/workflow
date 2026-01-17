@@ -25,15 +25,17 @@
     type: 'string',
     title: '详细地址',
     ui: {
-      linkage: {
-        type: 'visibility',
-        dependencies: ['#/properties/hasAddress'],
-        when: {
-          field: '#/properties/hasAddress',
-          operator: '==',
-          value: true
+      linkages: [
+        {
+          type: 'visibility',
+          dependencies: ['#/properties/hasAddress'],
+          when: {
+            field: '#/properties/hasAddress',
+            operator: '==',
+            value: true
+          }
         }
-      }
+      ]
     }
   }
 }
@@ -64,11 +66,13 @@
         companyName: {
           type: 'string',
           ui: {
-            linkage: {
-              type: 'visibility',
-              dependencies: ['./type'],  // 相对路径
-              when: { field: './type', operator: '==', value: 'work' }
-            }
+            linkages: [
+              {
+                type: 'visibility',
+                dependencies: ['./type'],  // 相对路径
+                when: { field: './type', operator: '==', value: 'work' }
+              }
+            ]
           }
         }
       }
@@ -400,15 +404,17 @@ describe('DynamicForm', () => {
           type: 'string',
           title: '地址',
           ui: {
-            linkage: {
-              type: 'visibility',
-              dependencies: ['#/properties/hasAddress'],
-              when: {
-                field: '#/properties/hasAddress',
-                operator: '==',
-                value: true
+            linkages: [
+              {
+                type: 'visibility',
+                dependencies: ['#/properties/hasAddress'],
+                when: {
+                  field: '#/properties/hasAddress',
+                  operator: '==',
+                  value: true
+                }
               }
-            }
+            ]
           }
         }
       }

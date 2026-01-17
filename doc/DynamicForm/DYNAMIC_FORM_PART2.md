@@ -74,20 +74,28 @@
 #### 5.1.4 数组类型 (array)
 
 > **前置知识**：关于数组类型的标准验证规则（如 `minItems`、`maxItems`、`uniqueItems`、`items` 等），请参考 [JSON Schema 定义规范 - 数组类型](./JSON_SCHEMA_DEFINITION.md#数组类型-array)。
->
-> **详细文档**：完整的数组字段设计请参考 [ArrayFieldWidget 设计文档](./ARRAY_FIELD_WIDGET.md)
 
-**渲染逻辑**:
+**Array Widget 选择**:
 
-所有数组字段统一使用 `ArrayFieldWidget` 处理，内部根据 `items` 配置自动选择渲染方式：
+DynamicForm 提供了三种不同的 Array Widget 来满足不同的使用场景：
+
+| Widget | 适用场景 | 布局方式 | 虚拟滚动 | 详细文档 |
+|--------|---------|---------|---------|---------|
+| **ArrayFieldWidget** | 通用数组（支持任意类型） | 卡片式/列表式 | ✅ | [查看文档](./ARRAY_FIELD_WIDGET.md) |
+| **KeyValueArrayWidget** | 键值对数组（如环境变量、映射） | 表格式（固定两列） | ❌ | [查看文档](./KEY_VALUE_ARRAY_WIDGET.md) |
+| **TableArrayWidget** | 对象数组（表格展示） | 表格式（自动生成列） | ✅ | [查看文档](./TABLE_ARRAY_WIDGET.md) |
+
+**ArrayFieldWidget 渲染逻辑**:
+
+当使用 `ArrayFieldWidget`（默认）时，内部根据 `items` 配置自动选择渲染方式：
 
 1. **枚举数组（items.enum 存在）** → 多选框组（checkboxes）
 2. **对象数组（items.type === 'object'）** → 嵌套表单（nested-form）
 3. **基本类型数组** → 对应的基础 widget（如 text、number）
 
-> **重要提示**：基本类型数组（如字符串数组）在内部会被包装成对象格式 `[{value: 'x'}]`，提交时需要转换。详见 [ArrayFieldWidget 文档](./ARRAY_FIELD_WIDGET.md)。
+> **重要提示**：基本类型数组（如字符串数组）在 ArrayFieldWidget 中会被包装成对象格式 `[{value: 'x'}]`，提交时需要转换。详见 [ArrayFieldWidget 文档](./ARRAY_FIELD_WIDGET.md)。
 
-**快速示例**:
+**示例 1: ArrayFieldWidget（枚举数组）**:
 
 ```json
 {
@@ -98,11 +106,14 @@
     "enum": ["reading", "sports", "music"],
     "enumNames": ["阅读", "运动", "音乐"]
   },
-  "uniqueItems": true
+  "uniqueItems": true,
+  "ui": {
+    "widget": "array"
+  }
 }
 ```
 
-**对象数组示例**:
+**示例 2: ArrayFieldWidget（对象数组）**:
 
 ```json
 {
@@ -119,6 +130,7 @@
   },
   "minItems": 1,
   "ui": {
+    "widget": "array",
     "addButtonText": "添加联系人"
   }
 }
@@ -126,7 +138,62 @@
 
 > **说明**: 对象数组会自动为每个数组项渲染独立的嵌套表单卡片，支持动态添加/删除。
 
+**示例 3: KeyValueArrayWidget（键值对数组）**:
+
+```json
+{
+  "type": "array",
+  "title": "环境变量",
+  "items": {
+    "type": "object",
+    "properties": {
+      "key": { "type": "string", "title": "Key" },
+      "value": { "type": "string", "title": "Value" }
+    }
+  },
+  "ui": {
+    "widget": "key-value-array",
+    "widgetProps": {
+      "keyField": "key",
+      "valueField": "value",
+      "keyLabel": "变量名",
+      "valueLabel": "变量值"
+    }
+  }
+}
+```
+
+> **说明**: 适用于环境变量、HTTP 头、输出映射等键值对场景，提供简洁的表格式布局。
+
+**示例 4: TableArrayWidget（表格数组）**:
+
+```json
+{
+  "type": "array",
+  "title": "用户列表",
+  "items": {
+    "type": "object",
+    "properties": {
+      "name": { "type": "string", "title": "姓名" },
+      "age": { "type": "number", "title": "年龄" },
+      "email": { "type": "string", "title": "邮箱" }
+    }
+  },
+  "ui": {
+    "widget": "table-array",
+    "widgetProps": {
+      "enableVirtualScroll": true,
+      "virtualScrollHeight": 400
+    }
+  }
+}
+```
+
+> **说明**: 适用于需要表格形式展示的对象数组，支持虚拟滚动优化，适合大量数据场景。
+
 **数组特定的 UI 配置**:
+
+**通用配置（所有 Array Widget）**:
 
 | 属性               | 类型                    | 说明                                      |
 | ------------------ | ----------------------- | ----------------------------------------- |
@@ -135,7 +202,30 @@
 | `showAddButton`    | `boolean`               | 是否显示添加按钮                          |
 | `showRemoveButton` | `boolean`               | 是否显示删除按钮                          |
 
-更多数组字段的配置选项、渲染模式、数据包装机制和最佳实践，请查看 [ArrayFieldWidget 完整文档](./ARRAY_FIELD_WIDGET.md)。
+**KeyValueArrayWidget 特定配置**:
+
+| 属性               | 类型     | 说明                     |
+| ------------------ | -------- | ------------------------ |
+| `keyField`         | `string` | 键字段名（默认: 'key'）  |
+| `valueField`       | `string` | 值字段名（默认: 'value'）|
+| `keyLabel`         | `string` | 键列标题（默认: 'Key'）  |
+| `valueLabel`       | `string` | 值列标题（默认: 'Value'）|
+| `keyPlaceholder`   | `string` | 键输入框占位符           |
+| `valuePlaceholder` | `string` | 值输入框占位符           |
+
+**TableArrayWidget 特定配置**:
+
+| 属性                   | 类型       | 说明                                 |
+| ---------------------- | ---------- | ------------------------------------ |
+| `enableVirtualScroll`  | `boolean`  | 是否启用虚拟滚动（默认: false）      |
+| `virtualScrollHeight`  | `number`   | 虚拟滚动容器高度（默认: 400px）      |
+| `columns`              | `string[]` | 列顺序（默认按 properties 顺序）     |
+| `emptyText`            | `string`   | 空状态提示文本（默认: 'No data'）    |
+
+**详细文档**:
+- [ArrayFieldWidget 完整文档](./ARRAY_FIELD_WIDGET.md) - 通用数组字段的配置选项、渲染模式、数据包装机制和最佳实践
+- [KeyValueArrayWidget 完整文档](./KEY_VALUE_ARRAY_WIDGET.md) - 键值对数组的使用场景和配置
+- [TableArrayWidget 完整文档](./TABLE_ARRAY_WIDGET.md) - 表格数组的虚拟滚动和列配置
 
 #### 5.1.5 对象类型 (object)
 
@@ -534,34 +624,46 @@ FormField 组件会将 `widgetProps` 中的所有属性展开传递给 widget：
 
 #### 5.3.8 支持的 Widget 类型
 
-| Widget 类型   | 适用字段类型        | 说明                                     |
-| ------------- | ------------------- | ---------------------------------------- |
-| `text`        | string              | 单行文本输入                             |
-| `textarea`    | string              | 多行文本输入                             |
-| `password`    | string              | 密码输入                                 |
-| `email`       | string              | 邮箱输入                                 |
-| `url`         | string              | URL 输入                                 |
-| `number`      | number/integer      | 数字输入                                 |
-| `range`       | number/integer      | 滑块                                     |
-| `select`      | string/number/array | 下拉选择（array 类型的默认 widget）      |
-| `radio`       | string/number       | 单选按钮                                 |
-| `checkboxes`  | array               | 多选框组（当 items.enum 存在时自动使用） |
-| `checkbox`    | boolean             | 单个复选框                               |
-| `switch`      | boolean             | 开关                                     |
-| `date`        | string              | 日期选择                                 |
-| `datetime`    | string              | 日期时间选择                             |
-| `time`        | string              | 时间选择                                 |
-| `color`       | string              | 颜色选择                                 |
-| `file`        | string              | 文件上传                                 |
-| `code-editor` | string              | 代码编辑器（详见 CODE_EDITOR_WIDGET_DESIGN.md） |
-| `nested-form` | object/array        | 嵌套表单（详见 NESTED_FORM.md）          |
+| Widget 类型          | 适用字段类型        | 说明                                     |
+| -------------------- | ------------------- | ---------------------------------------- |
+| `text`               | string              | 单行文本输入                             |
+| `textarea`           | string              | 多行文本输入                             |
+| `password`           | string              | 密码输入                                 |
+| `email`              | string              | 邮箱输入                                 |
+| `url`                | string              | URL 输入                                 |
+| `number`             | number/integer      | 数字输入                                 |
+| `range`              | number/integer      | 滑块                                     |
+| `select`             | string/number/array | 下拉选择（array 类型的默认 widget）      |
+| `radio`              | string/number       | 单选按钮                                 |
+| `checkboxes`         | array               | 多选框组（当 items.enum 存在时自动使用） |
+| `checkbox`           | boolean             | 单个复选框                               |
+| `switch`             | boolean             | 开关                                     |
+| `date`               | string              | 日期选择                                 |
+| `datetime`           | string              | 日期时间选择                             |
+| `time`               | string              | 时间选择                                 |
+| `color`              | string              | 颜色选择                                 |
+| `file`               | string              | 文件上传                                 |
+| `code-editor`        | string              | 代码编辑器（详见 CODE_EDITOR_WIDGET_DESIGN.md） |
+| `array`              | array               | 通用数组（详见 ARRAY_FIELD_WIDGET.md）   |
+| `key-value-array`    | array               | 键值对数组（详见 KEY_VALUE_ARRAY_WIDGET.md） |
+| `table-array`        | array               | 表格数组（详见 TABLE_ARRAY_WIDGET.md）   |
+| `nested-form`        | object/array        | 嵌套表单（详见 NESTED_FORM.md）          |
 
 > **注意**：
 >
 > - **array 类型字段的 widget 选择规则**：
 >   - 如果 `items.enum` 存在 → 自动使用 `checkboxes`（多选框组）
->   - 如果 `items.type === 'object'` → 自动使用 `nested-form`（无需显式指定）
+>   - 如果显式指定 `ui.widget` → 使用指定的 widget：
+>     - `array` - ArrayFieldWidget（通用数组，支持任意类型）
+>     - `key-value-array` - KeyValueArrayWidget（键值对数组）
+>     - `table-array` - TableArrayWidget（表格数组，支持虚拟滚动）
+>   - 如果 `items.type === 'object'` 且未指定 widget → 默认使用 `array`（ArrayFieldWidget）
 >   - 其他情况 → 默认使用 `select`（下拉选择）
+>
+> - **Array Widget 选择建议**：
+>   - **通用场景**：使用 `array`（ArrayFieldWidget），支持所有类型的数组
+>   - **键值对场景**：使用 `key-value-array`（如环境变量、HTTP 头、输出映射）
+>   - **表格展示场景**：使用 `table-array`（适合大量数据，支持虚拟滚动）
 > - **object 类型字段**自动使用 `nested-form` widget，无需显式指定
 > - `nested-form` widget 用于渲染嵌套对象和对象数组，支持静态和动态 schema
 > - 对象数组使用 `nested-form` 时，每个数组项都会渲染为独立的嵌套表单卡片

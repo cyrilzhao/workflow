@@ -1,6 +1,7 @@
 /**
  * @jest-environment jsdom
  */
+import React from 'react';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { useForm } from 'react-hook-form';
 import { useLinkageManager } from './useLinkageManager';
@@ -17,25 +18,27 @@ describe('useLinkageManager - 异步函数支持', () => {
         },
       });
 
-      const linkages: Record<string, LinkageConfig> = {
-        total: {
+      // 使用 useMemo 缓存 linkages，避免每次渲染都创建新对象
+      const linkages: Record<string, LinkageConfig[]> = React.useMemo(() => ({
+        total: [{
           type: 'value',
           dependencies: ['price', 'quantity'],
           fulfill: {
             function: 'calculateTotal',
           },
-        },
-      };
+        }],
+      }), []);
 
-      const linkageFunctions: Record<string, LinkageFunction> = {
+      // 使用 useMemo 缓存 linkageFunctions，避免每次渲染都创建新对象
+      const linkageFunctions: Record<string, LinkageFunction> = React.useMemo(() => ({
         calculateTotal: async (formData: any) => {
           // 模拟异步操作（例如调用 API）
           await new Promise(resolve => setTimeout(resolve, 50));
           return (formData.price || 0) * (formData.quantity || 0);
         },
-      };
+      }), []);
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
         linkageFunctions,
@@ -47,7 +50,7 @@ describe('useLinkageManager - 异步函数支持', () => {
     // 等待初始化完成
     await waitFor(
       () => {
-        expect(result.current.linkageStates.total?.value).toBe(200);
+        expect(result.current.linkageStates['total']?.value).toBe(200);
       },
       { timeout: 5000, interval: 100 }
     );
@@ -66,7 +69,7 @@ describe('useLinkageManager - 异步函数支持', () => {
     // 等待联动计算完成
     await waitFor(
       () => {
-        expect(result.current.linkageStates.total?.value).toBe(300);
+        expect(result.current.linkageStates['total']?.value).toBe(300);
       },
       { timeout: 5000, interval: 100 }
     );
@@ -81,14 +84,14 @@ describe('useLinkageManager - 异步函数支持', () => {
         },
       });
 
-      const linkages: Record<string, LinkageConfig> = {
-        province: {
+      const linkages: Record<string, LinkageConfig[]> = {
+        province: [{
           type: 'options',
           dependencies: ['country'],
           fulfill: {
             function: 'getProvinceOptions',
           },
-        },
+        }],
       };
 
       const linkageFunctions: Record<string, LinkageFunction> = {
@@ -111,7 +114,7 @@ describe('useLinkageManager - 异步函数支持', () => {
         },
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
         linkageFunctions,
@@ -123,8 +126,8 @@ describe('useLinkageManager - 异步函数支持', () => {
     // 等待初始化完成
     await waitFor(
       () => {
-        expect(result.current.linkageStates.province?.options).toHaveLength(2);
-        expect(result.current.linkageStates.province?.options?.[0].label).toBe('北京');
+        expect(result.current.linkageStates['province']?.options).toHaveLength(2);
+        expect(result.current.linkageStates['province']?.options?.[0].label).toBe('北京');
       },
       { timeout: 5000, interval: 100 }
     );
@@ -143,8 +146,8 @@ describe('useLinkageManager - 异步函数支持', () => {
     // 等待联动计算完成
     await waitFor(
       () => {
-        expect(result.current.linkageStates.province?.options).toHaveLength(2);
-        expect(result.current.linkageStates.province?.options?.[0].label).toBe('California');
+        expect(result.current.linkageStates['province']?.options).toHaveLength(2);
+        expect(result.current.linkageStates['province']?.options?.[0].label).toBe('California');
       },
       { timeout: 5000, interval: 100 }
     );
@@ -159,8 +162,8 @@ describe('useLinkageManager - 异步函数支持', () => {
         },
       });
 
-      const linkages: Record<string, LinkageConfig> = {
-        advancedFeatures: {
+      const linkages: Record<string, LinkageConfig[]> = {
+        advancedFeatures: [{
           type: 'visibility',
           dependencies: ['userId'],
           when: 'checkUserPermission',
@@ -170,7 +173,7 @@ describe('useLinkageManager - 异步函数支持', () => {
           otherwise: {
             state: { visible: false },
           },
-        },
+        }],
       };
 
       const linkageFunctions: Record<string, LinkageFunction> = {
@@ -182,7 +185,7 @@ describe('useLinkageManager - 异步函数支持', () => {
         },
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
         linkageFunctions,
@@ -193,7 +196,7 @@ describe('useLinkageManager - 异步函数支持', () => {
 
     // 等待初始化完成
     await waitFor(() => {
-      expect(result.current.linkageStates.advancedFeatures?.visible).toBe(true);
+      expect(result.current.linkageStates['advancedFeatures']?.visible).toBe(true);
     });
 
     // 修改 userId
@@ -201,7 +204,7 @@ describe('useLinkageManager - 异步函数支持', () => {
 
     // 等待联动计算完成
     await waitFor(() => {
-      expect(result.current.linkageStates.advancedFeatures?.visible).toBe(false);
+      expect(result.current.linkageStates['advancedFeatures']?.visible).toBe(false);
     });
   });
 
@@ -216,21 +219,21 @@ describe('useLinkageManager - 异步函数支持', () => {
         },
       });
 
-      const linkages: Record<string, LinkageConfig> = {
-        discount: {
+      const linkages: Record<string, LinkageConfig[]> = {
+        discount: [{
           type: 'value',
           dependencies: ['price', 'quantity'],
           fulfill: {
             function: 'calculateDiscount', // 同步函数
           },
-        },
-        total: {
+        }],
+        total: [{
           type: 'value',
           dependencies: ['price', 'quantity', 'discount'],
           fulfill: {
             function: 'calculateTotal', // 异步函数
           },
-        },
+        }],
       };
 
       const linkageFunctions: Record<string, LinkageFunction> = {
@@ -247,7 +250,7 @@ describe('useLinkageManager - 异步函数支持', () => {
         },
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
         linkageFunctions,
@@ -258,8 +261,8 @@ describe('useLinkageManager - 异步函数支持', () => {
 
     // 等待初始化完成
     await waitFor(() => {
-      expect(result.current.linkageStates.discount?.value).toBe(10);
-      expect(result.current.linkageStates.total?.value).toBe(190);
+      expect(result.current.linkageStates['discount']?.value).toBe(10);
+      expect(result.current.linkageStates['total']?.value).toBe(190);
     });
 
     // 修改 price，触发联动计算
@@ -270,8 +273,8 @@ describe('useLinkageManager - 异步函数支持', () => {
     // subtotal <= 100 => discount: 0
     // total: 100 - 0 = 100
     await waitFor(() => {
-      expect(result.current.linkageStates.discount?.value).toBe(0);
-      expect(result.current.linkageStates.total?.value).toBe(100);
+      expect(result.current.linkageStates['discount']?.value).toBe(0);
+      expect(result.current.linkageStates['total']?.value).toBe(100);
     });
 
     // 再次修改 price，触发联动计算
@@ -282,8 +285,8 @@ describe('useLinkageManager - 异步函数支持', () => {
     // subtotal > 100 => discount: 10
     // total: 400 - 10 = 390
     await waitFor(() => {
-      expect(result.current.linkageStates.discount?.value).toBe(10);
-      expect(result.current.linkageStates.total?.value).toBe(390);
+      expect(result.current.linkageStates['discount']?.value).toBe(10);
+      expect(result.current.linkageStates['total']?.value).toBe(390);
     });
   });
 });
@@ -298,8 +301,8 @@ describe('useLinkageManager - 条件表达式', () => {
         },
       });
 
-      const linkages: Record<string, LinkageConfig> = {
-        companyName: {
+      const linkages: Record<string, LinkageConfig[]> = {
+        companyName: [{
           type: 'visibility',
           dependencies: ['userType'],
           when: {
@@ -313,10 +316,10 @@ describe('useLinkageManager - 条件表达式', () => {
           otherwise: {
             state: { visible: false },
           },
-        },
+        }],
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
       });
@@ -326,14 +329,14 @@ describe('useLinkageManager - 条件表达式', () => {
 
     // 初始状态：userType = 'individual'，companyName 应该隐藏
     await waitFor(() => {
-      expect(result.current.linkageStates.companyName?.visible).toBe(false);
+      expect(result.current.linkageStates['companyName']?.visible).toBe(false);
     });
 
     // 修改为 'company'，companyName 应该显示
     result.current.form.setValue('userType', 'company');
 
     await waitFor(() => {
-      expect(result.current.linkageStates.companyName?.visible).toBe(true);
+      expect(result.current.linkageStates['companyName']?.visible).toBe(true);
     });
   });
 
@@ -347,8 +350,8 @@ describe('useLinkageManager - 条件表达式', () => {
         },
       });
 
-      const linkages: Record<string, LinkageConfig> = {
-        loanAmount: {
+      const linkages: Record<string, LinkageConfig[]> = {
+        loanAmount: [{
           type: 'visibility',
           dependencies: ['age', 'income'],
           when: {
@@ -371,10 +374,10 @@ describe('useLinkageManager - 条件表达式', () => {
           otherwise: {
             state: { visible: false },
           },
-        },
+        }],
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
       });
@@ -384,19 +387,19 @@ describe('useLinkageManager - 条件表达式', () => {
 
     // 初始状态：age < 18 且 income < 50000，应该隐藏
     await waitFor(() => {
-      expect(result.current.linkageStates.loanAmount?.visible).toBe(false);
+      expect(result.current.linkageStates['loanAmount']?.visible).toBe(false);
     });
 
     // 只满足年龄条件，仍然隐藏
     result.current.form.setValue('age', 20);
     await waitFor(() => {
-      expect(result.current.linkageStates.loanAmount?.visible).toBe(false);
+      expect(result.current.linkageStates['loanAmount']?.visible).toBe(false);
     });
 
     // 同时满足两个条件，应该显示
     result.current.form.setValue('income', 60000);
     await waitFor(() => {
-      expect(result.current.linkageStates.loanAmount?.visible).toBe(true);
+      expect(result.current.linkageStates['loanAmount']?.visible).toBe(true);
     });
   });
 
@@ -410,8 +413,8 @@ describe('useLinkageManager - 条件表达式', () => {
         },
       });
 
-      const linkages: Record<string, LinkageConfig> = {
-        discount: {
+      const linkages: Record<string, LinkageConfig[]> = {
+        discount: [{
           type: 'visibility',
           dependencies: ['isVip', 'totalSpent'],
           when: {
@@ -434,10 +437,10 @@ describe('useLinkageManager - 条件表达式', () => {
           otherwise: {
             state: { visible: false },
           },
-        },
+        }],
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
       });
@@ -447,20 +450,20 @@ describe('useLinkageManager - 条件表达式', () => {
 
     // 初始状态：两个条件都不满足，应该隐藏
     await waitFor(() => {
-      expect(result.current.linkageStates.discount?.visible).toBe(false);
+      expect(result.current.linkageStates['discount']?.visible).toBe(false);
     });
 
     // 满足 VIP 条件，应该显示
     result.current.form.setValue('isVip', true);
     await waitFor(() => {
-      expect(result.current.linkageStates.discount?.visible).toBe(true);
+      expect(result.current.linkageStates['discount']?.visible).toBe(true);
     });
 
     // 取消 VIP，但满足消费金额条件，仍然显示
     result.current.form.setValue('isVip', false);
     result.current.form.setValue('totalSpent', 1500);
     await waitFor(() => {
-      expect(result.current.linkageStates.discount?.visible).toBe(true);
+      expect(result.current.linkageStates['discount']?.visible).toBe(true);
     });
   });
 
@@ -475,8 +478,8 @@ describe('useLinkageManager - 条件表达式', () => {
         },
       });
 
-      const linkages: Record<string, LinkageConfig> = {
-        idCard: {
+      const linkages: Record<string, LinkageConfig[]> = {
+        idCard: [{
           type: 'visibility',
           dependencies: ['userType', 'country', 'age'],
           when: {
@@ -526,10 +529,10 @@ describe('useLinkageManager - 条件表达式', () => {
           otherwise: {
             state: { visible: false },
           },
-        },
+        }],
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
       });
@@ -540,31 +543,31 @@ describe('useLinkageManager - 条件表达式', () => {
     // 初始状态：userType = 'individual', country = 'china', age = 15
     // 不满足条件（中国需要 >= 16 岁），应该隐藏
     await waitFor(() => {
-      expect(result.current.linkageStates.idCard?.visible).toBe(false);
+      expect(result.current.linkageStates['idCard']?.visible).toBe(false);
     });
 
     // 年龄改为 16，满足条件，应该显示
     result.current.form.setValue('age', 16);
     await waitFor(() => {
-      expect(result.current.linkageStates.idCard?.visible).toBe(true);
+      expect(result.current.linkageStates['idCard']?.visible).toBe(true);
     });
 
     // 切换到日本，年龄 16 不满足（日本需要 >= 20 岁），应该隐藏
     result.current.form.setValue('country', 'japan');
     await waitFor(() => {
-      expect(result.current.linkageStates.idCard?.visible).toBe(false);
+      expect(result.current.linkageStates['idCard']?.visible).toBe(false);
     });
 
     // 年龄改为 20，满足条件，应该显示
     result.current.form.setValue('age', 20);
     await waitFor(() => {
-      expect(result.current.linkageStates.idCard?.visible).toBe(true);
+      expect(result.current.linkageStates['idCard']?.visible).toBe(true);
     });
 
     // 切换为企业用户，不满足条件，应该隐藏
     result.current.form.setValue('userType', 'company');
     await waitFor(() => {
-      expect(result.current.linkageStates.idCard?.visible).toBe(false);
+      expect(result.current.linkageStates['idCard']?.visible).toBe(false);
     });
   });
 });
@@ -579,14 +582,14 @@ describe('useLinkageManager - 条件操作符', () => {
         },
       });
 
-      const linkages: Record<string, LinkageConfig> = {
-        grade: {
+      const linkages: Record<string, LinkageConfig[]> = {
+        grade: [{
           type: 'value',
           dependencies: ['score'],
           fulfill: {
             function: 'calculateGrade',
           },
-        },
+        }],
       };
 
       const linkageFunctions: Record<string, LinkageFunction> = {
@@ -600,7 +603,7 @@ describe('useLinkageManager - 条件操作符', () => {
         },
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
         linkageFunctions,
@@ -610,17 +613,17 @@ describe('useLinkageManager - 条件操作符', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.linkageStates.grade?.value).toBe('C');
+      expect(result.current.linkageStates['grade']?.value).toBe('C');
     });
 
     result.current.form.setValue('score', 95);
     await waitFor(() => {
-      expect(result.current.linkageStates.grade?.value).toBe('A');
+      expect(result.current.linkageStates['grade']?.value).toBe('A');
     });
 
     result.current.form.setValue('score', 55);
     await waitFor(() => {
-      expect(result.current.linkageStates.grade?.value).toBe('F');
+      expect(result.current.linkageStates['grade']?.value).toBe('F');
     });
   });
 
@@ -633,8 +636,8 @@ describe('useLinkageManager - 条件操作符', () => {
         },
       });
 
-      const linkages: Record<string, LinkageConfig> = {
-        needsVisa: {
+      const linkages: Record<string, LinkageConfig[]> = {
+        needsVisa: [{
           type: 'visibility',
           dependencies: ['country'],
           when: {
@@ -648,10 +651,10 @@ describe('useLinkageManager - 条件操作符', () => {
           otherwise: {
             state: { visible: false },
           },
-        },
+        }],
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
       });
@@ -661,13 +664,13 @@ describe('useLinkageManager - 条件操作符', () => {
 
     // 初始状态：china 不在列表中，应该隐藏
     await waitFor(() => {
-      expect(result.current.linkageStates.needsVisa?.visible).toBe(false);
+      expect(result.current.linkageStates['needsVisa']?.visible).toBe(false);
     });
 
     // 切换到 usa，在列表中，应该显示
     result.current.form.setValue('country', 'usa');
     await waitFor(() => {
-      expect(result.current.linkageStates.needsVisa?.visible).toBe(true);
+      expect(result.current.linkageStates['needsVisa']?.visible).toBe(true);
     });
   });
 
@@ -680,8 +683,8 @@ describe('useLinkageManager - 条件操作符', () => {
         },
       });
 
-      const linkages: Record<string, LinkageConfig> = {
-        advancedSettings: {
+      const linkages: Record<string, LinkageConfig[]> = {
+        advancedSettings: [{
           type: 'visibility',
           dependencies: ['selectedFeatures'],
           when: {
@@ -695,10 +698,10 @@ describe('useLinkageManager - 条件操作符', () => {
           otherwise: {
             state: { visible: false },
           },
-        },
+        }],
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
       });
@@ -708,13 +711,13 @@ describe('useLinkageManager - 条件操作符', () => {
 
     // 初始状态：不包含 'advanced'，应该隐藏
     await waitFor(() => {
-      expect(result.current.linkageStates.advancedSettings?.visible).toBe(false);
+      expect(result.current.linkageStates['advancedSettings']?.visible).toBe(false);
     });
 
     // 添加 'advanced'，应该显示
     result.current.form.setValue('selectedFeatures', ['feature1', 'feature2', 'advanced']);
     await waitFor(() => {
-      expect(result.current.linkageStates.advancedSettings?.visible).toBe(true);
+      expect(result.current.linkageStates['advancedSettings']?.visible).toBe(true);
     });
   });
 
@@ -727,8 +730,8 @@ describe('useLinkageManager - 条件操作符', () => {
         },
       });
 
-      const linkages: Record<string, LinkageConfig> = {
-        charCount: {
+      const linkages: Record<string, LinkageConfig[]> = {
+        charCount: [{
           type: 'visibility',
           dependencies: ['description'],
           when: {
@@ -741,10 +744,10 @@ describe('useLinkageManager - 条件操作符', () => {
           otherwise: {
             state: { visible: false },
           },
-        },
+        }],
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
       });
@@ -754,19 +757,19 @@ describe('useLinkageManager - 条件操作符', () => {
 
     // 初始状态：description 为空，应该隐藏
     await waitFor(() => {
-      expect(result.current.linkageStates.charCount?.visible).toBe(false);
+      expect(result.current.linkageStates['charCount']?.visible).toBe(false);
     });
 
     // 输入内容，应该显示
     result.current.form.setValue('description', 'Hello');
     await waitFor(() => {
-      expect(result.current.linkageStates.charCount?.visible).toBe(true);
+      expect(result.current.linkageStates['charCount']?.visible).toBe(true);
     });
 
     // 清空内容，应该隐藏
     result.current.form.setValue('description', '');
     await waitFor(() => {
-      expect(result.current.linkageStates.charCount?.visible).toBe(false);
+      expect(result.current.linkageStates['charCount']?.visible).toBe(false);
     });
   });
 });
@@ -781,14 +784,14 @@ describe('useLinkageManager - 联动类型', () => {
         },
       });
 
-      const linkages: Record<string, LinkageConfig> = {
-        companyInfo: {
+      const linkages: Record<string, LinkageConfig[]> = {
+        companyInfo: [{
           type: 'visibility',
           dependencies: ['userType'],
           fulfill: {
             function: 'checkCompanyVisible',
           },
-        },
+        }],
       };
 
       const linkageFunctions: Record<string, LinkageFunction> = {
@@ -797,7 +800,7 @@ describe('useLinkageManager - 联动类型', () => {
         },
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
         linkageFunctions,
@@ -808,7 +811,7 @@ describe('useLinkageManager - 联动类型', () => {
 
     // 初始状态：个人用户，应该隐藏
     await waitFor(() => {
-      expect(result.current.linkageStates.companyInfo?.visible).toBe(false);
+      expect(result.current.linkageStates['companyInfo']?.visible).toBe(false);
     });
 
     // 切换为企业用户，应该显示
@@ -817,7 +820,7 @@ describe('useLinkageManager - 联动类型', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.linkageStates.companyInfo?.visible).toBe(true);
+      expect(result.current.linkageStates['companyInfo']?.visible).toBe(true);
     });
   });
 
@@ -830,14 +833,14 @@ describe('useLinkageManager - 联动类型', () => {
         },
       });
 
-      const linkages: Record<string, LinkageConfig> = {
-        advancedFeatures: {
+      const linkages: Record<string, LinkageConfig[]> = {
+        advancedFeatures: [{
           type: 'disabled',
           dependencies: ['accountType'],
           fulfill: {
             function: 'checkDisabled',
           },
-        },
+        }],
       };
 
       const linkageFunctions: Record<string, LinkageFunction> = {
@@ -846,7 +849,7 @@ describe('useLinkageManager - 联动类型', () => {
         },
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
         linkageFunctions,
@@ -857,7 +860,7 @@ describe('useLinkageManager - 联动类型', () => {
 
     // 初始状态：免费账户，应该禁用
     await waitFor(() => {
-      expect(result.current.linkageStates.advancedFeatures?.disabled).toBe(true);
+      expect(result.current.linkageStates['advancedFeatures']?.disabled).toBe(true);
     });
 
     // 升级为高级账户，应该启用
@@ -866,7 +869,7 @@ describe('useLinkageManager - 联动类型', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.linkageStates.advancedFeatures?.disabled).toBe(false);
+      expect(result.current.linkageStates['advancedFeatures']?.disabled).toBe(false);
     });
   });
 
@@ -879,14 +882,14 @@ describe('useLinkageManager - 联动类型', () => {
         },
       });
 
-      const linkages: Record<string, LinkageConfig> = {
-        userName: {
+      const linkages: Record<string, LinkageConfig[]> = {
+        userName: [{
           type: 'readonly',
           dependencies: ['isEditing'],
           fulfill: {
             function: 'checkReadonly',
           },
-        },
+        }],
       };
 
       const linkageFunctions: Record<string, LinkageFunction> = {
@@ -895,7 +898,7 @@ describe('useLinkageManager - 联动类型', () => {
         },
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
         linkageFunctions,
@@ -906,7 +909,7 @@ describe('useLinkageManager - 联动类型', () => {
 
     // 初始状态：非编辑模式，应该只读
     await waitFor(() => {
-      expect(result.current.linkageStates.userName?.readonly).toBe(true);
+      expect(result.current.linkageStates['userName']?.readonly).toBe(true);
     });
 
     // 进入编辑模式，应该可编辑
@@ -915,7 +918,7 @@ describe('useLinkageManager - 联动类型', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.linkageStates.userName?.readonly).toBe(false);
+      expect(result.current.linkageStates['userName']?.readonly).toBe(false);
     });
   });
 });
@@ -932,21 +935,21 @@ describe('useLinkageManager - 数组字段联动上下文', () => {
         },
       });
 
-      const linkages: Record<string, LinkageConfig> = {
-        'items.0.subtotal': {
+      const linkages: Record<string, LinkageConfig[]> = {
+        'items.0.subtotal': [{
           type: 'value',
           dependencies: ['items.0.price', 'items.0.quantity'],
           fulfill: {
             function: 'calculateSubtotal',
           },
-        },
-        'items.1.subtotal': {
+        }],
+        'items.1.subtotal': [{
           type: 'value',
           dependencies: ['items.1.price', 'items.1.quantity'],
           fulfill: {
             function: 'calculateSubtotal',
           },
-        },
+        }],
       };
 
       const linkageFunctions: Record<string, LinkageFunction> = {
@@ -963,7 +966,7 @@ describe('useLinkageManager - 数组字段联动上下文', () => {
         },
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
         linkageFunctions,
@@ -994,28 +997,28 @@ describe('useLinkageManager - 依赖图和拓扑排序', () => {
       });
 
       // 创建循环依赖：a -> b -> c -> a
-      const linkages: Record<string, LinkageConfig> = {
-        a: {
+      const linkages: Record<string, LinkageConfig[]> = {
+        a: [{
           type: 'value',
           dependencies: ['c'],
           fulfill: {
             function: 'calculateA',
           },
-        },
-        b: {
+        }],
+        b: [{
           type: 'value',
           dependencies: ['a'],
           fulfill: {
             function: 'calculateB',
           },
-        },
-        c: {
+        }],
+        c: [{
           type: 'value',
           dependencies: ['b'],
           fulfill: {
             function: 'calculateC',
           },
-        },
+        }],
       };
 
       const linkageFunctions: Record<string, LinkageFunction> = {
@@ -1024,7 +1027,7 @@ describe('useLinkageManager - 依赖图和拓扑排序', () => {
         calculateC: (formData: any) => formData.b + 1,
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
         linkageFunctions,
@@ -1059,28 +1062,28 @@ describe('useLinkageManager - 依赖图和拓扑排序', () => {
       });
 
       // 依赖链：a -> b -> c -> d
-      const linkages: Record<string, LinkageConfig> = {
-        b: {
+      const linkages: Record<string, LinkageConfig[]> = {
+        b: [{
           type: 'value',
           dependencies: ['a'],
           fulfill: {
             function: 'calculateB',
           },
-        },
-        c: {
+        }],
+        c: [{
           type: 'value',
           dependencies: ['b'],
           fulfill: {
             function: 'calculateC',
           },
-        },
-        d: {
+        }],
+        d: [{
           type: 'value',
           dependencies: ['c'],
           fulfill: {
             function: 'calculateD',
           },
-        },
+        }],
       };
 
       const linkageFunctions: Record<string, LinkageFunction> = {
@@ -1089,7 +1092,7 @@ describe('useLinkageManager - 依赖图和拓扑排序', () => {
         calculateD: (formData: any) => formData.c * 4,
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
         linkageFunctions,
@@ -1101,9 +1104,9 @@ describe('useLinkageManager - 依赖图和拓扑排序', () => {
     // 等待初始化完成
     // a=1 -> b=2 -> c=6 -> d=24
     await waitFor(() => {
-      expect(result.current.linkageStates.b?.value).toBe(2);
-      expect(result.current.linkageStates.c?.value).toBe(6);
-      expect(result.current.linkageStates.d?.value).toBe(24);
+      expect(result.current.linkageStates['b']?.value).toBe(2);
+      expect(result.current.linkageStates['c']?.value).toBe(6);
+      expect(result.current.linkageStates['d']?.value).toBe(24);
     });
 
     // 修改 a，应该触发整个依赖链
@@ -1111,9 +1114,9 @@ describe('useLinkageManager - 依赖图和拓扑排序', () => {
 
     // a=2 -> b=4 -> c=12 -> d=48
     await waitFor(() => {
-      expect(result.current.linkageStates.b?.value).toBe(4);
-      expect(result.current.linkageStates.c?.value).toBe(12);
-      expect(result.current.linkageStates.d?.value).toBe(48);
+      expect(result.current.linkageStates['b']?.value).toBe(4);
+      expect(result.current.linkageStates['c']?.value).toBe(12);
+      expect(result.current.linkageStates['d']?.value).toBe(48);
     });
   });
 
@@ -1129,21 +1132,21 @@ describe('useLinkageManager - 依赖图和拓扑排序', () => {
       });
 
       // 两条独立的依赖链：a -> b 和 x -> y
-      const linkages: Record<string, LinkageConfig> = {
-        b: {
+      const linkages: Record<string, LinkageConfig[]> = {
+        b: [{
           type: 'value',
           dependencies: ['a'],
           fulfill: {
             function: 'calculateB',
           },
-        },
-        y: {
+        }],
+        y: [{
           type: 'value',
           dependencies: ['x'],
           fulfill: {
             function: 'calculateY',
           },
-        },
+        }],
       };
 
       const linkageFunctions: Record<string, LinkageFunction> = {
@@ -1151,7 +1154,7 @@ describe('useLinkageManager - 依赖图和拓扑排序', () => {
         calculateY: (formData: any) => formData.x * 3,
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
         linkageFunctions,
@@ -1162,29 +1165,29 @@ describe('useLinkageManager - 依赖图和拓扑排序', () => {
 
     // 等待初始化完成
     await waitFor(() => {
-      expect(result.current.linkageStates.b?.value).toBe(2);
-      expect(result.current.linkageStates.y?.value).toBe(30);
+      expect(result.current.linkageStates['b']?.value).toBe(2);
+      expect(result.current.linkageStates['y']?.value).toBe(30);
     });
 
     // 只修改 a，验证 b 被正确更新
     result.current.form.setValue('a', 2);
 
     await waitFor(() => {
-      expect(result.current.linkageStates.b?.value).toBe(4);
+      expect(result.current.linkageStates['b']?.value).toBe(4);
     });
 
     // 验证 y 的值保持不变（因为 x 没有改变）
-    expect(result.current.linkageStates.y?.value).toBe(30);
+    expect(result.current.linkageStates['y']?.value).toBe(30);
 
     // 修改 x，验证 y 被正确更新
     result.current.form.setValue('x', 20);
 
     await waitFor(() => {
-      expect(result.current.linkageStates.y?.value).toBe(60);
+      expect(result.current.linkageStates['y']?.value).toBe(60);
     });
 
     // 验证 b 的值保持不变（因为 a 没有改变）
-    expect(result.current.linkageStates.b?.value).toBe(4);
+    expect(result.current.linkageStates['b']?.value).toBe(4);
   });
 });
 
@@ -1204,17 +1207,17 @@ describe('useLinkageManager - 错误处理', () => {
         },
       });
 
-      const linkages: Record<string, LinkageConfig> = {
-        field2: {
+      const linkages: Record<string, LinkageConfig[]> = {
+        field2: [{
           type: 'value',
           dependencies: ['field1'],
           fulfill: {
             function: 'nonExistentFunction',
           },
-        },
+        }],
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
         linkageFunctions: {},
@@ -1225,7 +1228,7 @@ describe('useLinkageManager - 错误处理', () => {
 
     // 等待初始化完成，应该不会崩溃
     await waitFor(() => {
-      expect(result.current.linkageStates.field2).toBeDefined();
+      expect(result.current.linkageStates['field2']).toBeDefined();
     });
 
     consoleWarnSpy.mockRestore();
@@ -1242,8 +1245,8 @@ describe('useLinkageManager - 错误处理', () => {
         },
       });
 
-      const linkages: Record<string, LinkageConfig> = {
-        field2: {
+      const linkages: Record<string, LinkageConfig[]> = {
+        field2: [{
           type: 'visibility',
           dependencies: ['field1'],
           when: 'nonExistentConditionFunction',
@@ -1253,10 +1256,10 @@ describe('useLinkageManager - 错误处理', () => {
           otherwise: {
             state: { visible: false },
           },
-        },
+        }],
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
         linkageFunctions: {},
@@ -1267,7 +1270,7 @@ describe('useLinkageManager - 错误处理', () => {
 
     // 等待初始化完成
     await waitFor(() => {
-      expect(result.current.linkageStates.field2).toBeDefined();
+      expect(result.current.linkageStates['field2']).toBeDefined();
     });
 
     // 验证警告被记录
@@ -1276,7 +1279,7 @@ describe('useLinkageManager - 错误处理', () => {
     );
 
     // 条件函数不存在时，应该返回 false，使用 otherwise
-    expect(result.current.linkageStates.field2?.visible).toBe(false);
+    expect(result.current.linkageStates['field2']?.visible).toBe(false);
 
     consoleWarnSpy.mockRestore();
   });
@@ -1293,14 +1296,14 @@ describe('useLinkageManager - 错误处理', () => {
         },
       });
 
-      const linkages: Record<string, LinkageConfig> = {
-        field2: {
+      const linkages: Record<string, LinkageConfig[]> = {
+        field2: [{
           type: 'value',
           dependencies: ['field1'],
           fulfill: {
             function: 'errorFunction',
           },
-        },
+        }],
       };
 
       const linkageFunctions: Record<string, LinkageFunction> = {
@@ -1309,7 +1312,7 @@ describe('useLinkageManager - 错误处理', () => {
         },
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
         linkageFunctions,
@@ -1341,14 +1344,14 @@ describe('useLinkageManager - 错误处理', () => {
         },
       });
 
-      const linkages: Record<string, LinkageConfig> = {
-        field2: {
+      const linkages: Record<string, LinkageConfig[]> = {
+        field2: [{
           type: 'value',
           dependencies: ['field1'],
           fulfill: {
             function: 'asyncErrorFunction',
           },
-        },
+        }],
       };
 
       const linkageFunctions: Record<string, LinkageFunction> = {
@@ -1358,7 +1361,7 @@ describe('useLinkageManager - 错误处理', () => {
         },
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
         linkageFunctions,
@@ -1391,15 +1394,15 @@ describe('useLinkageManager - 错误处理', () => {
         },
       });
 
-      const linkages: Record<string, LinkageConfig> = {
-        total: {
+      const linkages: Record<string, LinkageConfig[]> = {
+        total: [{
           type: 'value',
           dependencies: ['price', 'quantity'],
           // 没有 when 条件，默认使用 fulfill
           fulfill: {
             function: 'calculateTotal',
           },
-        },
+        }],
       };
 
       const linkageFunctions: Record<string, LinkageFunction> = {
@@ -1408,7 +1411,7 @@ describe('useLinkageManager - 错误处理', () => {
         },
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
         linkageFunctions,
@@ -1419,7 +1422,7 @@ describe('useLinkageManager - 错误处理', () => {
 
     // 等待初始化完成
     await waitFor(() => {
-      expect(result.current.linkageStates.total?.value).toBe(200);
+      expect(result.current.linkageStates['total']?.value).toBe(200);
     });
   });
 });
@@ -1434,14 +1437,14 @@ describe('useLinkageManager - 竞态条件处理', () => {
         },
       });
 
-      const linkages: Record<string, LinkageConfig> = {
-        results: {
+      const linkages: Record<string, LinkageConfig[]> = {
+        results: [{
           type: 'value',
           dependencies: ['query'],
           fulfill: {
             function: 'searchResults',
           },
-        },
+        }],
       };
 
       let callCount = 0;
@@ -1458,7 +1461,7 @@ describe('useLinkageManager - 竞态条件处理', () => {
         },
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
         linkageFunctions,
@@ -1469,7 +1472,7 @@ describe('useLinkageManager - 竞态条件处理', () => {
 
     // 等待初始化完成
     await waitFor(() => {
-      expect(result.current.linkageStates.results).toBeDefined();
+      expect(result.current.linkageStates['results']).toBeDefined();
     });
 
     // 快速连续修改字段，触发竞态条件
@@ -1489,7 +1492,7 @@ describe('useLinkageManager - 竞态条件处理', () => {
     // 最终结果应该是最后一次修改的值（fast），而不是慢查询（slow）的结果
     await waitFor(
       () => {
-        const results = result.current.linkageStates.results?.value;
+        const results = result.current.linkageStates['results']?.value;
         expect(results).toBeDefined();
         expect(results[0]).toContain('fast');
         expect(results[0]).not.toContain('slow');
@@ -1508,21 +1511,21 @@ describe('useLinkageManager - 竞态条件处理', () => {
         },
       });
 
-      const linkages: Record<string, LinkageConfig> = {
-        field2: {
+      const linkages: Record<string, LinkageConfig[]> = {
+        field2: [{
           type: 'value',
           dependencies: ['field1'],
           fulfill: {
             function: 'double',
           },
-        },
-        field3: {
+        }],
+        field3: [{
           type: 'value',
           dependencies: ['field2'],
           fulfill: {
             function: 'triple',
           },
-        },
+        }],
       };
 
       const linkageFunctions: Record<string, LinkageFunction> = {
@@ -1530,7 +1533,7 @@ describe('useLinkageManager - 竞态条件处理', () => {
         triple: (formData: any) => (formData.field2 || 0) * 3,
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
         linkageFunctions,
@@ -1541,8 +1544,8 @@ describe('useLinkageManager - 竞态条件处理', () => {
 
     // 等待初始化完成
     await waitFor(() => {
-      expect(result.current.linkageStates.field2?.value).toBe(0);
-      expect(result.current.linkageStates.field3?.value).toBe(0);
+      expect(result.current.linkageStates['field2']?.value).toBe(0);
+      expect(result.current.linkageStates['field3']?.value).toBe(0);
     });
 
     // 快速连续修改多个字段，触发队列递归处理
@@ -1559,8 +1562,8 @@ describe('useLinkageManager - 竞态条件处理', () => {
     // 等待所有队列任务完成
     await waitFor(
       () => {
-        expect(result.current.linkageStates.field2?.value).toBe(20);
-        expect(result.current.linkageStates.field3?.value).toBe(60);
+        expect(result.current.linkageStates['field2']?.value).toBe(20);
+        expect(result.current.linkageStates['field3']?.value).toBe(60);
       },
       { timeout: 1000 }
     );
@@ -1577,14 +1580,14 @@ describe('useLinkageManager - Schema 类型联动', () => {
         },
       });
 
-      const linkages: Record<string, LinkageConfig> = {
-        dynamicField: {
+      const linkages: Record<string, LinkageConfig[]> = {
+        dynamicField: [{
           type: 'schema',
           dependencies: ['fieldType'],
           fulfill: {
             function: 'getFieldSchema',
           },
-        },
+        }],
       };
 
       const linkageFunctions: Record<string, LinkageFunction> = {
@@ -1599,7 +1602,7 @@ describe('useLinkageManager - Schema 类型联动', () => {
         },
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
         linkageFunctions,
@@ -1610,7 +1613,7 @@ describe('useLinkageManager - Schema 类型联动', () => {
 
     // 等待初始化完成
     await waitFor(() => {
-      expect(result.current.linkageStates.dynamicField?.schema).toEqual({
+      expect(result.current.linkageStates['dynamicField']?.schema).toEqual({
         type: 'string',
         maxLength: 100,
       });
@@ -1623,7 +1626,7 @@ describe('useLinkageManager - Schema 类型联动', () => {
 
     // 等待联动计算完成
     await waitFor(() => {
-      expect(result.current.linkageStates.dynamicField?.schema).toEqual({
+      expect(result.current.linkageStates['dynamicField']?.schema).toEqual({
         type: 'number',
         minimum: 0,
         maximum: 999,
@@ -1642,8 +1645,8 @@ describe('useLinkageManager - 直接指定值', () => {
         },
       });
 
-      const linkages: Record<string, LinkageConfig> = {
-        targetField: {
+      const linkages: Record<string, LinkageConfig[]> = {
+        targetField: [{
           type: 'value',
           dependencies: ['useDefault'],
           when: {
@@ -1657,10 +1660,10 @@ describe('useLinkageManager - 直接指定值', () => {
           otherwise: {
             value: '',
           },
-        },
+        }],
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
       });
@@ -1670,7 +1673,7 @@ describe('useLinkageManager - 直接指定值', () => {
 
     // 等待初始化完成
     await waitFor(() => {
-      expect(result.current.linkageStates.targetField?.value).toBe('default value');
+      expect(result.current.linkageStates['targetField']?.value).toBe('default value');
     });
 
     // 修改条件
@@ -1680,7 +1683,7 @@ describe('useLinkageManager - 直接指定值', () => {
 
     // 等待联动计算完成
     await waitFor(() => {
-      expect(result.current.linkageStates.targetField?.value).toBe('');
+      expect(result.current.linkageStates['targetField']?.value).toBe('');
     });
   });
 
@@ -1693,8 +1696,8 @@ describe('useLinkageManager - 直接指定值', () => {
         },
       });
 
-      const linkages: Record<string, LinkageConfig> = {
-        item: {
+      const linkages: Record<string, LinkageConfig[]> = {
+        item: [{
           type: 'options',
           dependencies: ['category'],
           when: {
@@ -1714,10 +1717,10 @@ describe('useLinkageManager - 直接指定值', () => {
               { label: 'Potato', value: 'potato' },
             ],
           },
-        },
+        }],
       };
 
-      const linkageStates = useLinkageManager({
+      const { linkageStates } = useLinkageManager({
         form,
         linkages,
       });
@@ -1727,7 +1730,7 @@ describe('useLinkageManager - 直接指定值', () => {
 
     // 等待初始化完成
     await waitFor(() => {
-      expect(result.current.linkageStates.item?.options).toEqual([
+      expect(result.current.linkageStates['item']?.options).toEqual([
         { label: 'Apple', value: 'apple' },
         { label: 'Banana', value: 'banana' },
       ]);
@@ -1740,7 +1743,7 @@ describe('useLinkageManager - 直接指定值', () => {
 
     // 等待联动计算完成
     await waitFor(() => {
-      expect(result.current.linkageStates.item?.options).toEqual([
+      expect(result.current.linkageStates['item']?.options).toEqual([
         { label: 'Carrot', value: 'carrot' },
         { label: 'Potato', value: 'potato' },
       ]);

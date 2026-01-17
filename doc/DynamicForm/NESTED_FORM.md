@@ -95,12 +95,14 @@ const linkageFunctions = {
       title: 'Details',
       ui: {
         widget: 'nested-form',
-        linkage: {
-          type: 'schema',
-          dependencies: ['type'], // 依赖同级的 type 字段
-          when: { field: 'type', operator: 'isNotEmpty' },
-          fulfill: { function: 'loadDetailSchema' }
-        }
+        linkages: [
+          {
+            type: 'schema',
+            dependencies: ['type'], // 依赖同级的 type 字段
+            when: { field: 'type', operator: 'isNotEmpty' },
+            fulfill: { function: 'loadDetailSchema' }
+          }
+        ]
       }
     }
   }
@@ -159,13 +161,15 @@ const linkageFunctions = {
           title: 'Company Details',
           ui: {
             widget: 'nested-form',
-            linkage: {
-              type: 'schema',
-              // 使用 JSON Pointer 格式依赖 company.type
-              dependencies: ['#/properties/company/properties/type'],
-              when: { field: '#/properties/company/properties/type', operator: 'isNotEmpty' },
-              fulfill: { function: 'loadCompanySchema' }
-            }
+            linkages: [
+              {
+                type: 'schema',
+                // 使用 JSON Pointer 格式依赖 company.type
+                dependencies: ['#/properties/company/properties/type'],
+                when: { field: '#/properties/company/properties/type', operator: 'isNotEmpty' },
+                fulfill: { function: 'loadCompanySchema' }
+              }
+            ]
           }
         }
       }
@@ -671,12 +675,14 @@ const schema = {
       title: 'Configuration',
       ui: {
         widget: 'nested-form',
-        linkage: {
-          type: 'schema',
-          dependencies: ['productId'],
-          when: { field: 'productId', operator: 'isNotEmpty' },
-          fulfill: { function: 'loadProductConfigSchema' }
-        }
+        linkages: [
+          {
+            type: 'schema',
+            dependencies: ['productId'],
+            when: { field: 'productId', operator: 'isNotEmpty' },
+            fulfill: { function: 'loadProductConfigSchema' }
+          }
+        ]
       },
     },
   },

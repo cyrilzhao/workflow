@@ -15,18 +15,20 @@ describe('parseSchemaLinkages', () => {
             type: 'string',
             title: '省份',
             ui: {
-              linkage: {
-                type: 'visibility',
-                dependencies: ['country'],
-                when: {
-                  field: 'country',
-                  operator: '==',
-                  value: 'China',
+              linkages: [
+                {
+                  type: 'visibility',
+                  dependencies: ['country'],
+                  when: {
+                    field: 'country',
+                    operator: '==',
+                    value: 'China',
+                  },
+                  fulfill: {
+                    state: { visible: true },
+                  },
                 },
-                fulfill: {
-                  state: { visible: true },
-                },
-              },
+              ],
             },
           },
         },
@@ -35,8 +37,10 @@ describe('parseSchemaLinkages', () => {
       const result = parseSchemaLinkages(schema);
 
       expect(result.linkages).toHaveProperty('province');
-      expect(result.linkages.province.type).toBe('visibility');
-      expect(result.linkages.province.dependencies).toEqual(['country']);
+      expect(result.linkages.province).toBeInstanceOf(Array);
+      expect(result.linkages.province).toHaveLength(1);
+      expect(result.linkages.province[0].type).toBe('visibility');
+      expect(result.linkages.province[0].dependencies).toEqual(['country']);
     });
 
     it('应该返回空对象当 schema 没有 properties', () => {
@@ -84,13 +88,15 @@ describe('parseSchemaLinkages', () => {
           total: {
             type: 'number',
             ui: {
-              linkage: {
-                type: 'value',
-                dependencies: ['price', 'quantity'],
-                fulfill: {
-                  function: 'calculateTotal',
+              linkages: [
+                {
+                  type: 'value',
+                  dependencies: ['price', 'quantity'],
+                  fulfill: {
+                    function: 'calculateTotal',
+                  },
                 },
-              },
+              ],
             },
           },
         },
@@ -98,8 +104,10 @@ describe('parseSchemaLinkages', () => {
 
       const result = parseSchemaLinkages(schema);
 
-      expect(result.linkages.total.type).toBe('value');
-      expect(result.linkages.total.fulfill?.function).toBe('calculateTotal');
+      expect(result.linkages.total).toBeInstanceOf(Array);
+      expect(result.linkages.total).toHaveLength(1);
+      expect(result.linkages.total[0].type).toBe('value');
+      expect(result.linkages.total[0].fulfill?.function).toBe('calculateTotal');
     });
   });
 });

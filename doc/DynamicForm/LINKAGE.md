@@ -1246,7 +1246,7 @@ const orderSchema = {
       minimum: 0,
       maximum: 50,
       ui: {
-        linkage: {
+        linkages: [{
           type: 'visibility',
           dependencies: ['#/properties/userType'],
           when: {
@@ -1260,7 +1260,7 @@ const orderSchema = {
           otherwise: {
             state: { visible: false },
           },
-        },
+        }],
       },
     },
 
@@ -1276,13 +1276,13 @@ const orderSchema = {
       type: 'string',
       title: '省份/州',
       ui: {
-        linkage: {
+        linkages: [{
           type: 'options',
           dependencies: ['#/properties/country'],
           fulfill: {
             function: 'loadProvinceOptions',
           },
-        },
+        }],
       },
     },
 
@@ -1314,13 +1314,13 @@ const orderSchema = {
             title: '小计',
             ui: {
               readonly: true,
-              linkage: {
+              linkages: [{
                 type: 'value',
                 dependencies: ['./price', './quantity'],
                 fulfill: {
                   function: 'calculateSubtotal',
                 },
-              },
+              }],
             },
           },
         },
@@ -1334,13 +1334,13 @@ const orderSchema = {
       title: '总价',
       ui: {
         readonly: true,
-        linkage: {
+        linkages: [{
           type: 'value',
           dependencies: ['#/properties/items', '#/properties/companyDiscount'],
           fulfill: {
             function: 'calculateTotal',
           },
-        },
+        }],
       },
     },
   },
@@ -1583,11 +1583,11 @@ dependencyGraph.getAffectedFields('items.0.quantity')
         companyName: {
           type: 'string',
           ui: {
-            linkage: {
+            linkages: [{
               type: 'visibility',
               dependencies: ['./type'],
               when: { field: './type', operator: '==', value: 'work' }
-            }
+            }]
           }
         }
       }
@@ -1737,6 +1737,518 @@ useEffect(() => {
 
 ---
 
+## 12. 多联动类型支持（Multiple Linkage Types）
+
+### 12.1 背景与需求
+
+#### 12.1.1 当前限制
+
+在当前的联动系统中，每个字段只能配置一种联动类型：
+
+```typescript
+interface UILinkageConfig {
+  type: 'visibility' | 'disabled' | 'readonly' | 'value' | 'options' | 'schema';
+  // ...
+}
+```
+
+**限制说明**：
+
+- ❌ 无法同时配置 `value` 和 `options` 联动
+- ❌ 无法同时配置 `visibility` 和 `disabled` 联动
+- ❌ 需要在联动函数内手动调用 `form.setValue()` 来实现值清空
+
+#### 12.1.2 实际业务场景
+
+**场景 1：Category-Action 联动**
+
+```
+需求：
+1. 当 category 变化时，清空 action 的值
+2. 同时根据 category 异步加载 action 的选项列表
+```
+
+**场景 2：条件性字段显示与禁用**
+
+```
+需求：
+1. 当 userType = 'vip' 时，显示 vipLevel 字段
+2. 当 vipExpired = true 时，禁用 vipLevel 字段
+```
+
+**场景 3：动态表单与值联动**
+
+```
+需求：
+1. 根据 productType 动态加载配置表单的 schema
+2. 同时根据 productType 设置默认的配置值
+```
+
+### 12.2 设计方案
+
+#### 12.2.1 方案对比
+
+我们考虑了三种可能的实现方案：
+
+| 方案 | 描述 | 优点 | 缺点 | 推荐度 |
+|------|------|------|------|--------|
+| **方案 1：数组配置** | `linkage` 改为数组，支持多个联动配置 | 简单直观，易于理解 | 配置冗余，依赖关系重复 | ⭐⭐⭐⭐⭐ |
+| **方案 2：联动组** | 新增 `linkageGroup` 字段，统一管理 | 依赖关系统一，减少重复 | 配置复杂，学习成本高 | ⭐⭐⭐ |
+| **方案 3：联动函数返回多种结果** | 单个函数返回包含多种类型的结果对象 | 配置简洁 | 函数逻辑复杂，难以维护 | ⭐⭐ |
+
+**推荐方案：方案 1（数组配置）**
+
+#### 12.2.2 方案 1：数组配置（推荐）
+
+**核心思想**：使用 `ui.linkages` 数组，支持配置多个联动规则。
+
+**类型定义**：
+
+```typescript
+// 类型定义
+interface UISchema {
+  // 多个联动配置
+  linkages?: LinkageConfig[];
+
+  // 其他 UI 配置...
+}
+```
+
+**执行规则**：
+
+1. 所有联动规则并行执行，使用 `Promise.allSettled` 确保错误隔离
+2. 结果按类型智能合并（状态类型直接合并，值/选项/schema 类型后者覆盖前者）
+3. 每个联动规则独立配置，职责单一
+
+### 12.3 使用示例
+
+#### 12.3.1 场景 1：Category-Action 联动（value + options）
+
+**需求**：当 category 变化时，清空 action 的值并加载新的选项列表。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "category": {
+      "type": "string",
+      "title": "Category",
+      "enum": ["user", "product", "order"]
+    },
+    "action": {
+      "type": "string",
+      "title": "Action",
+      "ui": {
+        "widget": "select",
+        "linkages": [
+          {
+            "type": "value",
+            "dependencies": ["#/properties/category"],
+            "fulfill": {
+              "value": ""
+            }
+          },
+          {
+            "type": "options",
+            "dependencies": ["#/properties/category"],
+            "enableCache": true,
+            "fulfill": {
+              "function": "loadActionOptions"
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+**联动函数**：
+
+```typescript
+const linkageFunctions = {
+  loadActionOptions: async (formData: any) => {
+    const { category } = formData;
+    if (!category) return [];
+
+    const response = await fetch(`/api/actions?category=${category}`);
+    const data = await response.json();
+    return data.actions;
+  },
+};
+```
+
+**执行顺序**：
+
+1. 当 `category` 变化时，两个联动规则都会被触发
+2. `value` 联动先执行，清空 `action` 的值
+3. `options` 联动随后执行，加载新的选项列表
+4. 由于启用了缓存，相同的 `category` 不会重复请求
+
+#### 12.3.2 场景 2：条件性字段显示与禁用（visibility + disabled）
+
+**需求**：vipLevel 字段在 userType='vip' 时显示，在 vipExpired=true 时禁用。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "userType": {
+      "type": "string",
+      "title": "User Type",
+      "enum": ["normal", "vip"],
+      "enumNames": ["Normal User", "VIP User"]
+    },
+    "vipExpired": {
+      "type": "boolean",
+      "title": "VIP Expired",
+      "default": false
+    },
+    "vipLevel": {
+      "type": "string",
+      "title": "VIP Level",
+      "enum": ["silver", "gold", "platinum"],
+      "ui": {
+        "widget": "select",
+        "linkages": [
+          {
+            "type": "visibility",
+            "dependencies": ["#/properties/userType"],
+            "when": {
+              "field": "#/properties/userType",
+              "operator": "==",
+              "value": "vip"
+            },
+            "fulfill": {
+              "state": { "visible": true }
+            },
+            "otherwise": {
+              "state": { "visible": false }
+            }
+          },
+          {
+            "type": "disabled",
+            "dependencies": ["#/properties/vipExpired"],
+            "when": {
+              "field": "#/properties/vipExpired",
+              "operator": "==",
+              "value": true
+            },
+            "fulfill": {
+              "state": { "disabled": true }
+            },
+            "otherwise": {
+              "state": { "disabled": false }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+**状态合并**：
+
+- 两个联动规则的结果会被合并到同一个 `linkageState` 中
+- `visible` 和 `disabled` 状态独立控制，互不影响
+
+#### 12.3.3 场景 3：动态表单与值联动（schema + value）
+
+**需求**：根据 productType 动态加载配置表单，并设置默认值。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "productType": {
+      "type": "string",
+      "title": "Product Type",
+      "enum": ["laptop", "smartphone", "tablet"]
+    },
+    "configuration": {
+      "type": "object",
+      "title": "Product Configuration",
+      "properties": {},
+      "ui": {
+        "widget": "nested-form",
+        "linkages": [
+          {
+            "type": "schema",
+            "dependencies": ["#/properties/productType"],
+            "enableCache": true,
+            "fulfill": {
+              "function": "loadProductSchema"
+            }
+          },
+          {
+            "type": "value",
+            "dependencies": ["#/properties/productType"],
+            "fulfill": {
+              "function": "getDefaultConfiguration"
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+**联动函数**：
+
+```typescript
+const linkageFunctions = {
+  loadProductSchema: async (formData: any) => {
+    const { productType } = formData;
+    if (!productType) return { type: 'object', properties: {} };
+
+    const response = await fetch(`/api/products/${productType}/schema`);
+    return await response.json();
+  },
+
+  getDefaultConfiguration: (formData: any) => {
+    const { productType } = formData;
+    const defaults: Record<string, any> = {
+      laptop: { cpu: 'Intel i5', ram: 8, storage: 256 },
+      smartphone: { brand: 'Apple', model: 'iPhone 14' },
+      tablet: { screenSize: 10.5, storage: 64 },
+    };
+    return defaults[productType] || {};
+  },
+};
+```
+
+### 12.4 实现细节
+
+#### 12.4.1 类型定义扩展
+
+**修改文件**：`src/components/DynamicForm/types/schema.ts`
+
+```typescript
+/**
+ * UI Schema 扩展（支持多联动类型）
+ */
+export interface UIConfig {
+  // 多个联动配置
+  linkages?: LinkageConfig[];
+
+  // 其他 UI 配置...
+  widget?: WidgetType | string;
+  placeholder?: string;
+  disabled?: boolean;
+  readonly?: boolean;
+  // ...
+}
+```
+
+#### 12.4.2 Schema 解析逻辑
+
+**修改文件**：`src/components/DynamicForm/utils/schemaLinkageParser.ts`
+
+```typescript
+/**
+ * 解析 Schema 中的联动配置
+ * 只支持 linkages 数组格式
+ */
+export function parseSchemaLinkages(schema: ExtendedJSONSchema): {
+  linkages: Record<string, LinkageConfig[]>;
+} {
+  const result: Record<string, LinkageConfig[]> = {};
+
+  function traverse(currentSchema: ExtendedJSONSchema, path: string = '') {
+    if (!currentSchema || typeof currentSchema !== 'object') return;
+
+    // 处理当前字段的联动配置
+    if (currentSchema.ui) {
+      const { linkages } = currentSchema.ui;
+      const fieldPath = path || 'root';
+
+      // 只解析 linkages 数组配置
+      if (linkages && Array.isArray(linkages) && linkages.length > 0) {
+        result[fieldPath] = linkages;
+      }
+    }
+
+    // 递归处理子字段
+    if (currentSchema.properties) {
+      Object.entries(currentSchema.properties).forEach(([key, subSchema]) => {
+        const newPath = path ? `${path}.${key}` : key;
+        traverse(subSchema as ExtendedJSONSchema, newPath);
+      });
+    }
+
+    // 处理数组项（停止递归，由子 DynamicForm 处理）
+    if (currentSchema.type === 'array' && currentSchema.items) {
+      // 数组元素内部的联动由 NestedFormWidget 创建的子 DynamicForm 独立解析
+    }
+  }
+
+  traverse(schema);
+  return { linkages: result };
+}
+```
+
+#### 12.4.3 联动管理器修改
+
+**修改文件**：`src/hooks/useArrayLinkageManager.ts`
+
+核心修改点：
+
+1. **接受联动配置数组**：将 `baseLinkages: Record<string, LinkageConfig>` 改为 `baseLinkages: Record<string, LinkageConfig[]>`
+2. **遍历多个联动规则**：对每个字段的多个联动规则分别计算
+3. **合并联动结果**：将多个联动规则的结果合并到同一个 `LinkageResult` 中
+
+```typescript
+/**
+ * 计算单个字段的所有联动规则
+ */
+async function evaluateFieldLinkages({
+  fieldName,
+  linkageConfigs,
+  formData,
+  linkageFunctions,
+}: {
+  fieldName: string;
+  linkageConfigs: LinkageConfig[];
+  formData: Record<string, any>;
+  linkageFunctions: Record<string, LinkageFunction>;
+}): Promise<LinkageResult> {
+  const result: LinkageResult = {};
+
+  // 并行计算所有联动规则
+  const results = await Promise.allSettled(
+    linkageConfigs.map(config =>
+      evaluateLinkage(config, formData, linkageFunctions, fieldName)
+    )
+  );
+
+  // 合并结果
+  results.forEach((promiseResult, index) => {
+    if (promiseResult.status === 'fulfilled') {
+      const linkageResult = promiseResult.value;
+      const linkageType = linkageConfigs[index].type;
+
+      // 根据联动类型合并结果
+      if (linkageType === 'visibility' || linkageType === 'disabled' || linkageType === 'readonly') {
+        // 状态类型：直接合并
+        Object.assign(result, linkageResult);
+      } else if (linkageType === 'value') {
+        // 值类型：后面的覆盖前面的
+        result.value = linkageResult.value;
+      } else if (linkageType === 'options') {
+        // 选项类型：后面的覆盖前面的
+        result.options = linkageResult.options;
+      } else if (linkageType === 'schema') {
+        // Schema 类型：后面的覆盖前面的
+        result.schema = linkageResult.schema;
+      }
+    }
+  });
+
+  return result;
+}
+```
+
+### 12.5 关键注意事项
+
+#### 12.5.1 执行顺序
+
+多个联动规则的执行顺序：
+
+1. **并行执行**：同一字段的多个联动规则会并行计算
+2. **结果合并**：所有联动规则计算完成后，结果会被合并
+3. **覆盖规则**：
+   - 状态类型（visibility/disabled/readonly）：直接合并，互不影响
+   - 值类型（value）：后面的覆盖前面的
+   - 选项类型（options）：后面的覆盖前面的
+   - Schema 类型（schema）：后面的覆盖前面的
+
+#### 12.5.2 依赖关系处理
+
+当多个联动规则依赖相同的字段时：
+
+```json
+{
+  "linkages": [
+    {
+      "type": "value",
+      "dependencies": ["#/properties/category"]
+    },
+    {
+      "type": "options",
+      "dependencies": ["#/properties/category"]
+    }
+  ]
+}
+```
+
+- ✅ 依赖图会自动去重，避免重复监听
+- ✅ 当 `category` 变化时，两个联动规则都会被触发
+- ✅ 使用 `Promise.allSettled` 确保单个规则失败不影响其他规则
+
+#### 12.5.3 性能优化
+
+**缓存策略**：
+
+- 每个联动规则可以独立配置 `enableCache`
+- 建议为异步联动（如 API 调用）启用缓存
+- 缓存键基于依赖字段的值生成
+
+**并行执行**：
+
+- 同一字段的多个联动规则并行计算，提高性能
+- 使用 `Promise.allSettled` 避免阻塞
+
+**避免过度联动**：
+
+- ❌ 不推荐：为同一字段配置超过 3 个联动规则
+- ✅ 推荐：合理拆分联动逻辑，保持简洁
+
+### 12.6 最佳实践
+
+#### 12.6.1 合理使用多联动类型
+
+**推荐场景**：
+
+1. **value + options**：清空值并加载新选项（如 Category-Action）
+2. **visibility + disabled**：条件性显示和禁用（如 VIP 字段）
+3. **schema + value**：动态表单与默认值（如产品配置）
+
+**不推荐场景**：
+
+- ❌ 配置过多联动规则（超过 3 个）
+- ❌ 联动规则之间存在冲突（如同时设置不同的 value）
+- ❌ 复杂的嵌套联动（建议拆分为多个字段）
+
+### 12.7 总结
+
+#### 12.7.1 核心优势
+
+1. **灵活性**：支持为单个字段配置多种联动类型
+2. **性能优化**：并行执行，独立缓存
+3. **易于维护**：配置清晰，逻辑独立
+4. **职责分离**：每个联动规则单一职责，易于理解和调试
+
+#### 12.7.2 实现要点
+
+| 组件 | 修改内容 | 关键点 |
+|------|---------|--------|
+| **类型定义** | 使用 `linkages?: LinkageConfig[]` | 只支持数组格式 |
+| **Schema 解析** | 只解析 `linkages` 数组 | 移除单个 linkage 支持 |
+| **联动管理器** | 遍历多个联动规则并合并结果 | 并行执行，错误隔离 |
+| **依赖图** | 自动去重依赖关系 | 避免重复监听 |
+
+#### 12.7.3 实现状态
+
+1. ✅ **类型定义扩展**：已修改 `src/components/DynamicForm/types/schema.ts`，使用 `linkages` 字段
+2. ✅ **Schema 解析器**：已修改 `schemaLinkageParser.ts`，只支持解析 `linkages` 数组配置
+3. ✅ **联动管理器**：已修改 `useLinkageManager.ts` 和 `useArrayLinkageManager.ts`，实现多联动规则并行计算和合并
+4. ✅ **示例代码**：已创建 `MultipleLinkagesExample.tsx`，演示多联动类型的使用场景
+5. ⏳ **文档更新**：正在更新相关文档，移除向后兼容内容
+
+---
+
 ## 相关文档
 
 - [异步联动实现方案](./ASYNC_LINKAGE.md)
@@ -1747,12 +2259,40 @@ useEffect(() => {
 
 ---
 
-**文档版本**: 2.5
+**文档版本**: 2.6
 **创建日期**: 2025-12-26
 **最后更新**: 2026-01-16
 **文档状态**: 已更新
 
 ## 变更历史
+
+### v2.6 (2026-01-16)
+
+**新增内容**：多联动类型支持设计方案
+
+**主要变更**：
+
+1. **新增第 12 章：多联动类型支持（Multiple Linkage Types）**
+   - ✅ 12.1 节：背景与需求分析
+   - ✅ 12.2 节：设计方案对比（数组配置、联动组、函数返回多种结果）
+   - ✅ 12.3 节：三个典型使用场景示例
+   - ✅ 12.4 节：实现细节（类型定义、Schema 解析、联动管理器）
+   - ✅ 12.5 节：关键注意事项（执行顺序、依赖处理、性能优化）
+   - ✅ 12.6 节：最佳实践
+   - ✅ 12.7 节：总结和实现状态
+
+2. **设计方案核心特性**
+   - ✅ 支持 `linkages` 数组配置，允许单个字段配置多种联动类型
+   - ✅ 并行执行多个联动规则，提高性能
+   - ✅ 智能合并联动结果，避免冲突
+   - ✅ 每个联动规则职责单一，易于维护
+
+3. **典型使用场景**
+   - ✅ Category-Action 联动（value + options）
+   - ✅ 条件性字段显示与禁用（visibility + disabled）
+   - ✅ 动态表单与值联动（schema + value）
+
+**文档规模**：~2280 行（新增约 540 行）
 
 ### v2.5 (2026-01-16)
 

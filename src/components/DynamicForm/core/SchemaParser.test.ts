@@ -605,7 +605,10 @@ describe('SchemaParser', () => {
         if (validator) {
           expect(validator('short')).toBe('Minimum length is 8 characters');
           expect(validator('longenough')).toBe(true);
-          expect(validator(null)).toBe('Minimum length is 8 characters');
+          // 空值不进行 minLength 校验，由 required 规则处理
+          expect(validator(null)).toBe(true);
+          expect(validator(undefined)).toBe(true);
+          expect(validator('')).toBe(true);
         }
       });
 
