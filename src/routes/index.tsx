@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Home from '@/pages/Home';
 import About from '@/pages/About';
 import { DynamicFormExamples } from '@/pages/DynamicFormExamples';
+import WorkflowExample from '@/pages/examples/WorkflowExample';
 import WorkflowExecutionHistoryExample from '@/pages/examples/WorkflowExecutionHistoryExample';
 import AgentNodeTestExample from '@/pages/examples/AgentNodeTestExample';
 import { VirtualScrollExample } from '@/pages/examples/VirtualScrollExample';
@@ -21,6 +22,7 @@ const AppRouter = () => {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
+        <Route path="/workflow" element={<WorkflowExample />} />
         <Route path="/dynamic-form" element={<DynamicFormExamples />} />
         <Route path="/workflow-history" element={<WorkflowExecutionHistoryExample />} />
         <Route path="/agent-node-test" element={<AgentNodeTestExample />} />

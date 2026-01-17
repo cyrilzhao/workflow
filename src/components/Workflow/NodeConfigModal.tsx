@@ -3,15 +3,7 @@ import type { WorkflowNode, NodeConfigSchema, NodeExecutionRecord } from './type
 import { DynamicForm } from '@/components/DynamicForm';
 import type { DynamicFormRef } from '@/components/DynamicForm/types';
 import { SchemaValidator } from '@/components/DynamicForm/core/SchemaValidator';
-import {
-  X,
-  Settings,
-  Sliders,
-  ArrowRightLeft,
-  Play,
-  AlertCircle,
-  Loader2,
-} from 'lucide-react';
+import { X, Settings, Sliders, ArrowRightLeft, Play, AlertCircle, Loader2 } from 'lucide-react';
 import './NodeConfigModal.scss';
 
 interface NodeConfigModalProps {
@@ -175,8 +167,6 @@ export const NodeConfigModal: React.FC<NodeConfigModalProps> = ({
     onClose();
   }, [schema?.inputSchema, formData, node, onSave, onClose, activeTab]);
 
-  if (!isOpen || !node) return null;
-
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev: any) => ({
       ...prev,
@@ -222,6 +212,8 @@ export const NodeConfigModal: React.FC<NodeConfigModalProps> = ({
       outputMappings: data.outputMappings || [],
     }));
   }, []);
+
+  if (!isOpen || !node) return null;
 
   return (
     <div className="node-config-modal-overlay">
