@@ -267,11 +267,11 @@ DynamicForm supports three layout modes:
 
 DynamicForm 提供了三种不同的 Array Widget 来满足不同的使用场景：
 
-| Widget | 适用场景 | 布局方式 | 虚拟滚动 | 详细文档 |
-|--------|---------|---------|---------|---------|
-| **ArrayFieldWidget** | 通用数组（支持任意类型） | 卡片式/列表式 | ✅ | [查看文档](./ARRAY_FIELD_WIDGET.md) |
-| **KeyValueArrayWidget** | 键值对数组（如环境变量、映射） | 表格式（固定两列） | ❌ | [查看文档](./KEY_VALUE_ARRAY_WIDGET.md) |
-| **TableArrayWidget** | 对象数组（表格展示） | 表格式（自动生成列） | ✅ | [查看文档](./TABLE_ARRAY_WIDGET.md) |
+| Widget                  | 适用场景                       | 布局方式             | 虚拟滚动 | 详细文档                                |
+| ----------------------- | ------------------------------ | -------------------- | -------- | --------------------------------------- |
+| **ArrayFieldWidget**    | 通用数组（支持任意类型）       | 卡片式/列表式        | ✅       | [查看文档](./ARRAY_FIELD_WIDGET.md)     |
+| **KeyValueArrayWidget** | 键值对数组（如环境变量、映射） | 表格式（固定两列）   | ❌       | [查看文档](./KEY_VALUE_ARRAY_WIDGET.md) |
+| **TableArrayWidget**    | 对象数组（表格展示）           | 表格式（自动生成列） | ✅       | [查看文档](./TABLE_ARRAY_WIDGET.md)     |
 
 ##### 1. ArrayFieldWidget（通用数组）
 
@@ -320,6 +320,8 @@ DynamicForm 提供了三种不同的 Array Widget 来满足不同的使用场景
 
 For arrays with many items (50+), enable virtual scrolling for better performance:
 
+**Note**: Array fields automatically use the `array` widget by default. You only need to explicitly specify `ui.widget` if you want to use a different widget (e.g., `key-value-array` or `table-array`).
+
 ```typescript
 {
   type: 'array',
@@ -335,7 +337,7 @@ For arrays with many items (50+), enable virtual scrolling for better performanc
     required: ['name', 'phone']
   },
   ui: {
-    widget: 'array',
+    // widget: 'array' is the default for array type, no need to specify
     widgetProps: {
       enableVirtualScroll: true,      // Enable virtual scrolling
       virtualScrollHeight: 500,       // Scroll container height in pixels
@@ -633,7 +635,7 @@ const schema = {
             fulfill: {
               function: 'getProvinceOptions',
             },
-          }
+          },
         ],
       },
     },
@@ -818,13 +820,13 @@ DynamicForm exposes several methods via ref that allow you to programmatically c
 
 #### Basic Methods
 
-| Method | Signature | Description |
-| ------ | --------- | ----------- |
-| `setValue` | `(name: string, value: any, options?: SetValueOptions) => void` | Set a single field value |
-| `getValue` | `(name: string) => any` | Get a single field value by name |
-| `getValues` | `() => Record<string, any>` | Get all form values as an object |
-| `setValues` | `(values: Record<string, any>, options?: SetValueOptions) => void` | Set multiple field values at once |
-| `reset` | `(values?: Record<string, any>) => void` | Reset form to default or provided values |
+| Method      | Signature                                                          | Description                              |
+| ----------- | ------------------------------------------------------------------ | ---------------------------------------- |
+| `setValue`  | `(name: string, value: any, options?: SetValueOptions) => void`    | Set a single field value                 |
+| `getValue`  | `(name: string) => any`                                            | Get a single field value by name         |
+| `getValues` | `() => Record<string, any>`                                        | Get all form values as an object         |
+| `setValues` | `(values: Record<string, any>, options?: SetValueOptions) => void` | Set multiple field values at once        |
+| `reset`     | `(values?: Record<string, any>) => void`                           | Reset form to default or provided values |
 
 **`setValue(name, value, options?)` - Set Field Value**
 
@@ -838,9 +840,9 @@ formRef.current?.setValue('username', 'john_doe');
 
 // Set with validation
 formRef.current?.setValue('email', 'john@example.com', {
-  shouldValidate: true,  // Trigger validation
-  shouldDirty: true,     // Mark field as dirty
-  shouldTouch: true      // Mark field as touched
+  shouldValidate: true, // Trigger validation
+  shouldDirty: true, // Mark field as dirty
+  shouldTouch: true, // Mark field as touched
 });
 
 // Set nested field
@@ -875,13 +877,16 @@ console.log(allValues);
 Set multiple field values at once.
 
 ```typescript
-formRef.current?.setValues({
-  username: 'jane_doe',
-  email: 'jane@example.com',
-  'address.city': 'Shanghai'
-}, {
-  shouldValidate: true
-});
+formRef.current?.setValues(
+  {
+    username: 'jane_doe',
+    email: 'jane@example.com',
+    'address.city': 'Shanghai',
+  },
+  {
+    shouldValidate: true,
+  }
+);
 ```
 
 **`reset(values?)` - Reset Form**
@@ -895,19 +900,19 @@ formRef.current?.reset();
 // Reset to specific values
 formRef.current?.reset({
   username: '',
-  email: ''
+  email: '',
 });
 ```
 
 #### Validation Methods
 
-| Method | Signature | Description |
-| ------ | --------- | ----------- |
-| `validate` | `(name?: string) => Promise<boolean>` | Trigger validation for a field or entire form |
-| `getErrors` | `() => Record<string, any>` | Get all validation errors |
-| `clearErrors` | `(name?: string) => void` | Clear validation errors for a field or entire form |
-| `setError` | `(name: string, error: ErrorOption) => void` | Set a validation error manually |
-| `getFormState` | `() => FormState` | Get form state (isDirty, isValid, etc.) |
+| Method         | Signature                                    | Description                                        |
+| -------------- | -------------------------------------------- | -------------------------------------------------- |
+| `validate`     | `(name?: string) => Promise<boolean>`        | Trigger validation for a field or entire form      |
+| `getErrors`    | `() => Record<string, any>`                  | Get all validation errors                          |
+| `clearErrors`  | `(name?: string) => void`                    | Clear validation errors for a field or entire form |
+| `setError`     | `(name: string, error: ErrorOption) => void` | Set a validation error manually                    |
+| `getFormState` | `() => FormState`                            | Get form state (isDirty, isValid, etc.)            |
 
 **`validate(name?)` - Trigger Validation**
 
@@ -963,7 +968,7 @@ Manually set a validation error for a field. Useful for async validation, server
 // Basic usage: Set a manual error
 formRef.current?.setError('username', {
   type: 'manual',
-  message: 'This username is already taken'
+  message: 'This username is already taken',
 });
 
 // Async validation example: Check username availability
@@ -977,7 +982,7 @@ const handleCheckUsername = async () => {
     if (!available) {
       formRef.current?.setError('username', {
         type: 'manual',
-        message: 'This username is already taken'
+        message: 'This username is already taken',
       });
     } else {
       formRef.current?.clearErrors('username');
@@ -985,7 +990,7 @@ const handleCheckUsername = async () => {
   } catch (error) {
     formRef.current?.setError('username', {
       type: 'manual',
-      message: 'Failed to check username availability'
+      message: 'Failed to check username availability',
     });
   }
 };
@@ -1000,7 +1005,7 @@ const handleSubmit = async (data: any) => {
       Object.entries(error.response.data.errors).forEach(([field, message]) => {
         formRef.current?.setError(field, {
           type: 'server',
-          message: message as string
+          message: message as string,
         });
       });
     }
@@ -1015,7 +1020,7 @@ const handleValidatePassword = () => {
   if (password !== confirmPassword) {
     formRef.current?.setError('confirmPassword', {
       type: 'manual',
-      message: 'Passwords do not match'
+      message: 'Passwords do not match',
     });
   }
 };
@@ -1039,8 +1044,8 @@ console.log(formState);
 
 #### Linkage Methods
 
-| Method | Signature | Description |
-| ------ | --------- | ----------- |
+| Method           | Signature             | Description                                |
+| ---------------- | --------------------- | ------------------------------------------ |
 | `refreshLinkage` | `() => Promise<void>` | Manually re-trigger linkage initialization |
 
 **`refreshLinkage()` - Manual Linkage Refresh**
@@ -1159,6 +1164,7 @@ function EmployeeForm() {
 - For better UX, use a loading state while data is being fetched
 
 **See Also:**
+
 - [UI Linkage Design (Chinese)](./LINKAGE.md) - Complete linkage system documentation
 - [RefreshLinkage Example](/src/pages/examples/RefreshLinkageExample.tsx) - Full working example
 
