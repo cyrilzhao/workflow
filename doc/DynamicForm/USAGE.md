@@ -265,15 +265,15 @@ DynamicForm supports three layout modes:
 
 #### Array Fields
 
-DynamicForm 提供了三种不同的 Array Widget 来满足不同的使用场景：
+DynamicForm provides three different Array Widgets to meet different use cases:
 
-| Widget                  | 适用场景                       | 布局方式             | 虚拟滚动 | 详细文档                                |
-| ----------------------- | ------------------------------ | -------------------- | -------- | --------------------------------------- |
-| **ArrayFieldWidget**    | 通用数组（支持任意类型）       | 卡片式/列表式        | ✅       | [查看文档](./ARRAY_FIELD_WIDGET.md)     |
-| **KeyValueArrayWidget** | 键值对数组（如环境变量、映射） | 表格式（固定两列）   | ❌       | [查看文档](./KEY_VALUE_ARRAY_WIDGET.md) |
-| **TableArrayWidget**    | 对象数组（表格展示）           | 表格式（自动生成列） | ✅       | [查看文档](./TABLE_ARRAY_WIDGET.md)     |
+| Widget                  | Use Case                                  | Layout Style              | Virtual Scroll | Documentation                           |
+| ----------------------- | ----------------------------------------- | ------------------------- | -------------- | --------------------------------------- |
+| **ArrayFieldWidget**    | General arrays (supports any type)        | Card/List style           | ✅             | [View Docs](./ARRAY_FIELD_WIDGET.md)    |
+| **KeyValueArrayWidget** | Key-value pair arrays (e.g., env vars, mappings) | Table style (fixed two columns) | ❌             | [View Docs](./KEY_VALUE_ARRAY_WIDGET.md) |
+| **TableArrayWidget**    | Object arrays (table display)             | Table style (auto-generated columns) | ✅             | [View Docs](./TABLE_ARRAY_WIDGET.md)     |
 
-##### 1. ArrayFieldWidget（通用数组）
+##### 1. ArrayFieldWidget (General Arrays)
 
 **Simple Array (Checkboxes)**:
 
@@ -310,7 +310,7 @@ DynamicForm 提供了三种不同的 Array Widget 来满足不同的使用场景
   },
   minItems: 1,
   ui: {
-    widget: 'array',  // 默认使用 ArrayFieldWidget
+    widget: 'array',  // Default: uses ArrayFieldWidget
     addButtonText: 'Add Contact'
   }
 }
@@ -347,9 +347,9 @@ For arrays with many items (50+), enable virtual scrolling for better performanc
 }
 ```
 
-##### 2. KeyValueArrayWidget（键值对数组）
+##### 2. KeyValueArrayWidget (Key-Value Pair Arrays)
 
-适用于环境变量、HTTP 头、输出映射等键值对场景：
+Suitable for key-value pair scenarios such as environment variables, HTTP headers, output mappings, etc.:
 
 ```typescript
 {
@@ -376,9 +376,9 @@ For arrays with many items (50+), enable virtual scrolling for better performanc
 }
 ```
 
-##### 3. TableArrayWidget（表格数组）
+##### 3. TableArrayWidget (Table Arrays)
 
-适用于需要表格形式展示的对象数组，支持虚拟滚动：
+Suitable for object arrays that need to be displayed in table format, with virtual scroll support:
 
 ```typescript
 {
@@ -403,7 +403,7 @@ For arrays with many items (50+), enable virtual scrolling for better performanc
     widgetProps: {
       enableVirtualScroll: true,
       virtualScrollHeight: 400,
-      columns: ['name', 'email', 'role', 'age']  // 自定义列顺序
+      columns: ['name', 'email', 'role', 'age']  // Custom column order
     }
   }
 }
