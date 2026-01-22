@@ -267,13 +267,15 @@ DynamicForm supports three layout modes:
 
 DynamicForm provides three different Array Widgets to meet different use cases:
 
-| Widget                  | Use Case                                  | Layout Style              | Virtual Scroll | Documentation                           |
-| ----------------------- | ----------------------------------------- | ------------------------- | -------------- | --------------------------------------- |
-| **ArrayFieldWidget**    | General arrays (supports any type)        | Card/List style           | ✅             | [View Docs](./ARRAY_FIELD_WIDGET.md)    |
-| **KeyValueArrayWidget** | Key-value pair arrays (e.g., env vars, mappings) | Table style (fixed two columns) | ❌             | [View Docs](./KEY_VALUE_ARRAY_WIDGET.md) |
-| **TableArrayWidget**    | Object arrays (table display)             | Table style (auto-generated columns) | ✅             | [View Docs](./TABLE_ARRAY_WIDGET.md)     |
+| Widget                  | Use Case                                  | Layout Style              | Virtual Scroll |
+| ----------------------- | ----------------------------------------- | ------------------------- | -------------- |
+| **ArrayFieldWidget**    | General arrays (supports any type)        | Card/List style           | ✅             |
+| **KeyValueArrayWidget** | Key-value pair arrays (e.g., env vars, mappings) | Table style (fixed two columns) | ❌             |
+| **TableArrayWidget**    | Object arrays (table display)             | Table style (auto-generated columns) | ✅             |
 
 ##### 1. ArrayFieldWidget (General Arrays)
+
+The default widget for all array types. It intelligently chooses the appropriate sub-widget based on the `items` configuration.
 
 **Simple Array (Checkboxes)**:
 
@@ -349,7 +351,16 @@ For arrays with many items (50+), enable virtual scrolling for better performanc
 
 ##### 2. KeyValueArrayWidget (Key-Value Pair Arrays)
 
-Suitable for key-value pair scenarios such as environment variables, HTTP headers, output mappings, etc.:
+A specialized widget for key-value pair scenarios such as environment variables, HTTP headers, and output mappings.
+
+**Features:**
+- Table layout with two columns (key and value)
+- Customizable field names and labels
+- Add/remove operations
+- Min/max item limits
+- Empty state display
+
+**Configuration:**
 
 ```typescript
 {
@@ -370,15 +381,40 @@ Suitable for key-value pair scenarios such as environment variables, HTTP header
       keyLabel: 'Variable Name',
       valueLabel: 'Variable Value',
       keyPlaceholder: 'e.g., API_KEY',
-      valuePlaceholder: 'e.g., your-api-key'
+      valuePlaceholder: 'e.g., your-api-key',
+      addButtonText: 'Add Variable',
+      emptyText: 'No environment variables configured'
     }
   }
 }
 ```
 
+**Widget Props:**
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `keyField` | `string` | `'key'` | Key field name |
+| `valueField` | `string` | `'value'` | Value field name |
+| `keyLabel` | `string` | `'Key'` | Key column header |
+| `valueLabel` | `string` | `'Value'` | Value column header |
+| `keyPlaceholder` | `string` | Same as `keyLabel` | Key input placeholder |
+| `valuePlaceholder` | `string` | Same as `valueLabel` | Value input placeholder |
+| `addButtonText` | `string` | `'Add'` | Add button text |
+| `emptyText` | `string` | - | Empty state message |
+
 ##### 3. TableArrayWidget (Table Arrays)
 
-Suitable for object arrays that need to be displayed in table format, with virtual scroll support:
+A specialized widget for displaying object arrays in table format, with virtual scroll support for handling large datasets.
+
+**Features:**
+- Table layout with auto-generated columns
+- Virtual scrolling for large datasets (50+ items)
+- Customizable column order
+- Add/remove rows
+- Min/max item limits
+- Empty state display
+
+**Configuration:**
 
 ```typescript
 {
@@ -403,11 +439,48 @@ Suitable for object arrays that need to be displayed in table format, with virtu
     widgetProps: {
       enableVirtualScroll: true,
       virtualScrollHeight: 400,
-      columns: ['name', 'email', 'role', 'age']  // Custom column order
+      columns: ['name', 'email', 'role', 'age'],  // Custom column order
+      addButtonText: 'Add User',
+      emptyText: 'No users found'
     }
   }
 }
 ```
+
+**Widget Props:**
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `enableVirtualScroll` | `boolean` | `false` | Enable virtual scrolling |
+| `virtualScrollHeight` | `number` | `400` | Virtual scroll container height (pixels) |
+| `columns` | `string[]` | - | Column order (optional, defaults to properties order) |
+| `addButtonText` | `string` | `'Add Row'` | Add button text |
+| `emptyText` | `string` | `'No data'` | Empty state message |
+
+**Performance Comparison:**
+
+| Array Size | Without Virtual Scroll | With Virtual Scroll |
+|-----------|----------------------|-------------------|
+| 50 items  | Smooth               | Smooth            |
+| 100 items | Slightly laggy       | Smooth            |
+| 500 items | Noticeably laggy     | Smooth            |
+| 1000+ items | Severely laggy     | Smooth            |
+
+**When to Use:**
+- Enable virtual scroll when array has 50+ items
+- Each item contains complex form fields
+- Users need to frequently scroll through data
+
+**Widget Comparison:**
+
+| Feature | TableArrayWidget | ArrayFieldWidget | KeyValueArrayWidget |
+|---------|------------------|------------------|---------------------|
+| **Use Case** | Object arrays (table display) | General arrays | Key-value pairs |
+| **Layout** | Table | Card/List | Table (fixed 2 columns) |
+| **Virtual Scroll** | ✅ Supported | ✅ Supported | ❌ Not supported |
+| **Column Definition** | Auto-generated | Auto-generated | Fixed 2 columns |
+| **Complexity** | Medium | High (supports nesting) | Simple |
+| **Performance** | Excellent (virtual scroll) | Excellent (virtual scroll) | Good |
 
 #### Object Fields (Nested Forms)
 
@@ -1163,11 +1236,6 @@ function EmployeeForm() {
 - Best practice: Call it after async data has been loaded and state updated
 - For better UX, use a loading state while data is being fetched
 
-**See Also:**
-
-- [UI Linkage Design (Chinese)](./LINKAGE.md) - Complete linkage system documentation
-- [RefreshLinkage Example](/src/pages/examples/RefreshLinkageExample.tsx) - Full working example
-
 #### Complete Example: Using All DynamicFormRef Methods
 
 Here's a comprehensive example demonstrating all available methods:
@@ -1526,16 +1594,5 @@ const handleSubmit = async (data: any) => {
 - Verify dependencies use correct path format
 - Check linkage functions are registered
 - Use JSON Pointer format for nested fields
-
----
-
-## Related Documentation
-
-- [Technical Design (Chinese)](./DYNAMIC_FORM_PART1.md)
-- [JSON Schema Specification (Chinese)](./DYNAMIC_FORM_PART2.md)
-- [Component Architecture (Chinese)](./DYNAMIC_FORM_PART3.md)
-- [UI Linkage Design (Chinese)](./UI_LINKAGE_DESIGN.md)
-- [Nested Forms (Chinese)](./NESTED_FORM.md)
-- [Field Path Flattening (Chinese)](./FIELD_PATH_FLATTENING.md)
 
 ---
