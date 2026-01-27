@@ -18,7 +18,7 @@ import type { CodeMirrorViewProps, SupportedLanguage } from './types';
 /**
  * 语言扩展映射
  */
-const languageExtensions: Record<SupportedLanguage, any> = {
+const languageExtensions: Record<SupportedLanguage, ReturnType<typeof javascript>> = {
   javascript: javascript(),
   json: json(),
   python: python(),

@@ -1,6 +1,14 @@
 export { CodeEditorWidget } from './CodeEditorWidget';
-export { CodeMirrorView } from './CodeMirrorView';
-export { CodeEditorPreview } from './CodeEditorPreview';
-export { CodeEditorModal } from './CodeEditorModal';
 export * from './types';
-export * from './utils';
+
+// 从通用组件重新导出，保持向后兼容
+export {
+  CodeMirrorView,
+  CodeEditorPreview,
+  CodeEditorModal,
+  jsonValidator,
+  jsonFormatter,
+  getLanguageDisplayName,
+  countLines,
+  truncateLines,
+} from '../../../CodeEditor';

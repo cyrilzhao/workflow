@@ -21,7 +21,6 @@ export const getLanguageDisplayName = (language: SupportedLanguage): string => {
  * JSON 验证器
  */
 export const jsonValidator = (code: string): string | null => {
-  // 允许空字符串
   if (!code || code.trim() === '') {
     return null;
   }
