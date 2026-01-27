@@ -10,6 +10,8 @@ export interface Variable {
   group?: string;
 }
 
+type InputMode = 'text' | 'expression';
+
 interface ExpressionInputProps {
   value?: string;
   onChange?: (value: string) => void;
@@ -34,6 +36,25 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
   variables = DEFAULT_VARIABLES,
   placeholder = 'Type ${ to select variable...',
 }) => {
+  const [mode, setMode] = useState<InputMode>('text');
+
+  // 表达式模式下，去除外层的 ${ } 用于内部显示
+  const getDisplayValue = (val: string): string => {
+    if (mode === 'expression' && val.startsWith('${') && val.endsWith('}')) {
+      return val.slice(2, -1);
+    }
+    return val;
+  };
+
+  // 表达式模式下，包装用户输入为 ${ }
+  const wrapExpressionValue = (val: string): string => {
+    if (mode === 'expression') {
+      return `\${${val}}`;
+    }
+    return val;
+  };
+
+  const displayValue = getDisplayValue(value);
   const [isOpen, setIsOpen] = useState(false);
   const [cursorPos, setCursorPos] = useState(0);
   const [filteredVars, setFilteredVars] = useState<Variable[]>([]);
@@ -49,22 +70,27 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
 
   // --- Syntax Highlighting Logic ---
   const highlights = useMemo(() => {
-    // Simple regex to find ${ ... } blocks
-    // We split by the regex and keep delimiters to map them back
-    const regex = /(\$\{[^}]+\})/g;
-    const parts = value.split(regex);
+    // 文本模式下不做任何高亮
+    if (mode === 'text') {
+      return <span>{value}</span>;
+    }
 
-    return parts.map((part, index) => {
-      if (regex.test(part)) {
+    // 表达式模式下，检测输入内容是否匹配变量并高亮
+    const variableValues = variables.map(v => v.value.toLowerCase());
+    const tokens = displayValue.split(/(\s+|[+\-*/(),])/);
+
+    return tokens.map((token, index) => {
+      const isVariable = variableValues.includes(token.toLowerCase());
+      if (isVariable) {
         return (
           <span key={index} className="token-variable">
-            {part}
+            {token}
           </span>
         );
       }
-      return <span key={index}>{part}</span>;
+      return <span key={index}>{token}</span>;
     });
-  }, [value]);
+  }, [value, displayValue, mode, variables]);
 
   // --- Helper: Find variable boundaries at cursor position ---
   const findVariableAtCursor = (
@@ -94,114 +120,62 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
       const scrollTop = textareaRef.current.scrollTop;
       const scrollLeft = textareaRef.current.scrollLeft;
 
-      // Calculate scrollbar width
-      const scrollbarWidth = textareaRef.current.offsetWidth - textareaRef.current.clientWidth;
-
       // Use transform to move the backdrop content
       const highlightsDiv = backdropRef.current.querySelector('.highlights') as HTMLElement;
       if (highlightsDiv) {
         highlightsDiv.style.transform = `translate(-${scrollLeft}px, -${scrollTop}px)`;
-
-        // Adjust padding to keep visual consistency when scrollbar appears
-        // Reduce padding-right to compensate for scrollbar width
-        if (scrollbarWidth > 0) {
-          const adjustedPadding = Math.max(8, 30 - scrollbarWidth);
-          textareaRef.current.style.paddingRight = `${adjustedPadding}px`;
-          // highlightsDiv.style.paddingRight = `${adjustedPadding + 10}px`;
-          highlightsDiv.style.paddingRight = '30px';
-
-          // Adjust button position when scrollbar appears
-          if (buttonRef.current) {
-            buttonRef.current.style.right = `${scrollbarWidth}px`;
-          }
-        } else {
-          textareaRef.current.style.paddingRight = '30px';
-          highlightsDiv.style.paddingRight = '30px';
-
-          // Reset button position
-          if (buttonRef.current) {
-            buttonRef.current.style.right = '8px';
-          }
-        }
       }
     }
   }, []);
 
-  // --- Autocomplete Logic ---
-  // Parse the context at cursor to determine what to show
-  const getContextAtCursor = (text: string, cursor: number) => {
-    // Look backwards from cursor for "${"
-    const textBefore = text.slice(0, cursor);
-    const lastOpenBrace = textBefore.lastIndexOf('${');
-    const lastCloseBrace = textBefore.lastIndexOf('}');
-
-    // If we are not inside ${ ... } (open brace found after last close brace)
-    if (lastOpenBrace === -1 || lastOpenBrace < lastCloseBrace) {
-      return null;
-    }
-
-    // Extract the content inside ${ up to cursor
-    const content = textBefore.slice(lastOpenBrace + 2);
-    // Remove leading whitespace
-    return content.trimStart();
-  };
-
   // Filter variables based on current input context
   useEffect(() => {
-    if (!isOpen) return;
-
-    const context = getContextAtCursor(value, cursorPos);
-
-    if (context === null) {
-      // Not inside {{ }}, close popover unless manually opened?
-      // Actually if manually opened (via button), we usually insert {{ first.
-      // But if we just moved cursor out, close it.
+    // 文本模式下不显示变量下拉菜单
+    if (mode === 'text') {
+      setFilteredVars([]);
       setIsOpen(false);
       return;
     }
 
-    // Logic:
-    // 1. If context is empty, show top-level parts (e.g. "Start", "loop", "env")
-    // 2. If context is "Start.", show "data"
-    // 3. If context is "Start.da", show "data" (filter)
+    // 表达式模式下的变量匹配逻辑
+    const inputText = displayValue.trim();
+    if (!inputText) {
+      setFilteredVars([]);
+      setIsOpen(false);
+      return;
+    }
 
-    // Normalize context
-    const searchText = context.trim();
+    // 提取最后一个正在输入的 token（以空格、运算符等分隔）
+    const tokenMatch = inputText.match(/[a-zA-Z_][a-zA-Z0-9_.]*$/);
+    const currentToken = tokenMatch ? tokenMatch[0].toLowerCase() : '';
 
-    // Find all variables that start with searchText (or match parts of it)
-    // We want to suggest the *next segment*.
+    if (!currentToken) {
+      setFilteredVars([]);
+      setIsOpen(false);
+      return;
+    }
 
-    const suggestions = new Map<string, Variable>();
+    // 匹配变量
+    const matchResults: Array<{ variable: Variable; matchLength: number }> = [];
 
     variables.forEach(v => {
-      // Clean variable value just in case (remove {{ }} if present in source, though usually source is raw path)
-      const rawPath = v.value.replace(/^{{|}}$/g, '');
-
-      if (rawPath.startsWith(searchText)) {
-        // Determine the next segment to show
-        // e.g. searchText = "Start.", rawPath = "Start.data.id"
-        // remaining = "data.id"
-        // nextSegment = "data"
-
-        // e.g. searchText = "St", rawPath = "Start.data"
-        // remaining = "Start.data" - we need to complete "Start"
-
-        // Handle exact match case?
-        if (rawPath === searchText) {
-          // Already matched, maybe show nothing or show it to confirm?
-          // Or if it's an object, show dots?
-          // Let's just keep suggesting it.
-        }
-
-        // For this demo, we just filter the flat list of variables by prefix.
-        // True cascading (showing only "data" when "Start." is typed) would require more complex logic.
-        suggestions.set(v.value, v);
+      const varValue = v.value.toLowerCase();
+      if (varValue.startsWith(currentToken)) {
+        matchResults.push({ variable: v, matchLength: currentToken.length });
       }
     });
 
-    setFilteredVars(Array.from(suggestions.values()));
+    // 按匹配长度降序排序
+    matchResults.sort((a, b) => b.matchLength - a.matchLength);
+
+    const suggestions = matchResults.map(r => r.variable);
+    setFilteredVars(suggestions);
     setActiveVarIndex(0);
-  }, [value, cursorPos, isOpen, variables]);
+
+    // 如果当前 token 完全匹配了某个变量，不显示下拉菜单
+    const hasExactMatch = suggestions.some(v => v.value.toLowerCase() === currentToken);
+    setIsOpen(suggestions.length > 0 && !hasExactMatch);
+  }, [mode, displayValue, variables]);
 
   // Sync scrollbar width when value changes
   useEffect(() => {
@@ -278,8 +252,16 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
     const newPos = e.target.selectionStart;
-    onChange?.(newValue);
     setCursorPos(newPos);
+
+    // 表达式模式下，自动包装为 ${ }
+    if (mode === 'expression') {
+      onChange?.(wrapExpressionValue(newValue));
+      return;
+    }
+
+    // 文本模式下的原有逻辑
+    onChange?.(newValue);
 
     // Auto-open triggers
     const charBefore = newValue.slice(newPos - 1, newPos);
@@ -291,54 +273,39 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
     }
   };
 
-  const insertVariable = (variableValue: string) => {
-    const rawVar = variableValue.replace(/^\$\{|\}$/g, '');
-    const context = getContextAtCursor(value, cursorPos) || '';
+  const insertVariable = (variable: Variable) => {
+    // 表达式模式下，替换当前正在输入的 token
+    if (mode === 'expression') {
+      const inputText = displayValue;
+      const tokenMatch = inputText.match(/[a-zA-Z_][a-zA-Z0-9_.]*$/);
+      const tokenStart = tokenMatch ? inputText.length - tokenMatch[0].length : inputText.length;
 
-    // We want to replace the current "context" (what user typed) with the selected variable
-    // value = "Hello ${St|}" (cursor at |)
-    // context = "St"
-    // variable = "Start.data"
-    // Result should be "Hello ${Start.data}"
+      const newValue = inputText.slice(0, tokenStart) + variable.value;
+      onChange?.(wrapExpressionValue(newValue));
+      setIsOpen(false);
 
-    const textBefore = value.slice(0, cursorPos);
-    const textAfter = value.slice(cursorPos);
-
-    // Find where context started
-    const contextStart = textBefore.lastIndexOf(context);
-    const prefix = textBefore.slice(0, contextStart);
-
-    // If context was empty, we just append.
-    // If context was "Start.", we replace "Start." with "Start.data"?
-    // Wait, if I select "Start.data", I want the full thing.
-
-    // Handle duplicate closing braces
-    let finalAfter = textAfter;
-    if (textAfter.trim().startsWith('}')) {
-      // Remove existing closing brace to avoid duplication
-      finalAfter = textAfter.trim().replace(/^\}/, '');
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+          const newCursor = newValue.length;
+          textareaRef.current.setSelectionRange(newCursor, newCursor);
+        }
+      }, 0);
+      return;
     }
-
-    const newText = prefix + rawVar + '}' + finalAfter;
-
-    onChange?.(newText);
-    setIsOpen(false);
-
-    // Restore focus
-    setTimeout(() => {
-      if (textareaRef.current) {
-        textareaRef.current.focus();
-        const newCursor = prefix.length + rawVar.length + 1; // +1 for }
-        textareaRef.current.setSelectionRange(newCursor, newCursor);
-      }
-    }, 0);
   };
 
   const handleClick = (e: React.MouseEvent<HTMLTextAreaElement>) => {
     const textarea = e.currentTarget;
     const clickPos = textarea.selectionStart;
 
-    // Check if click is inside a variable
+    // 表达式模式下不需要变量原子性操作
+    if (mode === 'expression') {
+      setCursorPos(clickPos);
+      return;
+    }
+
+    // 文本模式下检查是否点击在变量内部
     const variable = findVariableAtCursor(value, clickPos);
 
     if (variable && clickPos > variable.start && clickPos < variable.end) {
@@ -373,7 +340,7 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
       } else if (e.key === 'Enter') {
         e.preventDefault();
         if (filteredVars[activeVarIndex]) {
-          insertVariable(filteredVars[activeVarIndex].value);
+          insertVariable(filteredVars[activeVarIndex]);
         }
         return;
       } else if (e.key === 'Escape') {
@@ -382,7 +349,12 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
       }
     }
 
-    // Handle variable navigation and deletion
+    // 表达式模式下不需要变量原子性操作，直接返回
+    if (mode === 'expression') {
+      return;
+    }
+
+    // 文本模式下的变量导航和删除逻辑
     const variable = findVariableAtCursor(value, currentPos);
 
     if (variable) {
@@ -432,9 +404,31 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
     }
   };
 
+  // 切换模式时处理值的转换
+  const handleModeToggle = () => {
+    if (mode === 'text') {
+      // 切换到表达式模式，将当前内容包装为 ${}
+      setMode('expression');
+      if (!value.startsWith('${') || !value.endsWith('}')) {
+        onChange?.(`\${${value}}`);
+      }
+    } else {
+      // 切换到文本模式，去除外层的 ${}
+      setMode('text');
+      if (value.startsWith('${') && value.endsWith('}')) {
+        onChange?.(value.slice(2, -1));
+      }
+    }
+    textareaRef.current?.focus();
+  };
+
   return (
-    <div className="expression-input-container" ref={containerRef}>
+    <div
+      className={`expression-input-container ${mode === 'expression' ? 'expression-mode' : ''}`}
+      ref={containerRef}
+    >
       <div className="editor-wrapper">
+        {mode === 'expression' && <span className="expression-decorator left">{'${'}</span>}
         <div className="backdrop" ref={backdropRef}>
           <div className="highlights">
             {highlights}
@@ -445,36 +439,26 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
         <textarea
           ref={textareaRef}
           className="expression-textarea"
-          value={value}
+          value={mode === 'expression' ? displayValue : value}
           onChange={handleInputChange}
           onScroll={handleScroll}
           onClick={handleClick}
           onKeyUp={e => setCursorPos(e.currentTarget.selectionStart)}
           onKeyDown={handleKeyDown}
-          placeholder={placeholder}
+          placeholder={mode === 'expression' ? 'Enter variable name...' : placeholder}
           spellCheck={false}
         />
-        <button
-          ref={buttonRef}
-          className="variable-trigger-btn"
-          onClick={() => {
-            // Insert ${ at cursor and open
-            const textBefore = value.slice(0, cursorPos);
-            const textAfter = value.slice(cursorPos);
-            onChange?.(textBefore + '${' + textAfter);
-            setTimeout(() => {
-              textareaRef.current?.focus();
-              setCursorPos(cursorPos + 2);
-              textareaRef.current?.setSelectionRange(cursorPos + 2, cursorPos + 2);
-              setIsOpen(true);
-            }, 0);
-          }}
-          title="Insert Variable"
-          type="button"
-        >
-          <Braces size={14} />
-        </button>
+        {mode === 'expression' && <span className="expression-decorator right">{'}'}</span>}
       </div>
+      <button
+        ref={buttonRef}
+        className={`variable-trigger-btn ${mode === 'expression' ? 'active' : ''}`}
+        onClick={handleModeToggle}
+        title={mode === 'expression' ? 'Switch to Text Mode' : 'Switch to Expression Mode'}
+        type="button"
+      >
+        <Braces size={12} />
+      </button>
 
       {isOpen &&
         filteredVars.length > 0 &&
@@ -494,7 +478,7 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
                 <div
                   key={v.value}
                   className={`variable-item ${idx === activeVarIndex ? 'active' : ''}`}
-                  onClick={() => insertVariable(v.value)}
+                  onClick={() => insertVariable(v)}
                   onMouseEnter={() => setActiveVarIndex(idx)}
                 >
                   <div style={{ display: 'flex', flexDirection: 'column' }}>

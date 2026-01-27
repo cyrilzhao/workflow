@@ -1,13 +1,16 @@
 .expression-input-container {
   position: relative;
   width: 100%;
-  font-family: monospace; // Ensure generic monospace font for alignment
+  font-family: monospace;
   font-size: 13px;
   line-height: 1.5;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
 
   .editor-wrapper {
     position: relative;
-    width: 100%;
+    flex: 1;
     min-height: 38px;
     background: white;
     border: 1px solid #d1d5db;
@@ -23,11 +26,55 @@
     }
   }
 
+  // 表达式模式下的装饰器样式
+  .expression-decorator {
+    position: absolute;
+    color: #7c3aed;
+    font-weight: 600;
+    font-size: 13px;
+    z-index: 3;
+    pointer-events: none;
+    user-select: none;
+
+    &.left {
+      top: 8px;
+      left: 8px;
+    }
+
+    &.right {
+      bottom: 10px;
+      right: 8px;
+    }
+  }
+
+  // 表达式模式特殊样式
+  &.expression-mode {
+    .editor-wrapper {
+      border-color: #7c3aed;
+      background: rgba(124, 58, 237, 0.02);
+
+      &:focus-within {
+        border-color: #7c3aed;
+        box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
+      }
+    }
+
+    .expression-textarea {
+      padding-left: 28px;
+      padding-right: 20px;
+    }
+
+    .highlights {
+      padding-left: 28px;
+      padding-right: 20px;
+    }
+  }
+
   // Common styles for both textarea and highlights
   .editor-content {
     width: 100%;
     min-height: 38px;
-    padding: 8px 30px 8px 12px; // Right padding for trigger button
+    padding: 8px 12px;
     font-family: inherit;
     font-size: inherit;
     line-height: inherit;
@@ -64,7 +111,7 @@
     // Must match textarea styles exactly for perfect alignment
     width: 100%;
     min-height: 38px;
-    padding: 8px 30px 8px 12px;
+    padding: 8px 12px;
     font-family: inherit;
     font-size: inherit;
     line-height: inherit;
@@ -73,8 +120,7 @@
     box-sizing: border-box;
     margin: 0;
     border: none;
-    // color: transparent; // Base text transparent
-    color: black; // Base text transparent
+    color: black;
 
     .token-variable {
       color: #7c3aed; // violet-600
@@ -106,23 +152,35 @@
   }
 
   .variable-trigger-btn {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    z-index: 10;
-    background: none;
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    // margin-top: 3px;
     border: none;
-    color: #9ca3af;
+    background: #fff;
+    // border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    color: #6b7280;
     cursor: pointer;
-    padding: 2px;
-    border-radius: 4px;
     display: flex;
     align-items: center;
     justify-content: center;
+    transition: all 0.2s;
 
     &:hover {
-      background-color: #f3f4f6;
-      color: #3b82f6;
+      background-color: #f9fafb;
+      border-color: #d1d5db;
+      color: #374151;
+    }
+
+    &.active {
+      background-color: #f5f3ff;
+      border-color: #7c3aed;
+      color: #7c3aed;
+
+      &:hover {
+        background-color: #ede9fe;
+      }
     }
   }
 }
