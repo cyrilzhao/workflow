@@ -3,6 +3,7 @@ import { DynamicForm } from '@/components/DynamicForm';
 import type { ExtendedJSONSchema } from '@/components/DynamicForm/types/schema';
 import { Card } from '@blueprintjs/core';
 import { CodeEditorWidget } from '@/components/DynamicForm/widgets/CodeEditorWidget';
+import { ObjectEditorWidget } from '@/components/DynamicForm/widgets/ObjectEditorWidget';
 
 export const BasicFormPanel: React.FC = () => {
   const schema: ExtendedJSONSchema = {
@@ -125,6 +126,19 @@ export const BasicFormPanel: React.FC = () => {
           },
         },
       },
+      metadata: {
+        type: 'object',
+        title: '元数据 (Object)',
+        ui: {
+          widget: 'object-editor',
+          widgetProps: {
+            config: {
+              previewLines: 5,
+              previewMaxHeight: 150,
+            },
+          },
+        },
+      },
       receiveNewsletter: {
         type: 'boolean',
         title: '订阅新闻邮件',
@@ -162,6 +176,7 @@ export const BasicFormPanel: React.FC = () => {
         customFormats={customFormats}
         widgets={{
           'code-editor': CodeEditorWidget,
+          'object-editor': ObjectEditorWidget,
         }}
       />
     </Card>
