@@ -57,6 +57,7 @@
 #### 2.1.1 预览态（Preview Mode）
 
 **特点：**
+
 - 紧凑显示，节省空间
 - 显示代码的前几行（默认 3-5 行）
 - 语法高亮（只读）
@@ -78,6 +79,7 @@
 ```
 
 **实现要点：**
+
 - 使用 `max-height` 限制高度（如 120px）
 - 添加渐变遮罩效果，提示内容被截断
 - 点击任意位置或「Edit」按钮进入编辑态
@@ -85,6 +87,7 @@
 #### 2.1.2 编辑态（Edit Mode）
 
 **特点：**
+
 - 使用 React Portal 挂载到 `document.body`
 - 全屏模态展示，充分利用屏幕空间
 - 半透明遮罩层，突出编辑器
@@ -120,6 +123,7 @@
 ```
 
 **实现要点：**
+
 - 使用 `ReactDOM.createPortal` 挂载到 `document.body`
 - 编辑器容器宽度：`calc(100vw - 80px)`，高度：`calc(100vh - 80px)`
 - 遮罩层背景：`rgba(0, 0, 0, 0.5)`
@@ -185,6 +189,7 @@ CodeEditorWidget (主组件)
 #### 3.2.1 CodeEditorWidget
 
 **职责：**
+
 - 实现 `FieldWidgetProps` 接口
 - 管理预览态和编辑态的切换
 - 处理表单值的读写
@@ -330,6 +335,7 @@ CodeEditorWidget.displayName = 'CodeEditorWidget';
 #### 3.2.2 CodeEditorPreview
 
 **职责：**
+
 - 渲染预览态界面
 - 显示代码的前几行
 - 提供进入编辑态的交互
@@ -385,6 +391,7 @@ export const CodeEditorPreview: React.FC<CodeEditorPreviewProps> = ({
 #### 3.2.3 CodeEditorModal
 
 **职责：**
+
 - 使用 Portal 渲染全屏模态编辑器
 - 处理代码编辑和保存/取消逻辑
 - 管理键盘事件（ESC 关闭）
@@ -489,6 +496,7 @@ export const CodeEditorModal: React.FC<CodeEditorModalProps> = ({
 #### 3.2.4 CodeMirrorView
 
 **职责：**
+
 - 封装 CodeMirror 6 的核心功能
 - 处理语言支持和扩展加载
 - 管理编辑器实例的生命周期
@@ -608,7 +616,6 @@ const customWidgets = {
 - `html`
 - `css`
 
-
 ---
 
 ## 5. 高级特性
@@ -691,7 +698,6 @@ const extensions = [
 ];
 ```
 
-
 ---
 
 ## 6. 样式设计
@@ -738,7 +744,6 @@ const extensions = [
 
 .preview-content {
   position: relative;
-  max-height: 120px;
   overflow: hidden;
 }
 
@@ -784,8 +789,9 @@ const extensions = [
 .code-editor-modal-container {
   background: white;
   border-radius: 8px;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
-              0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  box-shadow:
+    0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -825,7 +831,6 @@ const extensions = [
   min-height: 0;
 }
 ```
-
 
 ---
 
@@ -929,7 +934,6 @@ const schema = {
 };
 ```
 
-
 ---
 
 ## 8. 实现计划
@@ -939,6 +943,7 @@ const schema = {
 **目标：** 实现基本的代码编辑器 Widget
 
 **任务：**
+
 1. 安装 CodeMirror 6 依赖包
 2. 创建 `CodeMirrorView` 组件，封装 CodeMirror 核心功能
 3. 实现 `CodeEditorWidget` 主组件
@@ -947,6 +952,7 @@ const schema = {
 6. 集成到 DynamicForm 的 widget 体系
 
 **验收标准：**
+
 - 能够在表单中正常显示和编辑代码
 - 支持语法高亮
 - 预览态和编辑态切换流畅
@@ -957,6 +963,7 @@ const schema = {
 **目标：** 优化用户体验
 
 **任务：**
+
 1. 实现预览态的渐变遮罩效果
 2. 实现编辑器高度调整功能（ResizeHandle）
 3. 添加语言标签和行数统计
@@ -965,6 +972,7 @@ const schema = {
 6. 实现 disabled 和 readonly 状态
 
 **验收标准：**
+
 - 预览态显示美观，有明确的「展开」提示
 - 编辑器高度可拖拽调整
 - 状态切换有平滑动画
@@ -975,6 +983,7 @@ const schema = {
 **目标：** 增强编辑器功能
 
 **任务：**
+
 1. 支持更多语言（Python、SQL、YAML 等）
 2. 实现代码验证功能
 3. 实现代码格式化功能
@@ -983,6 +992,7 @@ const schema = {
 6. 添加搜索和替换功能
 
 **验收标准：**
+
 - 支持至少 6 种编程语言
 - 验证器能实时检查代码错误
 - 格式化功能正常工作
@@ -993,6 +1003,7 @@ const schema = {
 **目标：** 确保稳定性和性能
 
 **任务：**
+
 1. 优化大文件编辑性能
 2. 添加单元测试
 3. 添加集成测试
@@ -1000,10 +1011,10 @@ const schema = {
 5. 性能测试和优化
 
 **验收标准：**
+
 - 能流畅编辑 1000+ 行代码
 - 测试覆盖率 > 80%
 - 文档完整清晰
-
 
 ---
 
@@ -1014,6 +1025,7 @@ const schema = {
 **问题：** CodeMirror 实例需要手动创建和销毁，与 React 的生命周期不匹配。
 
 **解决方案：**
+
 - 使用 `useRef` 保存编辑器实例
 - 在 `useEffect` 中创建实例，返回清理函数销毁实例
 - 使用 `useEffect` 依赖项控制重新创建时机
@@ -1023,6 +1035,7 @@ const schema = {
 **问题：** 表单值更新时，需要同步到 CodeMirror 编辑器。
 
 **解决方案：**
+
 - 监听 `value` prop 的变化
 - 使用 `dispatch` 方法更新编辑器内容
 - 避免循环更新（检查值是否真的改变）
@@ -1032,6 +1045,7 @@ const schema = {
 **问题：** 大文件编辑可能导致性能问题。
 
 **解决方案：**
+
 - 利用 CodeMirror 6 的虚拟滚动特性
 - 按需加载语言支持包
 - 使用 `useMemo` 缓存扩展配置
@@ -1042,10 +1056,10 @@ const schema = {
 **问题：** 如何优雅地显示代码的前几行。
 
 **解决方案：**
+
 - 使用 `max-height` + `overflow: hidden` 限制高度
 - 添加渐变遮罩提示内容被截断
 - 保持语法高亮（使用只读的 CodeMirror 实例）
-
 
 ---
 
@@ -1100,7 +1114,6 @@ const getLanguageFromSchema = (schema: ExtendedJSONSchema): string => {
 }
 ```
 
-
 ---
 
 ## 11. 文件结构
@@ -1124,41 +1137,39 @@ src/components/DynamicForm/
 │   └── index.ts                        # 导出所有 widgets
 ```
 
-
 ---
 
 ## 12. API 参考
 
 ### 12.1 CodeEditorWidget Props
 
-| 属性 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `name` | `string` | - | 字段名称（必需） |
-| `value` | `string` | `''` | 代码内容 |
-| `onChange` | `(value: string) => void` | - | 值变化回调 |
-| `onBlur` | `() => void` | - | 失去焦点回调 |
-| `language` | `string` | `'javascript'` | 编程语言 |
-| `config` | `CodeEditorConfig` | `{}` | 编辑器配置 |
-| `theme` | `'light' \| 'dark'` | `'light'` | 主题 |
-| `disabled` | `boolean` | `false` | 是否禁用 |
-| `readonly` | `boolean` | `false` | 是否只读 |
-| `error` | `string` | - | 错误信息 |
-| `validator` | `(code: string) => string \| null` | - | 验证器 |
-| `formatter` | `(code: string) => string` | - | 格式化器 |
+| 属性        | 类型                               | 默认值         | 说明             |
+| ----------- | ---------------------------------- | -------------- | ---------------- |
+| `name`      | `string`                           | -              | 字段名称（必需） |
+| `value`     | `string`                           | `''`           | 代码内容         |
+| `onChange`  | `(value: string) => void`          | -              | 值变化回调       |
+| `onBlur`    | `() => void`                       | -              | 失去焦点回调     |
+| `language`  | `string`                           | `'javascript'` | 编程语言         |
+| `config`    | `CodeEditorConfig`                 | `{}`           | 编辑器配置       |
+| `theme`     | `'light' \| 'dark'`                | `'light'`      | 主题             |
+| `disabled`  | `boolean`                          | `false`        | 是否禁用         |
+| `readonly`  | `boolean`                          | `false`        | 是否只读         |
+| `error`     | `string`                           | -              | 错误信息         |
+| `validator` | `(code: string) => string \| null` | -              | 验证器           |
+| `formatter` | `(code: string) => string`         | -              | 格式化器         |
 
 ### 12.2 CodeEditorConfig
 
-| 属性 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `initialMode` | `'preview' \| 'edit'` | `'preview'` | 初始模式 |
-| `previewLines` | `number` | `3` | 预览行数 |
-| `previewMaxHeight` | `number` | `120` | 预览最大高度（px） |
-| `modalPadding` | `number` | `40` | 模态边距（编辑器距离屏幕边缘的距离，px） |
-| `backdropOpacity` | `number` | `0.5` | 遮罩层透明度（0-1） |
-| `closeOnEscape` | `boolean` | `true` | 按 ESC 键关闭模态 |
-| `closeOnBackdropClick` | `boolean` | `true` | 点击遮罩层关闭模态 |
-| `closeOnBlur` | `boolean` | `false` | 失去焦点时关闭模态 |
-
+| 属性                   | 类型                  | 默认值      | 说明                                     |
+| ---------------------- | --------------------- | ----------- | ---------------------------------------- |
+| `initialMode`          | `'preview' \| 'edit'` | `'preview'` | 初始模式                                 |
+| `previewLines`         | `number`              | `3`         | 预览行数                                 |
+| `previewMaxHeight`     | `number`              | `120`       | 预览最大高度（px）                       |
+| `modalPadding`         | `number`              | `40`        | 模态边距（编辑器距离屏幕边缘的距离，px） |
+| `backdropOpacity`      | `number`              | `0.5`       | 遮罩层透明度（0-1）                      |
+| `closeOnEscape`        | `boolean`             | `true`      | 按 ESC 键关闭模态                        |
+| `closeOnBackdropClick` | `boolean`             | `true`      | 点击遮罩层关闭模态                       |
+| `closeOnBlur`          | `boolean`             | `false`     | 失去焦点时关闭模态                       |
 
 ---
 
@@ -1197,4 +1208,3 @@ src/components/DynamicForm/
 **文档版本**：v1.0  
 **创建日期**：2026-01-09  
 **作者**：项目团队
-

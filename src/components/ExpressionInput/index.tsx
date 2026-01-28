@@ -56,7 +56,6 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
 
   const displayValue = getDisplayValue(value);
   const [isOpen, setIsOpen] = useState(false);
-  const [cursorPos, setCursorPos] = useState(0);
   const [filteredVars, setFilteredVars] = useState<Variable[]>([]);
   const [activeVarIndex, setActiveVarIndex] = useState(0);
   const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0 });
@@ -91,28 +90,6 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
       return <span key={index}>{token}</span>;
     });
   }, [value, displayValue, mode, variables]);
-
-  // --- Helper: Find variable boundaries at cursor position ---
-  const findVariableAtCursor = (
-    text: string,
-    cursor: number
-  ): { start: number; end: number } | null => {
-    // Find all variables in the text
-    const regex = /\$\{[^}]+\}/g;
-    let match;
-
-    while ((match = regex.exec(text)) !== null) {
-      const start = match.index;
-      const end = start + match[0].length;
-
-      // Check if cursor is at the boundaries or inside the variable
-      if (cursor >= start && cursor <= end) {
-        return { start, end };
-      }
-    }
-
-    return null;
-  };
 
   // --- Scroll Sync ---
   const handleScroll = useCallback(() => {
@@ -251,8 +228,6 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
-    const newPos = e.target.selectionStart;
-    setCursorPos(newPos);
 
     // 表达式模式下，自动包装为 ${ }
     if (mode === 'expression') {
@@ -260,17 +235,8 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
       return;
     }
 
-    // 文本模式下的原有逻辑
+    // 文本模式下直接传递值
     onChange?.(newValue);
-
-    // Auto-open triggers
-    const charBefore = newValue.slice(newPos - 1, newPos);
-    const twoCharsBefore = newValue.slice(newPos - 2, newPos);
-
-    // Trigger on "${" or "." (if inside braces)
-    if (twoCharsBefore === '${' || charBefore === '.') {
-      setIsOpen(true);
-    }
   };
 
   const insertVariable = (variable: Variable) => {
@@ -295,34 +261,7 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
     }
   };
 
-  const handleClick = (e: React.MouseEvent<HTMLTextAreaElement>) => {
-    const textarea = e.currentTarget;
-    const clickPos = textarea.selectionStart;
-
-    // 表达式模式下不需要变量原子性操作
-    if (mode === 'expression') {
-      setCursorPos(clickPos);
-      return;
-    }
-
-    // 文本模式下检查是否点击在变量内部
-    const variable = findVariableAtCursor(value, clickPos);
-
-    if (variable && clickPos > variable.start && clickPos < variable.end) {
-      // Click is inside variable, move cursor to the right edge
-      setTimeout(() => {
-        textarea.setSelectionRange(variable.end, variable.end);
-        setCursorPos(variable.end);
-      }, 0);
-    } else {
-      setCursorPos(clickPos);
-    }
-  };
-
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    const textarea = e.currentTarget as HTMLTextAreaElement;
-    const currentPos = textarea.selectionStart;
-
     // Handle autocomplete popover navigation
     if (isOpen) {
       if (e.key === 'ArrowDown') {
@@ -345,60 +284,6 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
         return;
       } else if (e.key === 'Escape') {
         setIsOpen(false);
-        return;
-      }
-    }
-
-    // 表达式模式下不需要变量原子性操作，直接返回
-    if (mode === 'expression') {
-      return;
-    }
-
-    // 文本模式下的变量导航和删除逻辑
-    const variable = findVariableAtCursor(value, currentPos);
-
-    if (variable) {
-      // ArrowLeft: Jump to the left of the variable
-      if (e.key === 'ArrowLeft' && currentPos > variable.start && currentPos <= variable.end) {
-        e.preventDefault();
-        setTimeout(() => {
-          textarea.setSelectionRange(variable.start, variable.start);
-          setCursorPos(variable.start);
-        }, 0);
-        return;
-      }
-
-      // ArrowRight: Jump to the right of the variable
-      if (e.key === 'ArrowRight' && currentPos >= variable.start && currentPos < variable.end) {
-        e.preventDefault();
-        setTimeout(() => {
-          textarea.setSelectionRange(variable.end, variable.end);
-          setCursorPos(variable.end);
-        }, 0);
-        return;
-      }
-
-      // Backspace: Delete entire variable when cursor is at the right edge
-      if (e.key === 'Backspace' && currentPos === variable.end) {
-        e.preventDefault();
-        const newValue = value.slice(0, variable.start) + value.slice(variable.end);
-        onChange?.(newValue);
-        setTimeout(() => {
-          textarea.setSelectionRange(variable.start, variable.start);
-          setCursorPos(variable.start);
-        }, 0);
-        return;
-      }
-
-      // Delete: Delete entire variable when cursor is at the left edge
-      if (e.key === 'Delete' && currentPos === variable.start) {
-        e.preventDefault();
-        const newValue = value.slice(0, variable.start) + value.slice(variable.end);
-        onChange?.(newValue);
-        setTimeout(() => {
-          textarea.setSelectionRange(variable.start, variable.start);
-          setCursorPos(variable.start);
-        }, 0);
         return;
       }
     }
@@ -442,8 +327,6 @@ export const ExpressionInput: React.FC<ExpressionInputProps> = ({
           value={mode === 'expression' ? displayValue : value}
           onChange={handleInputChange}
           onScroll={handleScroll}
-          onClick={handleClick}
-          onKeyUp={e => setCursorPos(e.currentTarget.selectionStart)}
           onKeyDown={handleKeyDown}
           placeholder={mode === 'expression' ? 'Enter variable name...' : placeholder}
           spellCheck={false}

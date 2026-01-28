@@ -82,7 +82,6 @@
 /* 预览内容区 */
 .preview-content {
   position: relative;
-  max-height: 120px;
   overflow: hidden;
 }
 

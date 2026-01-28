@@ -5,6 +5,7 @@ import type { DynamicFormRef } from '@/components/DynamicForm/types';
 import { SchemaValidator } from '@/components/DynamicForm/core/SchemaValidator';
 import { X, Settings, Sliders, ArrowRightLeft, Play, AlertCircle, Loader2 } from 'lucide-react';
 import './NodeConfigModal.scss';
+import type { ExtendedJSONSchema } from '../DynamicForm/types/schema';
 
 interface NodeConfigModalProps {
   isOpen: boolean;
@@ -175,7 +176,7 @@ export const NodeConfigModal: React.FC<NodeConfigModalProps> = ({
   };
 
   // Output tab schema 定义
-  const outputSchema = {
+  const outputSchema: ExtendedJSONSchema = {
     type: 'object',
     properties: {
       outputMappings: {
@@ -214,6 +215,8 @@ export const NodeConfigModal: React.FC<NodeConfigModalProps> = ({
   }, []);
 
   if (!isOpen || !node) return null;
+
+  console.info('cyril schema?.inputSchema: ', schema?.inputSchema);
 
   return (
     <div className="node-config-modal-overlay">

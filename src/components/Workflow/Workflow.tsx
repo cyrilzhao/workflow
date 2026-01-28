@@ -549,6 +549,14 @@ const WorkflowContent: React.FC<WorkflowProps> = ({
     }
   };
 
+  console.info('cyril nodeConfigSchemas: ', nodeConfigSchemas);
+  console.info('cyril selectedNode: ', selectedNode);
+  console.info('cyril selectedNode?.type: ', selectedNode?.type);
+  console.info(
+    "cyril nodeConfigSchemas[selectedNode.type || '']: ",
+    nodeConfigSchemas[selectedNode?.type || '']
+  );
+
   return (
     <div
       className="workflow-container"
