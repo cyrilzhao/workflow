@@ -499,6 +499,186 @@ A specialized widget for displaying object arrays in table format, with virtual 
 }
 ```
 
+#### Code Editor Widget
+
+A code editor widget with syntax highlighting, powered by CodeMirror 6. Ideal for editing code snippets, JSON configurations, scripts, etc.
+
+**Features:**
+- Syntax highlighting for multiple languages
+- Preview mode with expandable full-screen editor
+- Built-in JSON validation and formatting
+- Customizable preview height and modal size
+
+**Supported Languages:** `javascript`, `json`, `python`, `sql`, `yaml`, `markdown`, `html`, `css`
+
+**Basic Configuration:**
+
+```typescript
+{
+  type: 'string',
+  title: 'Configuration (JSON)',
+  ui: {
+    widget: 'code-editor',
+    widgetProps: {
+      language: 'json',
+      config: {
+        previewLines: 5,
+        previewMaxHeight: 150,
+      },
+    },
+  },
+}
+```
+
+**JavaScript Example:**
+
+```typescript
+{
+  type: 'string',
+  title: 'Auth Script',
+  ui: {
+    widget: 'code-editor',
+    widgetProps: {
+      language: 'javascript',
+      config: {
+        previewLines: 5,
+        previewMaxHeight: 150,
+        modalPadding: 40,
+      },
+    },
+  },
+}
+```
+
+**Widget Props:**
+
+| Property    | Type               | Default        | Description                          |
+| ----------- | ------------------ | -------------- | ------------------------------------ |
+| `language`  | `SupportedLanguage`| `'javascript'` | Programming language for highlighting |
+| `theme`     | `'light' \| 'dark'`| `'light'`      | Editor theme                         |
+| `config`    | `CodeEditorConfig` | `{}`           | Editor configuration                 |
+| `validator` | `(code: string) => string \| null` | - | Custom validator function |
+| `formatter` | `(code: string) => string` | -       | Custom formatter function            |
+
+**Config Options:**
+
+| Property              | Type      | Default | Description                              |
+| --------------------- | --------- | ------- | ---------------------------------------- |
+| `initialMode`         | `'preview' \| 'edit'` | `'preview'` | Initial display mode       |
+| `previewLines`        | `number`  | `3`     | Number of lines shown in preview         |
+| `previewMaxHeight`    | `number`  | `120`   | Max height of preview area (px)          |
+| `modalPadding`        | `number`  | `40`    | Modal margin from screen edges (px)      |
+| `backdropOpacity`     | `number`  | `0.5`   | Modal backdrop opacity (0-1)             |
+| `closeOnEscape`       | `boolean` | `true`  | Close modal on ESC key                   |
+| `closeOnBackdropClick`| `boolean` | `true`  | Close modal on backdrop click            |
+
+**Registration:**
+
+```typescript
+import { CodeEditorWidget } from '@/components/DynamicForm/widgets/CodeEditorWidget';
+
+<DynamicForm
+  schema={schema}
+  widgets={{
+    'code-editor': CodeEditorWidget,
+  }}
+  onSubmit={handleSubmit}
+/>
+```
+
+#### Object Editor Widget
+
+A specialized widget for editing JSON objects. Based on CodeEditor, it automatically handles conversion between JSON strings and JavaScript objects.
+
+**Features:**
+- Edit objects as formatted JSON
+- Automatic JSON validation
+- Converts JSON string to object on change
+- Converts object to JSON string for display
+
+**Configuration:**
+
+```typescript
+{
+  type: 'object',
+  title: 'Metadata',
+  ui: {
+    widget: 'object-editor',
+    widgetProps: {
+      config: {
+        previewLines: 5,
+        previewMaxHeight: 150,
+      },
+      indent: 2,  // JSON indentation spaces
+    },
+  },
+}
+```
+
+**Widget Props:**
+
+| Property | Type               | Default   | Description                    |
+| -------- | ------------------ | --------- | ------------------------------ |
+| `config` | `CodeEditorConfig` | `{}`      | Editor configuration (same as CodeEditor) |
+| `theme`  | `'light' \| 'dark'`| `'light'` | Editor theme                   |
+| `indent` | `number`           | `2`       | JSON indentation spaces        |
+
+**Data Flow:**
+
+- **Input**: Receives `object` from form → Converts to JSON string → Displays in editor
+- **Output**: User edits JSON → Parses to object → Passes to form's `onChange`
+
+**Registration:**
+
+```typescript
+import { ObjectEditorWidget } from '@/components/DynamicForm/widgets/ObjectEditorWidget';
+
+<DynamicForm
+  schema={schema}
+  widgets={{
+    'object-editor': ObjectEditorWidget,
+  }}
+  onSubmit={handleSubmit}
+/>
+```
+
+**Complete Example:**
+
+```typescript
+import { CodeEditorWidget } from '@/components/DynamicForm/widgets/CodeEditorWidget';
+import { ObjectEditorWidget } from '@/components/DynamicForm/widgets/ObjectEditorWidget';
+
+const schema = {
+  type: 'object',
+  properties: {
+    script: {
+      type: 'string',
+      title: 'Script',
+      ui: {
+        widget: 'code-editor',
+        widgetProps: { language: 'javascript' },
+      },
+    },
+    metadata: {
+      type: 'object',
+      title: 'Metadata',
+      ui: {
+        widget: 'object-editor',
+      },
+    },
+  },
+};
+
+<DynamicForm
+  schema={schema}
+  widgets={{
+    'code-editor': CodeEditorWidget,
+    'object-editor': ObjectEditorWidget,
+  }}
+  onSubmit={handleSubmit}
+/>
+```
+
 ### UI Extensions
 
 The `ui` field provides extensive customization options:
@@ -529,20 +709,22 @@ The `ui` field provides extensive customization options:
 
 #### Supported Widget Types
 
-| Widget        | Field Type          | Description            |
-| ------------- | ------------------- | ---------------------- |
-| `text`        | string              | Single-line text input |
-| `textarea`    | string              | Multi-line text input  |
-| `password`    | string              | Password input         |
-| `email`       | string              | Email input            |
-| `number`      | number/integer      | Number input           |
-| `select`      | string/number/array | Dropdown select        |
-| `radio`       | string/number       | Radio buttons          |
-| `checkboxes`  | array               | Multiple checkboxes    |
-| `checkbox`    | boolean             | Single checkbox        |
-| `switch`      | boolean             | Toggle switch          |
-| `date`        | string              | Date picker            |
-| `nested-form` | object/array        | Nested form            |
+| Widget          | Field Type          | Description                    |
+| --------------- | ------------------- | ------------------------------ |
+| `text`          | string              | Single-line text input         |
+| `textarea`      | string              | Multi-line text input          |
+| `password`      | string              | Password input                 |
+| `email`         | string              | Email input                    |
+| `number`        | number/integer      | Number input                   |
+| `select`        | string/number/array | Dropdown select                |
+| `radio`         | string/number       | Radio buttons                  |
+| `checkboxes`    | array               | Multiple checkboxes            |
+| `checkbox`      | boolean             | Single checkbox                |
+| `switch`        | boolean             | Toggle switch                  |
+| `date`          | string              | Date picker                    |
+| `nested-form`   | object/array        | Nested form                    |
+| `code-editor`   | string              | Code editor with syntax highlight |
+| `object-editor` | object              | JSON object editor             |
 
 ### Validation Rules
 
